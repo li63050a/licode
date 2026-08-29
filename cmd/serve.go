@@ -50,8 +50,9 @@ func NewServeCommand() *cobra.Command { return newServeCmd() }
 func newServeCmd() *cobra.Command {
 	opts := &ServeOptions{}
 	c := &cobra.Command{
-		Use:   "serve",
-		Short: "启动 Web 服务器（浏览器直接使用）",
+		Use:     "web",
+		Aliases: []string{"serve"},
+		Short:   "启动 Web 服务器（浏览器直接使用）",
 		Long: `启动 licode 的 Web 服务器。
 
 浏览器访问 http://<host>:<port> 即可使用，支持手机/电脑。

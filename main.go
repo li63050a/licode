@@ -24,10 +24,10 @@ func main() {
 	}
 	root.AddCommand(serve)
 
-	// 默认模式：不带子命令时，把参数转给 serve 子命令。
+	// 默认 web 模式：不带子命令时，把参数转给 web 子命令。
 	args := os.Args[1:]
 	if len(args) == 0 || !isSubcommand(args[0]) {
-		root.SetArgs(append([]string{"serve"}, args...))
+		root.SetArgs(append([]string{"web"}, args...))
 	}
 
 	if err := root.Execute(); err != nil {
@@ -38,7 +38,7 @@ func main() {
 // isSubcommand 判断第一个参数是否为已注册的子命令（或帮助/补全）。
 func isSubcommand(a string) bool {
 	switch a {
-	case "serve", "help", "completion", "-h", "--help":
+	case "web", "serve", "help", "completion", "-h", "--help":
 		return true
 	}
 	return false
