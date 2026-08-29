@@ -123,7 +123,11 @@
     flex: 1; background: var(--input); color: var(--fg); border: 1px solid var(--border);
     border-radius: 6px; padding: 7px 9px; font: inherit; font-size: 13.5px;
   }
-  #settings input:focus, #settings select:focus { border-color: var(--accent); outline: none; }
+  #settings input:focus, #settings select:focus, #settings textarea:focus { border-color: var(--accent); outline: none; }
+  #settings textarea {
+    flex: 1; background: var(--input); color: var(--fg); border: 1px solid var(--border);
+    border-radius: 6px; padding: 7px 9px; font: 12px/1.4 ui-monospace, monospace; resize: vertical;
+  }
   #settings .btns { display: flex; gap: 10px; margin-top: 16px; justify-content: flex-end; }
   #settings .btn.primary { border-color: var(--accent); color: var(--accent); }
 </style>
@@ -167,8 +171,15 @@
     <div class="row"><label>子代理</label>
       <select id="st_subagents"><option>开启</option><option>关闭</option></select>
     </div>
+    <div class="row"><label>上下文压缩</label>
+      <select id="st_compaction"><option>开启</option><option>关闭</option></select>
+    </div>
+    <div class="row"><label>自动标题</label>
+      <select id="st_titlegen"><option>开启</option><option>关闭</option></select>
+    </div>
     <div class="row"><label>需确认工具</label><input id="st_ask_tools" placeholder="逗号分隔"></div>
     <div class="row"><label>禁用工具</label><input id="st_deny_tools" placeholder="逗号分隔"></div>
+    <div class="row"><label>MCP 服务器</label><textarea id="st_mcp" rows="3" placeholder='[{"name":"fs","command":"npx","args":["-y","@modelcontextprotocol/server-filesystem","."]}]'></textarea></div>
     <div class="btns">
       <button class="btn" id="settingsCancel">取消</button>
       <button class="btn primary" id="settingsSave">保存</button>
@@ -262,10 +273,15 @@ function fillSettings(s) {
   $('st_max_tokens').value = s.max_tokens || 4096;
   $('st_max_iterations').value = s.max_iterations || 16;
   $('st_subagents').value = s.subagents ? '开启' : '关闭';
+  $('st_compaction').value = s.compaction ? '开启' : '关闭';
+  $('st_titlegen').value = s.title_gen ? '开启' : '关闭';
   $('st_ask_tools').value = (s.ask_tools || []).join(', ');
   $('st_deny_tools').value = (s.deny_tools || []).join(', ');
+  $('st_mcp').value = JSON.stringify(s.mcp_servers || [], null, 1);
 }
 function readSettings() {
+  let mcp = [];
+  try { mcp = JSON.parse($('st_mcp').value || '[]'); } catch (e) {}
   return {
     provider: $('st_provider').value,
     model: $('st_model').value,
@@ -275,8 +291,11 @@ function readSettings() {
     max_tokens: parseInt($('st_max_tokens').value) || 4096,
     max_iterations: parseInt($('st_max_iterations').value) || 16,
     subagents: $('st_subagents').value === '开启',
+    compaction: $('st_compaction').value === '开启',
+    title_gen: $('st_titlegen').value === '开启',
     ask_tools: $('st_ask_tools').value.split(/[,，\s]+/).filter(Boolean),
     deny_tools: $('st_deny_tools').value.split(/[,，\s]+/).filter(Boolean),
+    mcp_servers: mcp,
   };
 }
 $('settingsBtn').addEventListener('click', openSettings);

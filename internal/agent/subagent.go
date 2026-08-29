@@ -13,12 +13,12 @@ import (
 // SubAgentSpec describes a specialized worker agent with its own system
 // prompt and an optional subset of tools.
 type SubAgentSpec struct {
-	Name         string
-	Prompt       string
-	Tools        []string // tool names allowed; empty = all default tools
-	Client       ai.LLMClient
+	Name          string
+	Prompt        string
+	Tools         []string // tool names allowed; empty = all default tools
+	Client        ai.LLMClient
 	MaxIterations int
-	MaxTokens    int
+	MaxTokens     int
 }
 
 // buildAgent materializes a full Agent (own session, prompt, tool set).
@@ -178,7 +178,7 @@ func (s *Scheduler) runTask(ctx context.Context, t Task) SubAgentResult {
 func DefaultSubAgentSpecs(client ai.LLMClient) []SubAgentSpec {
 	return []SubAgentSpec{
 		{
-			Name:   "explorer",
+			Name: "explorer",
 			Prompt: `你是代码探索子代理。使用你的读/搜索工具调查代码库，并给出具体结论：
 涉及的文件、关键函数（带 文件:行号 引用）、各部分如何组合。请保持彻底
 且实事求是。不要修改文件。请用简体中文汇报。`,
@@ -186,7 +186,7 @@ func DefaultSubAgentSpecs(client ai.LLMClient) []SubAgentSpec {
 			Client: client,
 		},
 		{
-			Name:   "builder",
+			Name: "builder",
 			Prompt: `你是构建子代理。通过写入或编辑文件实现所要求的改动，然后用
 run_shell 运行构建/测试命令进行验证。最后总结改动内容、涉及的文件以及
 验证结果。请用简体中文汇报。`,
@@ -194,7 +194,7 @@ run_shell 运行构建/测试命令进行验证。最后总结改动内容、涉
 			Client: client,
 		},
 		{
-			Name:   "planner",
+			Name: "planner",
 			Prompt: `你是规划子代理。你没有工具。给定一个任务，输出一份简洁、可逐步执行的
 实现计划：有序、可操作，并列出可能涉及的文件。不要写代码。请用简体中文
 汇报。`,

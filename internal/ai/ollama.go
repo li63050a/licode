@@ -44,15 +44,15 @@ type ollamaMsg struct {
 }
 
 type ollamaReq struct {
-	Model    string            `json:"model"`
-	Messages []ollamaMsg       `json:"messages"`
-	Stream   bool              `json:"stream"`
-	Tools    []ollamaToolSpec  `json:"tools,omitempty"`
-	Options  map[string]any    `json:"options,omitempty"`
+	Model    string           `json:"model"`
+	Messages []ollamaMsg      `json:"messages"`
+	Stream   bool             `json:"stream"`
+	Tools    []ollamaToolSpec `json:"tools,omitempty"`
+	Options  map[string]any   `json:"options,omitempty"`
 }
 
 type ollamaToolSpec struct {
-	Type     string          `json:"type"`
+	Type     string `json:"type"`
 	Function struct {
 		Name        string          `json:"name"`
 		Description string          `json:"description"`

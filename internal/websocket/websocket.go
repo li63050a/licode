@@ -16,11 +16,16 @@ import (
 
 // Message types (client -> server).
 const (
-	TypeMessage     = "message" // {content}
-	TypePing        = "ping"
-	TypeSettingsGet = "settings_get"
-	TypeSettingsSet = "settings_set"
-	TypeAskReply    = "ask_reply"
+	TypeMessage       = "message" // {content}
+	TypePing          = "ping"
+	TypeSettingsGet   = "settings_get"
+	TypeSettingsSet   = "settings_set"
+	TypeAskReply      = "ask_reply"
+	TypeSessionsGet   = "sessions_get"
+	TypeSessionNew    = "session_new"
+	TypeSessionSwitch = "session_switch" // {session_id}
+	TypeSessionRename = "session_rename" // {session_id, content}
+	TypeSessionDelete = "session_delete" // {session_id}
 )
 
 // Event types (server -> client), mirroring agent.Event.
@@ -33,17 +38,20 @@ const (
 	EvtStatus    = "status"
 	EvtSettings  = "settings"
 	EvtAsk       = "ask"
+	EvtSessions  = "sessions"
 )
 
 // ServerEvent is a JSON event streamed to clients.
 type ServerEvent struct {
-	Type     string `json:"type"`
-	Content  string `json:"content,omitempty"`
-	ToolName string `json:"toolName,omitempty"`
-	ToolArgs string `json:"toolArgs,omitempty"`
-	ToolOut  string `json:"toolOut,omitempty"`
-	Error    string `json:"error,omitempty"`
-	Settings any    `json:"settings,omitempty"`
+	Type      string `json:"type"`
+	Content   string `json:"content,omitempty"`
+	ToolName  string `json:"toolName,omitempty"`
+	ToolArgs  string `json:"toolArgs,omitempty"`
+	ToolOut   string `json:"toolOut,omitempty"`
+	Error     string `json:"error,omitempty"`
+	Settings  any    `json:"settings,omitempty"`
+	Sessions  any    `json:"sessions,omitempty"`
+	SessionID string `json:"sessionId,omitempty"`
 	// AskID 标识一次待确认的工具调用。
 	AskID string `json:"askId,omitempty"`
 }
@@ -54,8 +62,9 @@ type ClientMessage struct {
 	Content  string `json:"content,omitempty"`
 	Settings any    `json:"settings,omitempty"`
 	// AskReply 对应 AskID 的确认结果。
-	AskID     string `json:"askId,omitempty"`
+	AskID      string `json:"askId,omitempty"`
 	AskApprove bool   `json:"askApprove,omitempty"`
+	SessionID  string `json:"sessionId,omitempty"`
 }
 
 var upgrader = websocket.Upgrader{

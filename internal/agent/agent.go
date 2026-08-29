@@ -35,6 +35,8 @@ const (
 	EventAsk EventType = "ask"
 	// EventSettings carries updated runtime settings (from a remote server).
 	EventSettings EventType = "settings"
+	// EventSessions carries the remote session list.
+	EventSessions EventType = "sessions"
 )
 
 // Event is a UI-agnostic stream event.
@@ -47,6 +49,7 @@ type Event struct {
 	Error     string    `json:"error,omitempty"`
 	Settings  any       `json:"settings,omitempty"`
 	AskID     string    `json:"askId,omitempty"`
+	SessionID string    `json:"sessionId,omitempty"`
 }
 
 // DefaultMainPrompt 是主 Agent 的系统提示词。
@@ -148,32 +151,34 @@ func (r *Registry) Execute(ctx context.Context, name string, argsJSON []byte) (s
 // calls, feeds results back, and repeats until the model replies without
 // tools or MaxIterations is hit.
 type Agent struct {
-	Name         string
-	System       string
-	Client       ai.LLMClient
-	Model        string
-	Tools        *Registry
-	Session      *session.Session
-	SubAgents    []SubAgentSpec
+	Name          string
+	System        string
+	Client        ai.LLMClient
+	Model         string
+	Tools         *Registry
+	Session       *session.Session
+	SubAgents     []SubAgentSpec
 	MaxIterations int
-	MaxTokens    int
-	Temperature  float64
+	MaxTokens     int
+	Temperature   float64
 	// Permissions 工具名 -> allow/ask/deny；"*" 为默认模式。
 	Permissions map[string]string
 	// Ask 在 permission=ask 时被调用，返回 true 表示允许执行。
 	Ask func(ctx context.Context, toolName, args string) (bool, error)
+	// Compaction 上下文超限时用 LLM 压缩旧对话。
+	Compaction bool
 }
 
 func NewAgent(client ai.LLMClient, system string) *Agent {
 	a := &Agent{
-		Name:         "main",
-		System:       system,
-		Client:       client,
-		Model:        client.Model(),
-		Tools:        NewRegistry(),
-		Session:      session.NewSession(0),
+		Name:          "main",
+		System:        system,
+		Client:        client,
+		Model:         client.Model(),
+		Tools:         NewRegistry(),
+		Session:       session.NewSession(0),
 		MaxIterations: 16,
-		MaxTokens:    4096,
+		MaxTokens:     4096,
 	}
 	RegisterDefaultTools(a.Tools)
 	return a
@@ -188,8 +193,11 @@ func (a *Agent) Run(ctx context.Context, input string, onEvent func(Event)) erro
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		onEvent(Event{Type: EventStatus, Content: fmt.Sprintf("thinking (%d)", iter)})
+		onEvent(Event{Type: EventStatus, Content: fmt.Sprintf("思考中 (%d)", iter)})
 
+		if a.Compaction {
+			a.compactIfNeeded(ctx)
+		}
 		msgs := a.Session.MessagesForLLM(a.System)
 		req := ai.ChatRequest{
 			Model:       a.Model,

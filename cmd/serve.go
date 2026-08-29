@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/fs"
 	"log"
 	"net/http"
@@ -27,14 +28,14 @@ import (
 
 // ServeOptions holds resolved configuration for the serve command.
 type ServeOptions struct {
-	Addr       string
-	Provider   string
-	BaseURL    string
-	APIKey     string
-	Model      string
+	Addr        string
+	Provider    string
+	BaseURL     string
+	APIKey      string
+	Model       string
 	NoSubAgents bool
-	Username   string
-	Password   string
+	Username    string
+	Password    string
 }
 
 // NewServeCommand 返回 serve 子命令。
@@ -75,23 +76,30 @@ type serverState struct {
 	client   ai.LLMClient
 }
 
-// connState 保存每个连接独立的会话与待确认的工具调用。
+// connState 保存每个连接独立的会话（多对话）与待确认的工具调用。
 type connState struct {
-	mu      sync.Mutex
-	session *session.Session
-	pending map[string]chan bool
-	askSeq  atomic.Int64
-	busy    bool
+	mu       sync.Mutex
+	sessions *session.Manager
+	pending  map[string]chan bool
+	askSeq   atomic.Int64
+	busy     bool
 }
 
-func newConnState() *connState {
+func newConnState(sessionsDir string) *connState {
 	return &connState{
-		session: session.NewSession(0),
-		pending: map[string]chan bool{},
+		sessions: session.NewManager(sessionsDir, false),
+		pending:  map[string]chan bool{},
 	}
 }
 
 func runServe(opts *ServeOptions) error {
+	// 首次使用自动生成 ~/.licode 数据目录，并启用日志文件
+	_ = settings.EnsureDirs()
+	if lf, err := settings.LogFile(); err == nil {
+		defer lf.Close()
+		log.SetOutput(io.MultiWriter(os.Stderr, lf))
+	}
+
 	st := &serverState{}
 	st.settings = settings.Defaults()
 	st.settings.ApplyFlags(opts.Provider, opts.BaseURL, opts.APIKey, opts.Model, opts.NoSubAgents)
@@ -104,7 +112,7 @@ func runServe(opts *ServeOptions) error {
 	hub := websocket.NewHub()
 	hub.OnConnect(func(ctx context.Context, c *websocket.Client) {
 		log.Printf("客户端已连接（当前 %d 个）", hub.Count())
-		cs := newConnState()
+		cs := newConnState(settings.SessionsDir())
 
 		c.OnUserMessage(func(ctx context.Context, msg websocket.ClientMessage) {
 			switch msg.Type {
@@ -116,9 +124,46 @@ func runServe(opts *ServeOptions) error {
 			case websocket.TypeSettingsSet:
 				if err := applyServerSettings(st, msg); err != nil {
 					c.SendEvent(websocket.ServerEvent{Type: websocket.EvtError, Error: err.Error()})
+				} else {
+					// 设置修改同步写回配置文件
+					_ = st.settings.Save("")
 				}
 				c.SendEvent(websocket.ServerEvent{
 					Type: websocket.EvtSettings, Settings: st.settings.Snapshot(),
+				})
+
+			case websocket.TypeSessionsGet:
+				c.SendEvent(websocket.ServerEvent{
+					Type: websocket.EvtSessions, Sessions: cs.sessions.List(), SessionID: cs.sessions.CurrentID(),
+				})
+
+			case websocket.TypeSessionNew:
+				cs.sessions.New()
+				_ = cs.sessions.SaveAll()
+				c.SendEvent(websocket.ServerEvent{
+					Type: websocket.EvtSessions, Sessions: cs.sessions.List(), SessionID: cs.sessions.CurrentID(),
+				})
+
+			case websocket.TypeSessionSwitch:
+				if cs.sessions.SetCurrent(msg.SessionID) {
+					_ = cs.sessions.SaveAll()
+					c.SendEvent(websocket.ServerEvent{
+						Type: websocket.EvtSessions, Sessions: cs.sessions.List(), SessionID: cs.sessions.CurrentID(),
+					})
+				}
+
+			case websocket.TypeSessionRename:
+				cs.sessions.Rename(msg.SessionID, msg.Content)
+				_ = cs.sessions.SaveAll()
+				c.SendEvent(websocket.ServerEvent{
+					Type: websocket.EvtSessions, Sessions: cs.sessions.List(), SessionID: cs.sessions.CurrentID(),
+				})
+
+			case websocket.TypeSessionDelete:
+				cs.sessions.Delete(msg.SessionID)
+				_ = cs.sessions.SaveAll()
+				c.SendEvent(websocket.ServerEvent{
+					Type: websocket.EvtSessions, Sessions: cs.sessions.List(), SessionID: cs.sessions.CurrentID(),
 				})
 
 			case websocket.TypeAskReply:
@@ -134,7 +179,7 @@ func runServe(opts *ServeOptions) error {
 
 			case websocket.TypeMessage:
 				if msg.Content == "/clear" {
-					cs.session.Clear()
+					cs.sessions.Current().Clear()
 					c.SendEvent(websocket.ServerEvent{Type: websocket.EvtDone})
 					return
 				}
@@ -152,6 +197,7 @@ func runServe(opts *ServeOptions) error {
 					cs.mu.Unlock()
 				}()
 				runServerAgent(ctx, st, cs, c, msg.Content)
+				_ = cs.sessions.SaveAll()
 			}
 		})
 	})
@@ -248,8 +294,13 @@ func runServerAgent(ctx context.Context, st *serverState, cs *connState, c *webs
 	client := st.client
 	st.mu.RUnlock()
 
+	sess := cs.sessions.Current()
+	if s.TitleGen && sess.Title() == "新对话" {
+		sess.SetTitle(autoTitle(content))
+	}
+
 	ag := s.BuildAgent(client)
-	ag.Session = cs.session
+	ag.Session = sess
 	ag.Ask = func(ctx context.Context, toolName, args string) (bool, error) {
 		askID := fmt.Sprintf("ask-%d", cs.askSeq.Add(1))
 		ch := make(chan bool, 1)
@@ -283,6 +334,15 @@ func runServerAgent(ctx context.Context, st *serverState, cs *connState, c *webs
 	if err != nil && ctx.Err() == nil {
 		c.SendEvent(websocket.ServerEvent{Type: websocket.EvtError, Error: err.Error()})
 	}
+}
+
+// autoTitle 从第一条用户消息生成对话标题。
+func autoTitle(content string) string {
+	runes := []rune(strings.TrimSpace(content))
+	if len(runes) > 18 {
+		return string(runes[:18])
+	}
+	return string(runes)
 }
 
 func mapEventType(t agent.EventType) string {

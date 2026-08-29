@@ -225,9 +225,9 @@ func RegisterDefaultTools(r *Registry) {
 		Schema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
-				"command":   map[string]any{"type": "string", "description": "Shell command to run"},
-				"timeout":   map[string]any{"type": "integer", "description": "Timeout in seconds (default 30)"},
-				"cwd":       map[string]any{"type": "string", "description": "Working directory"},
+				"command": map[string]any{"type": "string", "description": "Shell command to run"},
+				"timeout": map[string]any{"type": "integer", "description": "Timeout in seconds (default 30)"},
+				"cwd":     map[string]any{"type": "string", "description": "Working directory"},
 			},
 			"required": []string{"command"},
 		},

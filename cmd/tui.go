@@ -21,6 +21,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"licode/internal/agent"
+	"licode/internal/session"
 	"licode/internal/settings"
 	wsproto "licode/internal/websocket"
 )
@@ -306,6 +307,11 @@ type command struct {
 }
 
 var commandList = []command{
+	{"new", "新建对话", func(m *uiModel) { m.newSession() }},
+	{"sessions", "会话列表", func(m *uiModel) { m.screen = "sessions"; m.sessionsSel = 0; m.requestSessions() }},
+	{"init", "初始化项目 .licode 目录", func(m *uiModel) { m.initProjectDir() }},
+	{"export", "一键导出（/export 全部 /export md 对话 /export sessions）", func(m *uiModel) { m.input = "/export "; m.cursor = runeLen(m.input) }},
+	{"import", "一键导入（/import <文件路径>）", func(m *uiModel) { m.input = "/import "; m.cursor = runeLen(m.input) }},
 	{"clear", "清空会话", func(m *uiModel) { m.clearChat() }},
 	{"settings", "打开设置", func(m *uiModel) { m.openSettings() }},
 	{"help", "快捷键帮助", func(m *uiModel) { m.screen = "help" }},
@@ -337,11 +343,18 @@ type uiModel struct {
 	status    string
 	offset    int
 
-	cmdSel int
+	cmdSel   int
+	fileCmds []command // 从 .licode/commands 加载的自定义命令
 
 	settingsSel  int
 	settingsEdit bool
 	settingsBuf  string
+
+	// 多会话
+	sessions      *session.Manager
+	sessionsList  []session.Info
+	remoteSession string
+	sessionsSel   int
 
 	asking *askState
 	// 远程缓存的设置
@@ -373,16 +386,29 @@ func newUIModel(cfg *uiConfig) *uiModel {
 		m.provider = cfg.settings.Provider
 		m.model = cfg.settings.Model
 		m.tree = newTree(".")
+		m.sessions = session.NewManager(settings.SessionsDir(), true)
+		m.agent.Session = m.sessions.Current()
 	}
 	return m
 }
 
 func (m *uiModel) start() error {
+	if m.agent != nil {
+		// 首次使用自动生成 ~/.licode 数据目录，并启用日志文件
+		if err := settings.EnsureDirs(); err == nil {
+			if lf, err := settings.LogFile(); err == nil {
+				defer lf.Close()
+			}
+		}
+	}
 	if m.remote != nil {
 		go m.remoteLoop()
 	}
 	p := tea.NewProgram(m, tea.WithAltScreen())
 	_, err := p.Run()
+	if m.sessions != nil {
+		_ = m.sessions.SaveAll()
+	}
 	return err
 }
 
@@ -447,6 +473,8 @@ func serverToAgentEvent(evt wsproto.ServerEvent) agent.Event {
 		return agent.Event{Type: agent.EventError, Error: evt.Error}
 	case wsproto.EvtSettings:
 		return agent.Event{Type: agent.EventSettings, Settings: evt.Settings}
+	case wsproto.EvtSessions:
+		return agent.Event{Type: agent.EventSessions, Settings: evt.Sessions, SessionID: evt.SessionID}
 	case wsproto.EvtAsk:
 		return agent.Event{Type: agent.EventAsk, ToolName: evt.ToolName, ToolArgs: evt.ToolArgs, AskID: evt.AskID}
 	default:
@@ -458,7 +486,55 @@ func serverToAgentEvent(evt wsproto.ServerEvent) agent.Event {
 // bubbletea 生命周期
 // ---------------------------------------------------------------------------
 
-func (m *uiModel) Init() tea.Cmd { return nil }
+func (m *uiModel) Init() tea.Cmd {
+	if m.agent != nil {
+		m.reloadMessages()
+	}
+	// 加载 .licode/commands 自定义命令
+	for _, cf := range agent.LoadCommandFiles(agent.CommandDirs()...) {
+		prompt := cf.Prompt
+		m.fileCmds = append(m.fileCmds, command{
+			name: cf.Name,
+			desc: cf.Description,
+			run:  func(m *uiModel) { m.submitCommand(prompt) },
+		})
+	}
+	return nil
+}
+
+// initProjectDir 生成项目 .licode 目录（模仿 opencode 的 .opencode）。
+func (m *uiModel) initProjectDir() {
+	if _, err := os.Stat(".licode"); err == nil {
+		m.status = ".licode 已存在"
+		return
+	}
+	for _, d := range []string{".licode/agents", ".licode/commands", ".licode/skills", ".licode/modes", ".licode/tools"} {
+		_ = os.MkdirAll(d, 0o755)
+	}
+	readme := `# .licode（项目级配置目录）
+
+licode 会自动读取这里的配置，用法与 opencode 一致：
+
+- agents/    自定义子代理定义（markdown + frontmatter: name / description / tools）
+- commands/  自定义命令（markdown + frontmatter: name / description，正文为提示词模板）
+- skills/    技能（markdown + frontmatter: name / description，正文为执行步骤）
+- modes/     （预留）
+- tools/     （预留）
+
+用户级数据目录在 ~/.licode/（配置、MCP、对话记录、日志、缓存）。
+`
+	_ = os.WriteFile(".licode/README.md", []byte(readme), 0o644)
+	m.status = "已生成项目 .licode 目录"
+}
+
+// submitCommand 直接发送一条命令/模板消息。
+func (m *uiModel) submitCommand(text string) {
+	if m.streaming {
+		return
+	}
+	m.input = text
+	m.submit()
+}
 
 func (m *uiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
@@ -502,6 +578,12 @@ func (m *uiModel) handleEvent(e agent.Event) {
 	case agent.EventDone:
 		m.streaming = false
 		m.status = ""
+		if m.sessions != nil && m.settings.TitleGen {
+			s := m.sessions.Current()
+			if s.Title() == "新对话" && len(m.msgs) > 0 {
+				s.SetTitle(autoTitle(firstUserText(m.msgs)))
+			}
+		}
 	case agent.EventError:
 		m.streaming = false
 		m.status = ""
@@ -516,6 +598,14 @@ func (m *uiModel) handleEvent(e agent.Event) {
 			if m.mode == "远程" {
 				m.status = "已同步服务器设置"
 			}
+		}
+	case agent.EventSessions:
+		var list []session.Info
+		if b, err := json.Marshal(e.Settings); err == nil && json.Unmarshal(b, &list) == nil {
+			m.sessionsList = list
+		}
+		if e.SessionID != "" {
+			m.remoteSession = e.SessionID
 		}
 	case agent.EventAsk:
 		m.streaming = true
@@ -537,6 +627,11 @@ func (m *uiModel) submit() {
 	}
 	m.input = ""
 	m.cursor = 0
+	// 导入 / 导出
+	if strings.HasPrefix(text, "/export") || strings.HasPrefix(text, "/import") {
+		m.doTransfer(text)
+		return
+	}
 	m.offset = 0
 	m.msgs = append(m.msgs, viewMsg{role: "user", text: text})
 	m.streaming = true
@@ -554,6 +649,9 @@ func (m *uiModel) submit() {
 			case <-ctx.Done():
 			}
 		})
+		if m.sessions != nil {
+			_ = m.sessions.SaveAll()
+		}
 		if err != nil && ctx.Err() == nil {
 			select {
 			case m.events <- agent.Event{Type: agent.EventError, Error: err.Error()}:
@@ -602,7 +700,119 @@ func (m *uiModel) applyLocalSettings() {
 	m.agent = ag
 	m.provider = m.settings.Provider
 	m.model = m.settings.Model
-	m.status = fmt.Sprintf("设置已应用: %s/%s", m.settings.Provider, m.settings.Model)
+	if err := m.settings.Save(""); err != nil {
+		m.status = fmt.Sprintf("设置已应用: %s/%s（配置文件保存失败: %v）", m.settings.Provider, m.settings.Model, err)
+	} else {
+		m.status = fmt.Sprintf("设置已应用并保存到 %s: %s/%s", settings.SavePath(), m.settings.Provider, m.settings.Model)
+	}
+}
+
+// newSession 新建一个对话（本地直接切换，远程发协议）。
+func (m *uiModel) newSession() {
+	if m.streaming {
+		return
+	}
+	if m.remote != nil {
+		go m.remote.send(wsproto.ClientMessage{Type: wsproto.TypeSessionNew})
+		return
+	}
+	m.sessions.New()
+	m.agent.Session = m.sessions.Current()
+	m.reloadMessages()
+	_ = m.sessions.SaveAll()
+	m.status = "已新建对话"
+}
+
+// requestSessions 刷新会话列表（远程模式下向服务器请求）。
+func (m *uiModel) requestSessions() {
+	if m.remote != nil {
+		go m.remote.send(wsproto.ClientMessage{Type: wsproto.TypeSessionsGet})
+	}
+}
+
+// sessionList 返回会话列表：本地直接用 manager，远程用缓存。
+func (m *uiModel) sessionList() []session.Info {
+	if m.remote != nil {
+		return m.sessionsList
+	}
+	if m.sessions != nil {
+		return m.sessions.List()
+	}
+	return nil
+}
+
+func (m *uiModel) handleSessionsKey(msg tea.KeyMsg) tea.Cmd {
+	list := m.sessionList()
+	switch msg.String() {
+	case "up":
+		if m.sessionsSel > 0 {
+			m.sessionsSel--
+		}
+	case "down":
+		if m.sessionsSel < len(list)-1 {
+			m.sessionsSel++
+		}
+	case "enter":
+		if m.sessionsSel >= 0 && m.sessionsSel < len(list) {
+			id := list[m.sessionsSel].ID
+			if m.remote != nil {
+				go m.remote.send(wsproto.ClientMessage{Type: wsproto.TypeSessionSwitch, SessionID: id})
+			} else if m.sessions.SetCurrent(id) {
+				if s, ok := m.sessions.Get(id); ok {
+					m.agent.Session = s
+				}
+				m.reloadMessages()
+				_ = m.sessions.SaveAll()
+			}
+		}
+		m.screen = "chat"
+	case "n":
+		m.newSession()
+	case "d":
+		if m.sessionsSel >= 0 && m.sessionsSel < len(list) {
+			id := list[m.sessionsSel].ID
+			if m.remote != nil {
+				go m.remote.send(wsproto.ClientMessage{Type: wsproto.TypeSessionDelete, SessionID: id})
+			} else if id != m.sessions.CurrentID() {
+				m.sessions.Delete(id)
+				_ = m.sessions.SaveAll()
+			} else {
+				m.status = "不能删除当前对话"
+			}
+		}
+	case "esc", "tab", "q", "ctrl+c":
+		m.screen = "chat"
+	}
+	return nil
+}
+
+// reloadMessages 把当前会话的历史消息重建为显示列表。
+func (m *uiModel) reloadMessages() {
+	if m.agent == nil {
+		return
+	}
+	msgs := m.agent.Session.Messages()
+	out := make([]viewMsg, 0, len(msgs))
+	for _, msg := range msgs {
+		switch msg.Role {
+		case "user":
+			out = append(out, viewMsg{role: "user", text: msg.Content})
+		case "assistant":
+			out = append(out, viewMsg{role: "assistant", text: msg.Content})
+		case "tool":
+			out = append(out, viewMsg{role: "tool", tool: &toolView{name: msg.ToolName, out: msg.Content, state: "done"}})
+		}
+	}
+	m.msgs = out
+}
+
+func firstUserText(msgs []viewMsg) string {
+	for _, msg := range msgs {
+		if msg.role == "user" {
+			return msg.text
+		}
+	}
+	return "新对话"
 }
 
 func (m *uiModel) askFunc() func(ctx context.Context, tool, args string) (bool, error) {
@@ -689,9 +899,12 @@ func (m *uiModel) handleKey(msg tea.KeyMsg) tea.Cmd {
 		return nil
 	}
 
-	// 命令面板 / 设置编辑 / 文件树 各自处理
+	// 命令面板 / 设置编辑 / 会话列表 / 文件树 各自处理
 	if m.screen == "help" {
 		return nil
+	}
+	if m.screen == "sessions" {
+		return m.handleSessionsKey(msg)
 	}
 	if m.settingsEdit {
 		return m.handleSettingsEdit(msg)
@@ -764,6 +977,11 @@ func (m *uiModel) commandMatches() []command {
 	query := strings.ToLower(strings.TrimPrefix(m.input, "/"))
 	var out []command
 	for _, c := range commandList {
+		if query == "" || strings.Contains(c.name, query) {
+			out = append(out, c)
+		}
+	}
+	for _, c := range m.fileCmds {
 		if query == "" || strings.Contains(c.name, query) {
 			out = append(out, c)
 		}
@@ -988,6 +1206,9 @@ func (m *uiModel) View() string {
 	if m.screen == "help" {
 		return m.renderHelp(w, h)
 	}
+	if m.screen == "sessions" {
+		return m.renderSessions(w, h)
+	}
 
 	var sb strings.Builder
 	sb.WriteString(m.renderHeader(w))
@@ -1035,9 +1256,52 @@ func (m *uiModel) renderHeader(w int) string {
 	title := lipgloss.NewStyle().Foreground(colAccent).Bold(true).Render("licode")
 	badge := lipgloss.NewStyle().Foreground(colMuted).Render(m.provider + "/" + m.model)
 	mode := lipgloss.NewStyle().Foreground(colBlue).Render(m.mode)
-	left := lipgloss.NewStyle().Render(title + "  " + badge + "  " + mode)
+	sessTitle := ""
+	if m.agent != nil && m.agent.Session != nil {
+		sessTitle = m.agent.Session.Title()
+	}
+	if m.remote != nil && m.remoteSession != "" {
+		for _, s := range m.sessionsList {
+			if s.ID == m.remoteSession {
+				sessTitle = s.Title
+				break
+			}
+		}
+	}
+	left := lipgloss.NewStyle().Render(title + "  " + badge + "  " + mode + "  " + lipgloss.NewStyle().Foreground(colFg).Render(sessTitle))
 	right := lipgloss.NewStyle().Foreground(colMuted).Render("tab:文件  ?:帮助  /:命令")
 	return lipgloss.NewStyle().Width(w).MaxWidth(w).Render(lipgloss.JoinHorizontal(lipgloss.Center, left, lipgloss.NewStyle().Width(w-45).Align(lipgloss.Right).Render(right)))
+}
+
+func (m *uiModel) renderSessions(w, h int) string {
+	list := m.sessionList()
+	var sb strings.Builder
+	sb.WriteString(lipgloss.NewStyle().Foreground(colAccent).Bold(true).Render(" 会话列表"))
+	sb.WriteString("  " + lipgloss.NewStyle().Foreground(colMuted).Render("↑↓ 选择 · enter 切换 · n 新建 · d 删除 · esc 返回"))
+	sb.WriteString("\n" + lipgloss.NewStyle().Foreground(colBorder).Render(strings.Repeat("─", w)) + "\n\n")
+
+	current := ""
+	if m.remote != nil {
+		current = m.remoteSession
+	} else if m.sessions != nil {
+		current = m.sessions.CurrentID()
+	}
+	for i, s := range list {
+		marker := "  "
+		style := lipgloss.NewStyle().Foreground(colFg)
+		if s.ID == current {
+			marker = "▸ "
+			style = style.Foreground(colAccent).Bold(true)
+		}
+		sb.WriteString("  " + marker + style.Render(s.Title) + lipgloss.NewStyle().Foreground(colMuted).Render(fmt.Sprintf("  (%d 条)", s.Count)) + "\n")
+		if i == m.sessionsSel {
+			_ = i
+		}
+	}
+	if len(list) == 0 {
+		sb.WriteString("  " + lipgloss.NewStyle().Foreground(colMuted).Render("（暂无会话，按 n 新建）"))
+	}
+	return lipgloss.NewStyle().Width(w).Height(h).Render(sb.String())
 }
 
 func (m *uiModel) renderTree(w, bodyLines int) string {

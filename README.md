@@ -18,9 +18,31 @@
 
 ## 快速开始
 
+### 一键安装（推荐）
+
 ```bash
-make build          # 编译当前平台（输出 build/）
-./build.sh          # 47 平台全量交叉编译
+# Linux / macOS（脚本会自动下载对应平台二进制并安装到 /usr/local/bin 或 ~/.local/bin）
+curl -sSL https://gitee.com/li63050a/licode/raw/main/install.sh | bash
+
+# 指定从 GitHub 下载
+curl -sSL https://raw.githubusercontent.com/li63050a/licode/main/install.sh | bash -s github
+```
+
+Windows：双击 `install.bat`，或
+
+```bat
+install.bat
+```
+
+安装后直接运行：
+
+```bash
+licode            # 进入 TUI（默认模式）
+licode serve      # 启动服务器
+```
+
+### 源码构建
+make build-host     # 编译本机版本（输出 build/licode）
 ./build/licode --help
 
 # 直接进入 TUI（默认模式）
@@ -65,6 +87,49 @@ licode               # 直接进入 TUI
 | `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` / `GEMINI_API_KEY` | 各提供商标准密钥 |
 
 命令行参数：`--provider`、`--base-url`、`--api-key`、`--model`。
+
+### 配置文件与数据目录
+
+用户数据目录为 `~/.licode`，**首次使用自动生成**，包含：
+
+```
+~/.licode/
+├── config.json    配置文件（设置、MCP 等）
+├── skills/        技能（markdown）
+├── mcp/           MCP 服务器配置
+├── sessions/      对话记录（每个会话一个 JSON 文件）
+├── logs/          日志
+└── cache/         缓存
+```
+
+配置文件写法（`~/.licode/config.json`，TUI 与网页端修改设置时会自动写回）：
+
+```json
+{
+  "provider": "claude",
+  "model": "claude-sonnet-4-20250514",
+  "base_url": "https://api.anthropic.com",
+  "api_key": "sk-ant-xxx",
+  "temperature": 0.7,
+  "max_tokens": 4096,
+  "max_iterations": 16,
+  "subagents": true,
+  "compaction": true,
+  "title_gen": true,
+  "ask_tools": [],
+  "deny_tools": [],
+  "providers": [
+    {"provider": "claude", "base_url": "https://api.anthropic.com", "api_key": "sk-ant-xxx", "model": "claude-sonnet-4-20250514"}
+  ],
+  "mcp_servers": [
+    {"name": "fs", "command": "npx", "args": ["-y", "@modelcontextprotocol/server-filesystem", "."]}
+  ]
+}
+```
+
+- 项目内也可放 `licode.json` 覆盖用户级配置
+- 在 TUI 按 `s` 或网页端「设置」修改的任何配置都会实时同步写回 `~/.licode/config.json`
+- 在项目根目录输入 `/init` 会生成项目级 `.licode/` 目录（agents/ commands/ skills/ 等，用法同 opencode 的 `.opencode`）
 
 ### 提供商默认值
 
@@ -228,15 +293,15 @@ agent.SubAgentSpec{
 
 ## 构建
 
+一键脚本：在项目根目录执行
+
 ```bash
-make build          # 当前平台（含测试），输出 build/
-make build-all      # 47 平台全量交叉编译（./build.sh）
-make install        # 安装到 /usr/local/bin/licode
-make upx            # UPX 压缩（可选）
-make size           # 查看产物体积
+./build.sh
 ```
 
-约束：`CGO_ENABLED=0` 完全静态编译；单二进制约 7 MB（UPX 后 < 10 MB）；空闲内存 < 30 MB；复制到任意同架构 Linux/macOS/Windows 直接运行。
+产物输出到 `build/`。脚本会做 47 平台全量交叉编译：`CGO_ENABLED=0` 静态编译优先，个别强制要求 cgo 的平台自动回退动态编译，无法编译的平台自动跳过。
+
+约束：完全静态编译，不依赖 glibc/libc 等任何动态库；单二进制约 7 MB（UPX 后 < 10 MB）；空闲内存 < 30 MB；复制到任意同架构 Linux/macOS/Windows 直接运行。
 
 ## 开发
 

@@ -39,9 +39,9 @@ func (p *GeminiProvider) httpClient() *http.Client {
 // ---- wire types -----------------------------------------------------------
 
 type geminiPart struct {
-	Text             string            `json:"text,omitempty"`
-	FunctionCall     *geminiFuncCall   `json:"functionCall,omitempty"`
-	FunctionResponse *geminiFuncResp   `json:"functionResponse,omitempty"`
+	Text             string          `json:"text,omitempty"`
+	FunctionCall     *geminiFuncCall `json:"functionCall,omitempty"`
+	FunctionResponse *geminiFuncResp `json:"functionResponse,omitempty"`
 }
 
 type geminiFuncCall struct {
@@ -66,14 +66,14 @@ type geminiFunctionDeclaration struct {
 }
 
 type geminiRequest struct {
-	Contents         []geminiContent               `json:"contents"`
+	Contents          []geminiContent               `json:"contents"`
 	SystemInstruction *struct{ Parts []geminiPart } `json:"systemInstruction,omitempty"`
-	Tools            []struct {
+	Tools             []struct {
 		FunctionDeclarations []geminiFunctionDeclaration `json:"functionDeclarations"`
 	} `json:"tools,omitempty"`
 	GenerationConfig *struct {
-		Temperature *float64 `json:"temperature,omitempty"`
-		MaxOutputTokens int  `json:"maxOutputTokens,omitempty"`
+		Temperature     *float64 `json:"temperature,omitempty"`
+		MaxOutputTokens int      `json:"maxOutputTokens,omitempty"`
 	} `json:"generationConfig,omitempty"`
 }
 
@@ -145,8 +145,8 @@ func (p *GeminiProvider) buildBody(req ChatRequest) ([]byte, error) {
 	}
 	if req.Temperature != 0 || req.MaxTokens > 0 {
 		gc := &struct {
-			Temperature *float64 `json:"temperature,omitempty"`
-			MaxOutputTokens int  `json:"maxOutputTokens,omitempty"`
+			Temperature     *float64 `json:"temperature,omitempty"`
+			MaxOutputTokens int      `json:"maxOutputTokens,omitempty"`
 		}{}
 		if req.Temperature != 0 {
 			gc.Temperature = &req.Temperature

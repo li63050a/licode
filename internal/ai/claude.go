@@ -32,13 +32,13 @@ func (p *ClaudeProvider) httpClient() *http.Client {
 // ---- wire types -----------------------------------------------------------
 
 type anthropicContent struct {
-	Type         string          `json:"type"`
-	Text         string          `json:"text,omitempty"`
-	ID           string          `json:"id,omitempty"`
-	Name         string          `json:"name,omitempty"`
-	Input        json.RawMessage `json:"input,omitempty"`
-	ToolUseID    string          `json:"tool_use_id,omitempty"`
-	Content      json.RawMessage `json:"content,omitempty"`
+	Type      string          `json:"type"`
+	Text      string          `json:"text,omitempty"`
+	ID        string          `json:"id,omitempty"`
+	Name      string          `json:"name,omitempty"`
+	Input     json.RawMessage `json:"input,omitempty"`
+	ToolUseID string          `json:"tool_use_id,omitempty"`
+	Content   json.RawMessage `json:"content,omitempty"`
 }
 
 type anthropicMsg struct {
@@ -47,13 +47,13 @@ type anthropicMsg struct {
 }
 
 type anthropicReq struct {
-	Model       string            `json:"model"`
-	System      string            `json:"system,omitempty"`
-	Messages    []anthropicMsg    `json:"messages"`
-	Tools       []anthropicTool   `json:"tools,omitempty"`
-	MaxTokens   int               `json:"max_tokens"`
-	Temperature *float64          `json:"temperature,omitempty"`
-	Stream      bool              `json:"stream"`
+	Model       string          `json:"model"`
+	System      string          `json:"system,omitempty"`
+	Messages    []anthropicMsg  `json:"messages"`
+	Tools       []anthropicTool `json:"tools,omitempty"`
+	MaxTokens   int             `json:"max_tokens"`
+	Temperature *float64        `json:"temperature,omitempty"`
+	Stream      bool            `json:"stream"`
 }
 
 type anthropicTool struct {
@@ -255,7 +255,7 @@ func (p *ClaudeProvider) handleEvent(name string, data []byte, toolUse map[int]*
 		return fmt.Errorf("claude stream error: %s", truncate(string(payload), 300))
 	case "content_block_start":
 		var ev struct {
-			Index        int    `json:"index"`
+			Index        int `json:"index"`
 			ContentBlock struct {
 				Type string `json:"type"`
 				ID   string `json:"id"`
@@ -272,9 +272,9 @@ func (p *ClaudeProvider) handleEvent(name string, data []byte, toolUse map[int]*
 		var ev struct {
 			Index int `json:"index"`
 			Delta struct {
-				Type         string `json:"type"`
-				Text         string `json:"text"`
-				PartialJSON  string `json:"partial_json"`
+				Type        string `json:"type"`
+				Text        string `json:"text"`
+				PartialJSON string `json:"partial_json"`
 			} `json:"delta"`
 		}
 		if err := json.Unmarshal(payload, &ev); err != nil {
