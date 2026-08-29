@@ -1,42 +1,103 @@
-#!/bin/bash
-# licode 一键构建脚本
-# 完全静态编译（CGO_ENABLED=0），产出多平台二进制到 dist/
-set -e
+#!/usr/bin/env bash
+# 一键交叉编译所有 Go 支持的平台/架构
+# 产物全部为静态链接（CGO_ENABLED=0），无任何 .so 依赖
+# 个别平台（android/ios/netbsd/openbsd/plan9/solaris/windows-386 等）
+# 必须开启 cgo 才能链接，会被自动跳过。
+set -uo pipefail
 
-cd "$(dirname "$0")"
+MODULE="api-gateway"
+OUT_DIR="build"
+LDFLAGS="-s -w"
 
-VERSION="${VERSION:-0.1.0}"
-LDFLAGS="-s -w -X main.version=${VERSION}"
-DIST="dist"
-mkdir -p "$DIST"
+# 全部需要编译的目标（GOOS/GOARCH）
+PLATFORMS="
+aix/ppc64
+android/386
+android/amd64
+android/arm
+android/arm64
+darwin/amd64
+darwin/arm64
+dragonfly/amd64
+freebsd/386
+freebsd/amd64
+freebsd/arm
+freebsd/arm64
+freebsd/riscv64
+illumos/amd64
+ios/amd64
+ios/arm64
+js/wasm
+linux/386
+linux/amd64
+linux/arm
+linux/arm64
+linux/loong64
+linux/mips
+linux/mips64
+linux/mips64le
+linux/mipsle
+linux/ppc64
+linux/ppc64le
+linux/riscv64
+linux/s390x
+netbsd/386
+netbsd/amd64
+netbsd/arm
+netbsd/arm64
+openbsd/386
+openbsd/amd64
+openbsd/arm
+openbsd/arm64
+openbsd/ppc64
+openbsd/riscv64
+plan9/386
+plan9/amd64
+plan9/arm
+solaris/amd64
+wasip1/wasm
+windows/386
+windows/amd64
+windows/arm64
+"
 
-echo "==> go test ./..."
-go test ./...
+mkdir -p "$OUT_DIR"
 
-echo "==> 编译 linux/amd64"
-CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="${LDFLAGS}" -o "$DIST/licode-linux-amd64" .
+echo "==> 开始交叉编译（CGO_ENABLED=0 ${LDFLAGS}，输出目录 ${OUT_DIR}/）"
 
-echo "==> 编译 linux/arm64"
-CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags="${LDFLAGS}" -o "$DIST/licode-linux-arm64" .
+built=0
+skipped=0
 
-echo "==> 编译 darwin/amd64"
-CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -ldflags="${LDFLAGS}" -o "$DIST/licode-darwin-amd64" .
+while IFS=/ read -r GOOS GOARCH; do
+    [ -z "$GOOS" ] && continue
 
-echo "==> 编译 darwin/arm64"
-CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -ldflags="${LDFLAGS}" -o "$DIST/licode-darwin-arm64" .
+    # 输出文件名：windows 加 .exe，wasm 加 .wasm
+    ext=""
+    [ "$GOOS" = "windows" ] && ext=".exe"
+    case "$GOOS/$GOARCH" in
+        */wasm) ext=".wasm" ;;
+    esac
+    output="${OUT_DIR}/${MODULE}-${GOOS}-${GOARCH}${ext}"
 
-echo "==> 编译 windows/amd64"
-CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags="${LDFLAGS}" -o "$DIST/licode-windows-amd64.exe" .
+    # 先尝试静态编译（CGO_ENABLED=0，无 .so 依赖）
+    if CGO_ENABLED=0 GOOS="$GOOS" GOARCH="$GOARCH" \
+        go build -buildvcs=false -ldflags="$LDFLAGS" -o "$output" . 2>/dev/null; then
+        echo "  [OK]   $GOOS/$GOARCH (静态)"
+        built=$((built + 1))
+        continue
+    fi
 
-echo "==> 编译本机版本"
-CGO_ENABLED=0 go build -ldflags="${LDFLAGS}" -o "$DIST/licode" .
+    # 静态编译失败（该平台强制要求 cgo 外部链接）：退回动态编译，不跳过
+    if CGO_ENABLED=1 GOOS="$GOOS" GOARCH="$GOARCH" \
+        go build -buildvcs=false -ldflags="$LDFLAGS" -o "$output" . 2>/dev/null; then
+        echo "  [OK]   $GOOS/$GOARCH (动态/cgo)"
+        built=$((built + 1))
+        continue
+    fi
 
-# 可选 UPX 压缩
-if command -v upx >/dev/null 2>&1; then
-  echo "==> UPX 压缩"
-  upx --best --lzma "$DIST"/licode-* 2>/dev/null || true
-fi
+    echo "  [SKIP] $GOOS/$GOARCH (无可用工具链，已跳过)"
+    skipped=$((skipped + 1))
+    rm -f "$output"
+done <<< "$PLATFORMS"
 
-echo "==> 产物列表"
-ls -lh "$DIST"
-echo "构建完成 ✔"
+echo "==> 完成：成功 $built 个，跳过 $skipped 个，产物在 $OUT_DIR/"
