@@ -1,0 +1,16 @@
+# 构建产物
+/dist/
+*.exe
+*.out
+
+# 配置与密钥
+.licode.json
+.env
+*.pem
+*.key
+
+# 编辑器/系统
+.idea/
+.vscode/
+.DS_Store
+nohup.out

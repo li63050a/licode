@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>licode</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --panel: #161b22;
+    --border: #21262d;
+    --fg: #c9d1d9;
+    --muted: #8b949e;
+    --accent: #58a6ff;
+    --green: #3fb950;
+    --purple: #bc8cff;
+    --yellow: #d29922;
+    --red: #f85149;
+    --input: #0d1117;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font: 15px/1.5 -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", monospace;
+    display: flex;
+    flex-direction: column;
+  }
+  header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 16px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+  }
+  header .logo { font-weight: 700; color: var(--accent); letter-spacing: .5px; }
+  header .dot {
+    width: 8px; height: 8px; border-radius: 50%; background: var(--muted);
+    display: inline-block; margin-right: 4px;
+  }
+  header .dot.online { background: var(--green); }
+  header .dot.offline { background: var(--red); }
+  header .spacer { flex: 1; }
+  header .meta { color: var(--muted); }
+  #chat { flex: 1; overflow-y: auto; padding: 16px; }
+  .msg { margin: 0 auto 14px; max-width: 900px; }
+  .msg .role {
+    font-size: 12px; text-transform: uppercase; letter-spacing: 1px;
+    color: var(--muted); margin-bottom: 4px;
+  }
+  .msg.user .role { color: var(--accent); }
+  .msg.assistant .role { color: var(--green); }
+  .msg .body { white-space: pre-wrap; word-break: break-word; }
+  .msg.user .body {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 10px; padding: 10px 14px;
+  }
+  .msg.assistant .body { padding: 2px 0; }
+  .msg.error .body { color: var(--red); }
+  .tool { margin: 6px 0; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .tool .head {
+    display: flex; align-items: center; gap: 8px; padding: 6px 10px;
+    background: var(--panel); cursor: pointer; font-size: 13px;
+  }
+  .tool .head .name { color: var(--purple); font-weight: 600; }
+  .tool .head .status { color: var(--yellow); }
+  .tool .head .status.done { color: var(--green); }
+  .tool .head .chev { margin-left: auto; color: var(--muted); }
+  .tool .detail { display: none; padding: 8px 12px; border-top: 1px solid var(--border); }
+  .tool.open .detail { display: block; }
+  .tool .detail pre {
+    margin: 0; white-space: pre-wrap; word-break: break-word;
+    font-size: 12.5px; color: var(--muted);
+  }
+  .tool .detail .args { color: var(--yellow); }
+  .cursor { display: inline-block; width: 8px; background: var(--accent); animation: blink 1s steps(2) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  #composer {
+    border-top: 1px solid var(--border); background: var(--panel);
+    padding: 10px 16px 14px;
+  }
+  #composer .row { display: flex; gap: 8px; max-width: 900px; margin: 0 auto; }
+  textarea {
+    flex: 1; resize: none; height: 46px; max-height: 160px;
+    background: var(--input); color: var(--fg); border: 1px solid var(--border);
+    border-radius: 8px; padding: 10px 12px; font: inherit; outline: none;
+  }
+  textarea:focus { border-color: var(--accent); }
+  button {
+    border: 1px solid var(--border); background: var(--input); color: var(--fg);
+    border-radius: 8px; padding: 0 18px; font: inherit; cursor: pointer;
+  }
+  button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+  button:disabled { opacity: .5; cursor: default; }
+  .hint { color: var(--muted); font-size: 12px; text-align: center; margin-top: 6px; }
+</style>
+</head>
+<body>
+<header>
+  <span class="logo">licode</span>
+  <span><span class="dot" id="dot"></span><span id="conn">disconnected</span></span>
+  <span class="spacer"></span>
+  <span class="meta" id="meta"></span>
+</header>
+<div id="chat"></div>
+<div id="composer">
+  <div class="row">
+    <textarea id="input" placeholder="问点什么…  /clear 清空会话，Enter 发送，Shift+Enter 换行"></textarea>
+    <button id="send" disabled>发送</button>
+  </div>
+  <div class="hint">licode — Enter 发送 · Shift+Enter 换行 · /clear 清空</div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const chat = $('chat'), input = $('input'), sendBtn = $('send');
+let ws = null, busy = false, firstConnect = true;
+
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
+function autoScroll() { chat.scrollTop = chat.scrollHeight; }
+function setConn(online) {
+  $('dot').className = 'dot ' + (online ? 'online' : 'offline');
+  $('conn').textContent = online ? 'connected' : 'disconnected';
+  sendBtn.disabled = !online;
+}
+function header() {
+  const title = document.title;
+  if (title === 'licode' && !firstConnect) document.title = '● licode';
+}
+function addMsg(role, text, isError) {
+  const m = el('div', 'msg ' + role + (isError ? ' error' : ''));
+  m.appendChild(el('div', 'role', role === 'user' ? 'you' : role === 'assistant' ? 'licode' : role));
+  const body = el('div', 'body');
+  if (text !== undefined) body.textContent = text;
+  m.appendChild(body);
+  chat.appendChild(m);
+  autoScroll();
+  return m;
+}
+function appendTo(m, text) {
+  const body = m.querySelector('.body');
+  body.textContent += text;
+  autoScroll();
+}
+function addTool(evt) {
+  const t = el('div', 'tool');
+  const head = el('div', 'head');
+  head.appendChild(el('span', 'name', '⚙ ' + evt.toolName));
+  const status = el('span', 'status', 'running…');
+  head.appendChild(status);
+  head.appendChild(el('span', 'chev', '▸'));
+  const detail = el('div', 'detail');
+  detail.appendChild(el('div', 'hint', ''));
+  detail.appendChild(el('pre', 'args', evt.toolArgs || ''));
+  detail.appendChild(el('pre', 'out', ''));
+  t.appendChild(head); t.appendChild(detail);
+  head.addEventListener('click', () => {
+    t.classList.toggle('open');
+    head.querySelector('.chev').textContent = t.classList.contains('open') ? '▾' : '▸';
+  });
+  chat.appendChild(t);
+  autoScroll();
+  return { root: t, status, out: detail.querySelector('pre.out') };
+}
+function setToolDone(tool, evt) {
+  tool.status.className = 'status done';
+  tool.status.textContent = '✓ done';
+  tool.out.textContent = (evt.toolOut || '').slice(0, 4000);
+}
+
+function connect() {
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  ws = new WebSocket(proto + '://' + location.host + '/ws');
+  ws.onopen = () => { setConn(true); firstConnect = false; document.title = 'licode'; };
+  ws.onclose = () => {
+    setConn(false);
+    document.title = '● licode (disconnected)';
+    setTimeout(connect, 2000);
+  };
+  ws.onmessage = e => {
+    let evt;
+    try { evt = JSON.parse(e.data); } catch { return; }
+    switch (evt.type) {
+      case 'delta': {
+        if (busy && !lastAssistant) lastAssistant = addMsg('assistant');
+        if (lastAssistant) appendTo(lastAssistant, evt.content);
+        break;
+      }
+      case 'tool_start':
+        tools.push(addTool(evt));
+        break;
+      case 'tool_done':
+        if (tools.length) setToolDone(tools.pop(), evt);
+        break;
+      case 'status':
+        $('meta').textContent = evt.content || '';
+        break;
+      case 'done':
+        busy = false;
+        lastAssistant = null;
+        tools = [];
+        $('meta').textContent = '';
+        sendBtn.disabled = !(ws && ws.readyState === WebSocket.OPEN);
+        break;
+      case 'error':
+        addMsg('assistant', '⚠ ' + evt.error, true);
+        busy = false; lastAssistant = null;
+        sendBtn.disabled = !(ws && ws.readyState === WebSocket.OPEN);
+        break;
+    }
+  };
+}
+let lastAssistant = null, tools = [];
+
+function send() {
+  const text = input.value.trim();
+  if (!text || busy || !ws || ws.readyState !== WebSocket.OPEN) return;
+  if (text === '/clear') { chat.innerHTML = ''; input.value = ''; ws.send(JSON.stringify({ type: 'message', content: '/clear' })); return; }
+  addMsg('user', text);
+  input.value = '';
+  busy = true;
+  sendBtn.disabled = true;
+  ws.send(JSON.stringify({ type: 'message', content: text }));
+}
+
+input.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+  if (e.key === 'Escape') { input.value = ''; }
+});
+sendBtn.addEventListener('click', send);
+connect();
+</script>
+</body>
+</html>
