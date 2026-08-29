@@ -1,0 +1,101 @@
+version: "1.0"
+name: 测试、构建、上传、发布、部署到自有主机
+displayName: 测试、构建、上传、发布、部署到自有主机
+stages:
+- name: 测试
+  displayName: 测试
+  strategy: naturally
+  trigger: auto
+  steps:
+  - step: ut@golang
+    name: ""
+    displayName: Golang 单元测试
+    golangVersion: "1.12"
+    commands:
+    - '# 默认使用goproxy.cn用户可手动调整'
+    - export GOPROXY=https://goproxy.cn
+    - '# 默认的单元测试命令'
+    - '# 输出测试报告目录到当前工作目录，可自动上传并展示'
+    - mkdir -p golang-report
+    - '# 未使用Go Mod的用户需要打开一下注释'
+    - '# export GOFLAGS=-mod=vendor'
+    - go test -v -json -cover -coverprofile cover.out ./... &gt; golang-report/report.jsonl
+    - go tool cover -html=cover.out -o golang-report/index.html
+    report:
+      path: golang-report
+      file: report.jsonl
+      index: index.html
+    checkpoints: {}
+    caches:
+    - /go/pkg/mod
+    notify: []
+    strategy:
+      retry: "0"
+      resource:
+        cpu: "2"
+        memory: "4"
+- name: 构建
+  displayName: 构建
+  strategy: naturally
+  trigger: auto
+  steps:
+  - step: build@golang
+    name: ""
+    displayName: Golang 构建
+    golangVersion: "1.12"
+    commands:
+    - '# 默认使用goproxy.cn'
+    - export GOPROXY=https://goproxy.cn
+    - '# 输入你的构建命令'
+    - make build
+    artifacts:
+    - name: BUILD_ARTIFACT
+      path:
+      - ./output
+      type: .tar.gz
+    caches:
+    - /go/pkg/mod
+    notify: []
+    strategy:
+      retry: "0"
+      resource:
+        cpu: "2"
+        memory: "4"
+- name: 上传
+  displayName: 上传
+  strategy: naturally
+  trigger: auto
+  steps:
+  - step: publish@general_artifacts
+    name: ""
+    displayName: 上传制品
+    dependArtifact: BUILD_ARTIFACT
+    artifactName: output
+    notify: []
+    strategy:
+      retry: "0"
+      resource:
+        cpu: "2"
+        memory: "4"
+- name: 发布
+  displayName: 发布
+  strategy: naturally
+  trigger: auto
+  steps:
+  - step: publish@release_artifacts
+    name: ""
+    displayName: 发布
+    dependArtifact: output
+    version: 1.0.0.0
+    autoIncrement: true
+    notify: []
+    strategy:
+      retry: "0"
+      resource:
+        cpu: "2"
+        memory: "4"
+triggers:
+  trigger: manual
+notify: []
+strategy:
+  blocking: true
