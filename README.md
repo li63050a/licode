@@ -1,15 +1,23 @@
 # licode —— 终端里的 AI 编程助手
 
-类 OpenCode 的 AI 编程助手，用 Go 编写。
+用 Go 编写的 AI 编程助手，单二进制、静态编译、跨平台。
 
 - **本地 TUI**：`licode tui`
 - **Web 网页端**：`licode serve`，手机/电脑浏览器均可访问
 - **远程连接**：`licode tui --remote ws://服务器:8080/ws`，瘦客户端只渲染界面，推理全部在服务器执行
 
+## 功能
+
+- 多 AI 提供商一键切换：**OpenAI / Claude / Ollama**，工厂模式 + 统一 `LLMClient` 接口，改配置即可切换，业务代码零改动
+- 工具调用（Function Calling）：内置 `read_file` / `write_file` / `list_dir` / `grep` / `glob` / `run_shell`，Agent 自主调用并回填结果
+- 子代理系统：`explorer` / `builder` / `planner` 三个专用子代理，支持 `depends_on` 依赖形成 DAG，同层任务并行执行
+- 会话管理：多轮历史 + 上下文窗口截断，会话隔离（每个连接独立 Session）
+- 远程机制：服务器执行推理，客户端只渲染，WebSocket 转发流式结果
+
 ## 快速开始
 
 ```bash
-make build          # 一键编译（产出 dist/licode 及 darwin/windows 版本）
+make build          # 一键编译（多平台静态二进制）
 ./dist/licode --help
 
 # 本地 TUI（默认 provider=openai，可用环境变量覆盖）
@@ -56,18 +64,20 @@ export LICODE_API_KEY=sk-...
 
 ```bash
 make build      # Linux amd64/arm64 + macOS + Windows，静态编译
-make build-linux
-make cross      # 同上，含 upx 压缩（可选）
-make upx        # 对 dist 下的二进制做 UPX 压缩
+make build-host # 仅当前主机版本（./dist/licode）
+make upx        # UPX 压缩（可选）
 make size       # 查看产物体积
+./build.sh      # 47 平台全量交叉编译（见下方说明）
 ```
 
 约束：
 
 - `CGO_ENABLED=0` 完全静态编译，二进制不依赖 glibc/libc 等任何动态库
-- 产物约 10–18 MB（UPX 后可 < 10 MB）
+- 单二进制约 7 MB，UPX 后可 < 10 MB
 - 空闲内存 < 30 MB
 - 复制到任意同架构 Linux/macOS/Windows 机器直接运行
+
+> `build.sh`：47 平台全量交叉编译脚本，静态编译优先，个别强制要求 cgo 的平台自动回退动态编译，无法编译的平台自动跳过。
 
 ## 界面操作
 
@@ -101,6 +111,7 @@ make size       # 查看产物体积
 │   ├── websocket/         # Hub + Client 连接管理、事件协议
 │   └── web/               # go:embed 嵌入的静态页面
 ├── Makefile
+├── build.sh               # 47 平台交叉编译脚本
 └── go.mod
 ```
 
@@ -112,7 +123,7 @@ make size       # 查看产物体积
 
 `internal/agent/tools.go` 内置：`read_file`、`write_file`、`list_dir`、`grep`、`glob`、`run_shell`。Agent 循环：调用 LLM → 若返回工具调用则执行并把结果回填 → 重复，直到模型直接给出答案。
 
-### 子代理系统（方案）
+### 子代理系统
 
 见 [docs/subagents.md](docs/subagents.md)。主 Agent 通过 `dispatch_subagents` 工具把任务拆解给专门的子代理（`explorer` / `builder` / `planner`），支持 `depends_on` 依赖形成 DAG，同一层的任务并行执行。
 
@@ -127,9 +138,10 @@ make size       # 查看产物体积
 ```bash
 go build ./...     # 编译检查
 go vet ./...       # 静态检查
+go test ./...      # 单元测试（AI 流式解析 / Agent 工具循环 / DAG 调度 / 会话截断）
 ```
 
 ## 说明
 
 - 所有面向用户的文字均为简体中文
-- 本项目为教学/自用实现，仅依赖 `bubbletea`、`lipgloss`、`gorilla/websocket`、`cobra` 与 Go 标准库
+- 仅依赖 `bubbletea`、`lipgloss`、`gorilla/websocket`、`cobra` 与 Go 标准库
