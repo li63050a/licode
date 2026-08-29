@@ -41,6 +41,7 @@ var (
 	colRed    = lipgloss.Color("#f85149")
 	colPurple = lipgloss.Color("#bc8cff")
 	colBlue   = lipgloss.Color("#58a6ff")
+	colBGSub  = lipgloss.Color("#1f1f1f")
 )
 
 // ---------------------------------------------------------------------------
@@ -72,7 +73,7 @@ func newTUICmd() *cobra.Command {
 使用 --remote 连接运行中的 licode serve 服务器，此时本机只负责渲染界面，
 所有 AI 推理都在服务器执行，通过 WebSocket 转发流式结果。
 
-快捷键：/ 命令面板 · tab 切换文件树 · ? 帮助 · s 设置 · esc 取消 · enter 发送`,
+快捷键：/ 或 ctrl+p 命令面板 · tab 切换文件树 · ? 帮助 · s 设置 · esc 取消 · enter 发送`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runTUI(opts)
 		},
@@ -313,11 +314,21 @@ var commandList = []command{
 	{"export", "一键导出（/export 全部 /export md 对话 /export sessions）", func(m *uiModel) { m.input = "/export "; m.cursor = runeLen(m.input) }},
 	{"import", "一键导入（/import <文件路径>）", func(m *uiModel) { m.input = "/import "; m.cursor = runeLen(m.input) }},
 	{"clear", "清空会话", func(m *uiModel) { m.clearChat() }},
-	{"settings", "打开设置", func(m *uiModel) { m.openSettings() }},
+	{"settings", "打开设置", func(m *uiModel) { m.screen = screenSettings; m.openSettings() }},
 	{"help", "快捷键帮助", func(m *uiModel) { m.screen = "help" }},
 	{"files", "切换到文件树", func(m *uiModel) { m.focus = "files" }},
 	{"exit", "退出", func(m *uiModel) { m.quitting = true }},
 }
+
+// screen 表示当前的整屏视图。
+type screenMode string
+
+const (
+	screenChat     screenMode = "chat"
+	screenHelp     screenMode = "help"
+	screenSessions screenMode = "sessions"
+	screenSettings screenMode = "settings"
+)
 
 type uiModel struct {
 	width, height         int
@@ -330,8 +341,8 @@ type uiModel struct {
 	authUser string
 	authPass string
 
-	screen string // chat | help
-	focus  string // chat | files
+	screen screenMode // chat | help | sessions | settings
+	focus  string     // chat | files
 
 	tree    *treeNode
 	treeSel int
@@ -377,7 +388,7 @@ func newUIModel(cfg *uiConfig) *uiModel {
 		wsURL:    cfg.remoteURL,
 		authUser: cfg.authUser,
 		authPass: cfg.authPass,
-		screen:   "chat",
+		screen:   screenChat,
 		focus:    "chat",
 		events:   make(chan agent.Event, 512),
 		quit:     make(chan struct{}),
@@ -560,6 +571,7 @@ func (m *uiModel) handleEvent(e agent.Event) {
 	case agent.EventText:
 		if len(m.msgs) == 0 || m.msgs[len(m.msgs)-1].role != "assistant" {
 			m.msgs = append(m.msgs, viewMsg{role: "assistant"})
+			m.offset = 0
 		}
 		m.msgs[len(m.msgs)-1].text += e.Content
 	case agent.EventToolStart:
@@ -622,7 +634,7 @@ func (m *uiModel) handleEvent(e agent.Event) {
 
 func (m *uiModel) submit() {
 	text := strings.TrimSpace(m.input)
-	if text == "" || m.streaming || m.asking != nil || m.screen == "help" {
+	if text == "" || m.streaming || m.asking != nil || m.screen == screenHelp {
 		return
 	}
 	m.input = ""
@@ -765,7 +777,7 @@ func (m *uiModel) handleSessionsKey(msg tea.KeyMsg) tea.Cmd {
 				_ = m.sessions.SaveAll()
 			}
 		}
-		m.screen = "chat"
+		m.screen = screenChat
 	case "n":
 		m.newSession()
 	case "d":
@@ -781,7 +793,7 @@ func (m *uiModel) handleSessionsKey(msg tea.KeyMsg) tea.Cmd {
 			}
 		}
 	case "esc", "tab", "q", "ctrl+c":
-		m.screen = "chat"
+		m.screen = screenChat
 	}
 	return nil
 }
@@ -875,16 +887,31 @@ func (m *uiModel) handleKey(msg tea.KeyMsg) tea.Cmd {
 		return m.quitApp()
 	case "?":
 		if !m.streaming {
-			if m.screen == "help" {
-				m.screen = "chat"
+			if m.screen == screenHelp {
+				m.screen = screenChat
 			} else {
-				m.screen = "help"
+				m.screen = screenHelp
 			}
 		}
 		return nil
 	case "esc":
-		if m.screen == "help" {
-			m.screen = "chat"
+		if m.screen == screenHelp {
+			m.screen = screenChat
+			return nil
+		}
+		if m.screen == screenSettings {
+			m.screen = screenChat
+			m.status = "设置已关闭"
+			return nil
+		}
+		if m.screen == screenSessions {
+			m.screen = screenChat
+			return nil
+		}
+		if m.showCommands() {
+			m.input = ""
+			m.cursor = 0
+			m.cmdSel = 0
 			return nil
 		}
 		if m.focus == "files" {
@@ -900,14 +927,17 @@ func (m *uiModel) handleKey(msg tea.KeyMsg) tea.Cmd {
 	}
 
 	// 命令面板 / 设置编辑 / 会话列表 / 文件树 各自处理
-	if m.screen == "help" {
+	if m.screen == screenHelp {
 		return nil
 	}
-	if m.screen == "sessions" {
+	if m.screen == screenSessions {
 		return m.handleSessionsKey(msg)
 	}
-	if m.settingsEdit {
-		return m.handleSettingsEdit(msg)
+	if m.screen == screenSettings {
+		if m.settingsEdit {
+			return m.handleSettingsEdit(msg)
+		}
+		return m.handleSettingsKey(msg)
 	}
 	if m.showCommands() {
 		return m.handleCommandKeys(msg)
@@ -950,6 +980,12 @@ func (m *uiModel) handleKey(msg tea.KeyMsg) tea.Cmd {
 	case tea.KeyCtrlU:
 		m.input = ""
 		m.cursor = 0
+	case tea.KeyCtrlP:
+		if !m.streaming {
+			m.input = "/"
+			m.cursor = 1
+			m.cmdSel = 0
+		}
 	case tea.KeyPgUp:
 		m.offset += 12
 	case tea.KeyPgDown:
@@ -970,7 +1006,7 @@ func (m *uiModel) handleKey(msg tea.KeyMsg) tea.Cmd {
 }
 
 func (m *uiModel) showCommands() bool {
-	return !m.streaming && strings.HasPrefix(m.input, "/") && m.screen == "chat" && m.focus == "chat"
+	return !m.streaming && strings.HasPrefix(m.input, "/") && m.screen == screenChat && m.focus == "chat"
 }
 
 func (m *uiModel) commandMatches() []command {
@@ -986,21 +1022,38 @@ func (m *uiModel) commandMatches() []command {
 			out = append(out, c)
 		}
 	}
+	// 自动把光标移到与输入完全匹配的命令上（便于直接回车执行）。
+	if query != "" {
+		for i, c := range out {
+			if strings.EqualFold(c.name, query) {
+				m.cmdSel = i
+				break
+			}
+		}
+	}
 	return out
 }
 
 func (m *uiModel) handleCommandKeys(msg tea.KeyMsg) tea.Cmd {
 	cmds := m.commandMatches()
-	switch msg.String() {
-	case "up":
-		if m.cmdSel > 0 {
-			m.cmdSel--
+	switch msg.Type {
+	case tea.KeyRunes:
+		// 把字符插入光标处，实时过滤命令。
+		runes := []rune(m.input)
+		pos := clamp(m.cursor, 0, len(runes))
+		ins := []rune(string(msg.Runes))
+		runes = append(runes[:pos], append(ins, runes[pos:]...)...)
+		m.input = string(runes)
+		m.cursor = pos + len(ins)
+	case tea.KeyBackspace:
+		runes := []rune(m.input)
+		if m.cursor > 1 {
+			pos := clamp(m.cursor, 0, len(runes))
+			runes = append(runes[:pos-1], runes[pos:]...)
+			m.input = string(runes)
+			m.cursor--
 		}
-	case "down":
-		if m.cmdSel < len(cmds)-1 {
-			m.cmdSel++
-		}
-	case "enter":
+	case tea.KeyEnter:
 		if len(cmds) > 0 {
 			idx := clamp(m.cmdSel, 0, len(cmds)-1)
 			cmds[idx].run(m)
@@ -1008,7 +1061,20 @@ func (m *uiModel) handleCommandKeys(msg tea.KeyMsg) tea.Cmd {
 			m.cursor = 0
 			m.cmdSel = 0
 		}
-	case "tab", "esc":
+	case tea.KeyEsc:
+		m.input = ""
+		m.cursor = 0
+		m.cmdSel = 0
+		m.focus = "chat"
+	case tea.KeyUp:
+		if m.cmdSel > 0 {
+			m.cmdSel--
+		}
+	case tea.KeyDown:
+		if m.cmdSel < len(cmds)-1 {
+			m.cmdSel++
+		}
+	case tea.KeyTab:
 		m.input = ""
 		m.cursor = 0
 		m.cmdSel = 0
@@ -1076,13 +1142,13 @@ var settingsFields = []settingsField{
 }
 
 func (m *uiModel) openSettings() {
-	m.screen = "chat"
 	m.settingsSel = 0
+	m.settingsEdit = false
 	if m.remote != nil {
 		go m.remote.send(wsproto.ClientMessage{Type: wsproto.TypeSettingsGet})
 		m.status = "正在获取服务器设置…"
 	} else {
-		m.status = "设置界面：Enter 编辑 · ↑↓ 选择 · Esc 返回"
+		m.status = "↑↓ 选择 · enter 编辑 · esc 返回"
 	}
 }
 
@@ -1138,6 +1204,27 @@ func (m *uiModel) handleSettingsEdit(msg tea.KeyMsg) tea.Cmd {
 		m.commitSettingsEdit()
 	case tea.KeyEsc, tea.KeyCtrlC:
 		m.settingsEdit = false
+	}
+	return nil
+}
+
+func (m *uiModel) handleSettingsKey(msg tea.KeyMsg) tea.Cmd {
+	switch msg.String() {
+	case "up":
+		if m.settingsSel > 0 {
+			m.settingsSel--
+		}
+	case "down":
+		if m.settingsSel < len(settingsFields)-1 {
+			m.settingsSel++
+		}
+	case "enter":
+		m.settingsEdit = true
+		m.settingsBuf = m.fieldValue(m.settingsSel)
+	case "esc":
+		if m.screen == screenSettings {
+			m.screen = screenChat
+		}
 	}
 	return nil
 }
@@ -1203,11 +1290,14 @@ func (m *uiModel) View() string {
 	if w == 0 {
 		w, h = 100, 30
 	}
-	if m.screen == "help" {
+	if m.screen == screenHelp {
 		return m.renderHelp(w, h)
 	}
-	if m.screen == "sessions" {
+	if m.screen == screenSessions {
 		return m.renderSessions(w, h)
+	}
+	if m.screen == screenSettings {
+		return m.renderSettings(w, h)
 	}
 
 	var sb strings.Builder
@@ -1253,24 +1343,33 @@ func (m *uiModel) View() string {
 }
 
 func (m *uiModel) renderHeader(w int) string {
-	title := lipgloss.NewStyle().Foreground(colAccent).Bold(true).Render("licode")
-	badge := lipgloss.NewStyle().Foreground(colMuted).Render(m.provider + "/" + m.model)
+	logo := lipgloss.NewStyle().Foreground(colAccent).Bold(true).Render("◆ licode")
+	modelInfo := lipgloss.NewStyle().Foreground(colMuted).Render(m.provider + "/" + m.model)
 	mode := lipgloss.NewStyle().Foreground(colBlue).Render(m.mode)
-	sessTitle := ""
+	sessTitle := lipgloss.NewStyle().Foreground(colFg).Render("")
 	if m.agent != nil && m.agent.Session != nil {
-		sessTitle = m.agent.Session.Title()
+		sessTitle = lipgloss.NewStyle().Foreground(colFg).Render(m.agent.Session.Title())
 	}
 	if m.remote != nil && m.remoteSession != "" {
 		for _, s := range m.sessionsList {
 			if s.ID == m.remoteSession {
-				sessTitle = s.Title
+				sessTitle = lipgloss.NewStyle().Foreground(colFg).Render(s.Title)
 				break
 			}
 		}
 	}
-	left := lipgloss.NewStyle().Render(title + "  " + badge + "  " + mode + "  " + lipgloss.NewStyle().Foreground(colFg).Render(sessTitle))
+	left := lipgloss.NewStyle().Render(
+		logo + "  " + modelInfo + "  " + mode + "  " + sessTitle,
+	)
 	right := lipgloss.NewStyle().Foreground(colMuted).Render("tab:文件  ?:帮助  /:命令")
-	return lipgloss.NewStyle().Width(w).MaxWidth(w).Render(lipgloss.JoinHorizontal(lipgloss.Center, left, lipgloss.NewStyle().Width(w-45).Align(lipgloss.Right).Render(right)))
+	leftW := runewidth.StringWidth(lipgloss.NewStyle().Render(left))
+	rightW := runewidth.StringWidth(lipgloss.NewStyle().Render(right))
+	gap := w - leftW - rightW
+	if gap < 2 {
+		gap = 2
+	}
+	pad := lipgloss.NewStyle().Render(strings.Repeat(" ", gap))
+	return lipgloss.NewStyle().Width(w).Render(lipgloss.JoinHorizontal(lipgloss.Center, left, pad, right))
 }
 
 func (m *uiModel) renderSessions(w, h int) string {
@@ -1293,13 +1392,35 @@ func (m *uiModel) renderSessions(w, h int) string {
 			marker = "▸ "
 			style = style.Foreground(colAccent).Bold(true)
 		}
-		sb.WriteString("  " + marker + style.Render(s.Title) + lipgloss.NewStyle().Foreground(colMuted).Render(fmt.Sprintf("  (%d 条)", s.Count)) + "\n")
 		if i == m.sessionsSel {
-			_ = i
+			style = style.Background(colBGSub)
 		}
+		sb.WriteString("  " + marker + style.Render(s.Title) + lipgloss.NewStyle().Foreground(colMuted).Render(fmt.Sprintf("  (%d 条)", s.Count)) + "\n")
 	}
 	if len(list) == 0 {
 		sb.WriteString("  " + lipgloss.NewStyle().Foreground(colMuted).Render("（暂无会话，按 n 新建）"))
+	}
+	return lipgloss.NewStyle().Width(w).Height(h).Render(sb.String())
+}
+
+func (m *uiModel) renderSettings(w, h int) string {
+	var sb strings.Builder
+	sb.WriteString(lipgloss.NewStyle().Foreground(colAccent).Bold(true).Render(" 设置"))
+	sb.WriteString("  " + lipgloss.NewStyle().Foreground(colMuted).Render("↑↓ 选择 · enter 编辑 · esc 返回"))
+	sb.WriteString("\n" + lipgloss.NewStyle().Foreground(colBorder).Render(strings.Repeat("─", w)) + "\n\n")
+
+	for i, f := range settingsFields {
+		val := m.fieldValue(i)
+		line := "  " + padRight(f.label, 18) + lipgloss.NewStyle().Foreground(colFg).Render(val)
+		if i == m.settingsSel && m.settingsEdit {
+			line = "  " + padRight(f.label, 18) + lipgloss.NewStyle().Foreground(colYellow).Render(m.settingsBuf+"▌")
+		} else if i == m.settingsSel {
+			line = "▸ " + padRight(f.label, 18) + lipgloss.NewStyle().Foreground(colAccent).Bold(true).Render(val)
+		}
+		sb.WriteString(line + "\n")
+	}
+	if m.remote != nil {
+		sb.WriteString("\n  " + lipgloss.NewStyle().Foreground(colMuted).Render("远程模式：设置实时同步到服务器"))
 	}
 	return lipgloss.NewStyle().Width(w).Height(h).Render(sb.String())
 }
@@ -1318,6 +1439,8 @@ func (m *uiModel) renderTree(w, bodyLines int) string {
 		start = 0
 	}
 	var sb strings.Builder
+	title := lipgloss.NewStyle().Foreground(colMuted).Render("文件")
+	sb.WriteString(title + "\n")
 	for i := start; i < end; i++ {
 		n := vis[i]
 		indent := strings.Repeat("  ", n.depth)
@@ -1334,48 +1457,47 @@ func (m *uiModel) renderTree(w, bodyLines int) string {
 			style = style.Foreground(colAccent)
 		}
 		if m.focus == "files" && i == m.treeSel {
-			style = style.Background(lipgloss.Color("#2a2a2a")).Bold(true).Foreground(colAccent)
-			sb.WriteString("▸" + prefix + " " + style.Render(indent+n.name))
+			style = style.Background(colBGSub).Bold(true).Foreground(colAccent)
+			sb.WriteString("▸" + prefix + " " + style.Render(truncateWidth(indent+n.name, w-4)))
 		} else {
-			sb.WriteString(" " + prefix + " " + style.Render(indent+n.name))
+			sb.WriteString(" " + prefix + " " + style.Render(truncateWidth(indent+n.name, w-4)))
 		}
 		sb.WriteString("\n")
 	}
-	return lipgloss.NewStyle().Width(w).MaxHeight(bodyLines).Render(strings.TrimSuffix(sb.String(), "\n"))
+	return lipgloss.NewStyle().Width(w).MaxHeight(bodyLines - 1).Render(strings.TrimSuffix(sb.String(), "\n"))
 }
 
 func (m *uiModel) renderMessages(w, bodyLines int) string {
 	var lines []string
-	lines = append(lines, m.renderMsgLine("◆ licode", colGreen))
 	if len(m.msgs) == 0 {
 		lines = append(lines,
-			"  "+lipgloss.NewStyle().Foreground(colMuted).Render("欢迎使用 licode —— 终端里的 AI 编程助手。"),
-			"  "+lipgloss.NewStyle().Foreground(colMuted).Render("输入问题开始对话，或输入 / 查看命令。"),
+			lipgloss.NewStyle().Foreground(colMuted).Render("  欢迎使用 licode —— 终端里的 AI 编程助手。"),
+			lipgloss.NewStyle().Foreground(colMuted).Render("  输入问题开始对话，或输入 / 查看命令。"),
 		)
 	}
 	for i, msg := range m.msgs {
 		switch msg.role {
 		case "user":
-			lines = append(lines, m.renderMsgLine("┃ 你", colBlue))
-			for _, l := range wrapText(msg.text, w-2) {
-				lines = append(lines, "  "+l)
+			lines = append(lines, m.renderRoleLine("┃ 你", colBlue))
+			for _, l := range wrapText(msg.text, w-4) {
+				lines = append(lines, lipgloss.NewStyle().Foreground(colFg).Render("  │ "+l))
 			}
 			if i == len(m.msgs)-1 && m.streaming {
-				lines = append(lines, "  "+lipgloss.NewStyle().Foreground(colAccent).Render("▌"))
+				lines = append(lines, "  │ "+lipgloss.NewStyle().Foreground(colAccent).Render("▌"))
 			}
 		case "assistant":
-			lines = append(lines, m.renderMsgLine("◆ licode", colGreen))
+			lines = append(lines, m.renderRoleLine("◆ licode", colGreen))
 			text := msg.text
 			if m.streaming && i == len(m.msgs)-1 {
 				text += lipgloss.NewStyle().Foreground(colAccent).Render("▌")
 			}
-			for _, l := range wrapText(text, w-2) {
-				lines = append(lines, "  "+l)
+			for _, l := range wrapText(text, w-4) {
+				lines = append(lines, "    "+l)
 			}
 		case "tool":
 			lines = append(lines, m.renderToolChip(msg.tool, w))
 			if msg.tool.state != "running" && msg.tool.out != "" {
-				for i, l := range wrapText(collapseOutput(msg.tool.out), w-4) {
+				for i, l := range wrapText(collapseOutput(msg.tool.out), w-6) {
 					if i >= 4 {
 						lines = append(lines, "    …(输出已折叠)")
 						break
@@ -1395,13 +1517,13 @@ func (m *uiModel) renderMessages(w, bodyLines int) string {
 		start = 0
 	}
 	if start > 0 {
-		lines = append([]string{"↑ 更多历史 ↑"}, lines[start:]...)
+		lines = append([]string{lipgloss.NewStyle().Foreground(colMuted).Render("↑ 更多历史 ↑")}, lines[start:]...)
 	}
 	out := strings.Join(lines, "\n")
 	return out
 }
 
-func (m *uiModel) renderMsgLine(text string, color lipgloss.Color) string {
+func (m *uiModel) renderRoleLine(text string, color lipgloss.Color) string {
 	return lipgloss.NewStyle().Foreground(color).Bold(true).Render(text)
 }
 
@@ -1409,19 +1531,17 @@ func (m *uiModel) renderToolChip(t *toolView, w int) string {
 	var s string
 	switch t.state {
 	case "running":
-		s = "⚙ " + t.name + "  运行中…"
-		return lipgloss.NewStyle().Foreground(colYellow).Render(s)
+		s = "⚙ " + lipgloss.NewStyle().Foreground(colYellow).Render(t.name) + "  运行中…"
+		return "  " + s
 	case "done":
-		s = "⚙ " + t.name
-		// 从工具输出里取第一行作为摘要
 		first := firstLine(t.out)
+		summary := "✓"
 		if first != "" {
-			s += "  " + truncateWidth(first, w-20)
+			summary += "  " + lipgloss.NewStyle().Foreground(colMuted).Render(truncateWidth(first, w-18))
 		}
-		s += "  ✓"
-		return lipgloss.NewStyle().Foreground(colGreen).Render(s)
+		return "  " + lipgloss.NewStyle().Foreground(colGreen).Render("⚙ "+t.name) + "  " + summary
 	default:
-		return lipgloss.NewStyle().Foreground(colRed).Render("⚙ " + t.name + "  ✕")
+		return "  " + lipgloss.NewStyle().Foreground(colRed).Render("⚙ "+t.name+"  ✕")
 	}
 }
 
@@ -1433,7 +1553,7 @@ func (m *uiModel) renderCommandPalette(w, bodyLines int) string {
 	for i, c := range cmds {
 		line := "  " + c.name + "  " + lipgloss.NewStyle().Foreground(colMuted).Render(c.desc)
 		if i == m.cmdSel {
-			line = lipgloss.NewStyle().Background(lipgloss.Color("#2a2a2a")).Foreground(colAccent).Bold(true).Render("▸ "+c.name) + "  " + lipgloss.NewStyle().Foreground(colMuted).Render(c.desc)
+			line = lipgloss.NewStyle().Background(colBGSub).Foreground(colAccent).Bold(true).Render("▸ "+c.name) + "  " + lipgloss.NewStyle().Foreground(colMuted).Render(c.desc)
 		}
 		sb.WriteString(line + "\n")
 		if i >= bodyLines-3 {
@@ -1444,7 +1564,7 @@ func (m *uiModel) renderCommandPalette(w, bodyLines int) string {
 }
 
 func (m *uiModel) renderInput(w int) string {
-	placeholder := "提问…"
+	placeholder := "提问…  (/ 查看命令)"
 	inputStr := m.input
 	cursor := lipgloss.NewStyle().Background(colAccent).Render(" ")
 	var line string
@@ -1459,18 +1579,32 @@ func (m *uiModel) renderInput(w int) string {
 	}
 	prompt := lipgloss.NewStyle().Foreground(colAccent).Bold(true).Render("> ")
 	modelBadge := lipgloss.NewStyle().Foreground(colMuted).Render(m.provider + "/" + m.model)
-	return lipgloss.NewStyle().Width(w).Render(lipgloss.JoinHorizontal(lipgloss.Center, prompt, line, lipgloss.NewStyle().Width(w-30).Align(lipgloss.Right).Render(modelBadge)))
+	leftW := runewidth.StringWidth(prompt + line)
+	rightW := runewidth.StringWidth(modelBadge)
+	gap := w - leftW - rightW
+	if gap < 2 {
+		gap = 2
+	}
+	pad := strings.Repeat(" ", gap)
+	return lipgloss.NewStyle().Width(w).Render(prompt + line + pad + modelBadge)
 }
 
 func (m *uiModel) renderStatusBar(w int) string {
-	left := "esc: 取消  /: 命令  enter: 发送  tab: 文件  s: 设置  ?: 帮助"
+	left := "esc: 取消  /: 命令  enter: 发送  tab: 文件  ?: 帮助  /settings: 设置"
 	right := m.status
 	if m.streaming && right == "" {
 		right = "思考中…"
 	}
 	ls := lipgloss.NewStyle().Foreground(colMuted).Render(left)
 	rs := lipgloss.NewStyle().Foreground(colMuted).Render(right)
-	return lipgloss.NewStyle().Width(w).Render(lipgloss.JoinHorizontal(lipgloss.Center, ls, lipgloss.NewStyle().Width(w-40).Align(lipgloss.Right).Render(rs)))
+	leftW := runewidth.StringWidth(lipgloss.NewStyle().Render(ls))
+	rightW := runewidth.StringWidth(lipgloss.NewStyle().Render(rs))
+	gap := w - leftW - rightW
+	if gap < 2 {
+		gap = 2
+	}
+	pad := strings.Repeat(" ", gap)
+	return lipgloss.NewStyle().Width(w).Render(lipgloss.NewStyle().Foreground(colBorder).Render("─") + ls + pad + rs)
 }
 
 func (m *uiModel) renderHelp(w, h int) string {
@@ -1479,11 +1613,11 @@ func (m *uiModel) renderHelp(w, h int) string {
 	sb.WriteString("\n" + lipgloss.NewStyle().Foreground(colBorder).Render(strings.Repeat("─", w)) + "\n\n")
 	rows := [][2]string{
 		{"enter", "发送消息"},
-		{"/", "打开命令面板"},
+		{"/ 或 ctrl+p", "打开命令面板"},
 		{"tab", "切换 消息/文件树"},
 		{"↑↓ →←", "文件树中移动 / 展开折叠目录"},
 		{"enter(文件)", "把所选文件路径放入输入框"},
-		{"s", "打开设置（提供商/模型/密钥等）"},
+		{"/settings", "打开设置（提供商/模型/密钥等）"},
 		{"esc", "取消当前输出 / 返回"},
 		{"ctrl+c", "取消输出；再次按下退出"},
 		{"/clear", "清空会话"},
