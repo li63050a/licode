@@ -26,20 +26,34 @@ type MCPServer = agent.MCPServer
 
 // Settings 是运行时可变的全部应用设置。
 type Settings struct {
-	Provider      string           `json:"provider"`
-	BaseURL       string           `json:"base_url"`
-	APIKey        string           `json:"api_key"`
-	Model         string           `json:"model"`
-	Providers     []ProviderConfig `json:"providers"` // 已配置的多个厂商
-	Temperature   float64          `json:"temperature"`
-	MaxTokens     int              `json:"max_tokens"`
-	MaxIterations int              `json:"max_iterations"`
-	SubAgents     bool             `json:"subagents"`
-	AskTools      []string         `json:"ask_tools"`
-	DenyTools     []string         `json:"deny_tools"`
-	Compaction    bool             `json:"compaction"`  // 上下文超限时用 LLM 压缩
-	TitleGen      bool             `json:"title_gen"`   // 自动生成对话标题
-	MCPServers    []MCPServer      `json:"mcp_servers"` // MCP 服务器列表
+	Provider      string            `json:"provider"`
+	BaseURL       string            `json:"base_url"`
+	APIKey        string            `json:"api_key"`
+	Model         string            `json:"model"`
+	Providers     []ProviderConfig  `json:"providers"` // 已配置的多个厂商
+	Temperature   float64           `json:"temperature"`
+	MaxTokens     int               `json:"max_tokens"`
+	MaxIterations int               `json:"max_iterations"`
+	SubAgents     bool              `json:"subagents"`
+	AskTools      []string          `json:"ask_tools"`
+	DenyTools     []string          `json:"deny_tools"`
+	Compaction    bool              `json:"compaction"`  // 上下文超限时用 LLM 压缩
+	TitleGen      bool              `json:"title_gen"`   // 自动生成对话标题
+	AutoAllow     bool              `json:"auto_allow"`  // 风险工具自动允许
+	ToolRules     map[string]string `json:"tool_rules"`  // 工具名 -> allow/ask/deny
+	MCPServers    []MCPServer       `json:"mcp_servers"` // MCP 服务器列表
+	SSHPubKey     string            `json:"ssh_pubkey"`  // SSH 公钥文件路径
+	SSHPrivKey    string            `json:"ssh_privkey"` // SSH 私钥文件路径
+}
+
+// SetSSH 设置 SSH 密钥路径。
+func (s *Settings) SetSSH(pub, priv string) {
+	if pub != "" {
+		s.SSHPubKey = pub
+	}
+	if priv != "" {
+		s.SSHPrivKey = priv
+	}
 }
 
 // Defaults 返回合并了配置文件、环境变量与内置默认值的初始设置。
@@ -52,7 +66,24 @@ func Defaults() Settings {
 func (s *Settings) ApplyFlags(provider, baseURL, apiKey, model string, noSubAgents bool) {
 	if provider != "" {
 		provider = strings.ToLower(provider)
+		// 若尚未配置该厂商，先创建默认条目（正确的默认 base_url/model）
+		found := false
+		for _, p := range s.Providers {
+			if p.Provider == provider {
+				found = true
+				break
+			}
+		}
+		if !found {
+			pc := ProviderConfig{Provider: provider}
+			if d, ok := ai.Defaults[provider]; ok {
+				pc.BaseURL = d.BaseURL
+				pc.Model = d.Model
+			}
+			s.Providers = append(s.Providers, pc)
+		}
 		s.Provider = provider
+		s.syncTopLevel()
 	}
 	if baseURL != "" {
 		s.BaseURL = baseURL
@@ -166,6 +197,13 @@ func (s *Settings) BuildAgent(client ai.LLMClient) *agent.Agent {
 	ag.Temperature = s.Temperature
 	ag.Compaction = s.Compaction
 	ag.Permissions = map[string]string{}
+	// 工具规则：tool -> allow/ask/deny（未配置默认为 allow）
+	for tool, mode := range s.ToolRules {
+		if mode == "deny" || mode == "ask" || mode == "allow" {
+			ag.Permissions[tool] = mode
+		}
+	}
+	// 兼容旧的 ask_tools / deny_tools
 	for _, t := range s.DenyTools {
 		ag.Permissions[t] = "deny"
 	}
@@ -200,7 +238,7 @@ func providerEnvKey(provider string) string {
 
 // Snapshot 返回设置的深拷贝，避免并发读写。
 func (s *Settings) Snapshot() Settings {
-	return Settings{
+	out := Settings{
 		Provider:      s.Provider,
 		BaseURL:       s.BaseURL,
 		APIKey:        s.APIKey,
@@ -214,14 +252,27 @@ func (s *Settings) Snapshot() Settings {
 		DenyTools:     append([]string{}, s.DenyTools...),
 		Compaction:    s.Compaction,
 		TitleGen:      s.TitleGen,
+		AutoAllow:     s.AutoAllow,
 		MCPServers:    append([]MCPServer{}, s.MCPServers...),
+		ToolRules:     map[string]string{},
+		SSHPubKey:     s.SSHPubKey,
+		SSHPrivKey:    s.SSHPrivKey,
 	}
+	for k, v := range s.ToolRules {
+		out.ToolRules[k] = v
+	}
+	return out
 }
 
 // Validate 校验设置值是否可用。
 func (s *Settings) Validate() error {
 	_, err := ai.New(s.AIConfig())
 	return err
+}
+
+// EnsureDefaults 补全默认值（提供商模型、风险工具规则等）。
+func (s *Settings) EnsureDefaults() {
+	_ = s.finalize()
 }
 
 // ParseToolList 解析逗号分隔的工具列表。

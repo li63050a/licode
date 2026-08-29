@@ -6,364 +6,708 @@
 <title>licode</title>
 <style>
   :root {
-    --bg: #0d1117;
-    --panel: #161b22;
-    --border: #21262d;
-    --fg: #c9d1d9;
-    --muted: #8b949e;
-    --accent: #58a6ff;
-    --green: #3fb950;
-    --purple: #bc8cff;
-    --yellow: #d29922;
-    --red: #f85149;
-    --input: #0d1117;
+    --bg:#fff; --panel:#f7f7f8; --border:#e8e8e8; --fg:#1f1f1f; --muted:#8a8a8a;
+    --accent:#4d6bfe; --green:#10a37f; --red:#e5484d; --yellow:#e7a23c; --purple:#8250df;
+    --radius:14px;
   }
-  * { box-sizing: border-box; }
-  html, body { height: 100%; margin: 0; }
-  body {
-    background: var(--bg);
-    color: var(--fg);
-    font: 15px/1.5 -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", monospace;
-    display: flex;
-    flex-direction: column;
+  html[data-theme="dark"] {
+    --bg:#0d1117; --panel:#161b22; --border:#21262d; --fg:#e6edf3; --muted:#8b949e;
+    --accent:#e77f24; --green:#3fb950; --red:#f85149; --yellow:#d29922; --purple:#bc8cff;
   }
-  header {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 10px 16px;
-    background: var(--panel);
-    border-bottom: 1px solid var(--border);
-    font-size: 13px;
+  * { box-sizing:border-box; }
+  body { margin:0; height:100vh; display:flex; flex-direction:column; background:var(--bg); color:var(--fg);
+    font:14px/1.6 -apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; }
+
+  header { display:flex; align-items:center; gap:10px; padding:8px 16px; border-bottom:1px solid var(--border); background:var(--bg); }
+  .logo { font-weight:700; color:var(--accent); font-size:17px; }
+  .badge { color:var(--muted); font-size:12.5px; }
+  .dot { width:8px; height:8px; border-radius:50%; background:var(--muted); display:inline-block; margin-right:4px; }
+  .dot.online { background:var(--green); } .dot.offline { background:var(--red); }
+  .spacer { flex:1; }
+  .btn { border:1px solid var(--border); background:var(--panel); color:var(--fg); border-radius:10px; padding:5px 12px; font:inherit; font-size:12.5px; cursor:pointer; }
+  .btn:hover { border-color:var(--accent); color:var(--accent); }
+  .btn.primary { border-color:var(--accent); color:var(--accent); }
+  .icon-btn { border:none; background:none; color:var(--muted); font-size:15px; cursor:pointer; padding:4px 6px; border-radius:8px; }
+  .icon-btn:hover { background:var(--panel); color:var(--fg); }
+
+  #layout { flex:1; display:flex; min-height:0; }
+
+  /* 左侧栏（可折叠） */
+  #sidebar { width:230px; min-width:0; background:var(--panel); border-right:1px solid var(--border); display:flex; flex-direction:column; transition:margin .2s ease; overflow:hidden; }
+  #sidebar.collapsed { margin-left:-230px; }
+  #sidebar .top { display:flex; align-items:center; padding:8px; gap:6px; }
+  #sidebar .top .btn { flex:1; }
+  #sideBody { flex:1; overflow-y:auto; min-height:0; }
+  #sideBody .group { padding:8px 10px 2px; font-size:11.5px; color:var(--muted); letter-spacing:.5px; }
+  .sess { padding:7px 10px; cursor:pointer; display:flex; gap:6px; align-items:center; margin:1px 6px; border-radius:10px; font-size:13px; }
+  .sess:hover { background:var(--bg); }
+  .sess.active { background:var(--bg); box-shadow:inset 2px 0 0 var(--accent); }
+  .sess .t { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .sess .del { color:var(--muted); opacity:0; }
+  .sess:hover .del { opacity:1; } .sess .del:hover { color:var(--red); }
+  #sideFoot { padding:8px 10px; border-top:1px solid var(--border); font-size:11.5px; color:var(--muted); display:flex; gap:8px; align-items:center; }
+  #sideFoot .btn { flex:1; }
+
+  /* 中间对话区 */
+  #main { flex:1; display:flex; flex-direction:column; min-width:0; background:var(--bg); }
+  #chat { flex:1; overflow-y:auto; padding:22px; }
+  .wrap { max-width:760px; margin:0 auto; }
+  .empty { text-align:center; padding:14vh 0 2vh; }
+  .empty .title { font-size:26px; font-weight:700; color:var(--fg); }
+  .empty .sub { color:var(--muted); margin-top:6px; font-size:13.5px; }
+  .chips { display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin-top:26px; }
+  .chips .chip { border:1px solid var(--border); background:var(--panel); border-radius:999px; padding:7px 16px; font-size:13px; cursor:pointer; color:var(--fg); }
+  .chips .chip:hover { border-color:var(--accent); color:var(--accent); }
+
+  .msg { margin-bottom:20px; }
+  .msg .role { font-size:12px; color:var(--muted); margin-bottom:4px; }
+  .msg.user { display:flex; flex-direction:column; align-items:flex-end; }
+  .msg.user .body { background:var(--accent); color:#fff; border-radius:14px 14px 4px 14px; padding:10px 15px; max-width:78%; white-space:pre-wrap; }
+  .msg.assistant .body { padding:2px 0; white-space:pre-wrap; word-break:break-word; }
+  .msg.assistant .body p { margin:.6em 0; }
+  .msg.assistant .body pre { background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:10px 12px; overflow-x:auto; font-size:12.5px; }
+  .msg.assistant .body code { background:var(--panel); border-radius:4px; padding:1px 5px; font-size:12.5px; }
+  .msg.assistant .body pre code { background:none; padding:0; }
+  .msg.assistant .body a { color:var(--accent); }
+  .msg.assistant .body table { border-collapse:collapse; } .msg.assistant .body td,th { border:1px solid var(--border); padding:4px 8px; }
+  .msg.error .body { color:var(--red); }
+  .cursor { display:inline-block; width:8px; height:15px; background:var(--accent); vertical-align:-2px; }
+  .tool { margin:5px 0; border:1px solid var(--border); border-radius:12px; overflow:hidden; }
+  .tool .head { display:flex; align-items:center; gap:8px; padding:5px 11px; background:var(--panel); cursor:pointer; font-size:12.5px; }
+  .tool .name { color:var(--purple); font-weight:600; }
+  .tool .status { color:var(--yellow); } .tool .status.done { color:var(--green); }
+  .tool .chev { margin-left:auto; color:var(--muted); }
+  .tool .detail { display:none; padding:8px 12px; border-top:1px solid var(--border); }
+  .tool.open .detail { display:block; }
+  .tool .detail pre { margin:0; white-space:pre-wrap; word-break:break-word; font-size:12px; color:var(--muted); }
+
+  /* 右侧栏（信息/文件，可折叠） */
+  #right { width:260px; min-width:0; background:var(--panel); border-left:1px solid var(--border); display:flex; flex-direction:column; transition:margin .2s ease; overflow:hidden; }
+  #right.collapsed { margin-right:-260px; }
+  #right .tabs { display:flex; padding:6px; gap:4px; }
+  #right .tabs .tab { flex:1; text-align:center; padding:5px 0; border-radius:8px; font-size:12.5px; cursor:pointer; color:var(--muted); }
+  #right .tabs .tab.active { background:var(--bg); color:var(--accent); font-weight:600; }
+  #rightBody { flex:1; overflow-y:auto; min-height:0; padding:10px; }
+  .stat { background:var(--bg); border:1px solid var(--border); border-radius:12px; padding:10px 12px; margin-bottom:8px; font-size:13px; }
+  .stat .k { color:var(--muted); font-size:11.5px; } .stat .v { font-size:16px; font-weight:600; }
+  .fnode { display:flex; align-items:center; gap:5px; padding:4px 8px; border-radius:8px; cursor:pointer; white-space:nowrap; font-size:12.5px; }
+  .fnode:hover { background:var(--bg); } .fnode.sel { background:var(--bg); color:var(--accent); }
+  .fnode.dir .ico { color:var(--accent); } .fnode .ico { color:var(--muted); width:14px; }
+  .fnode .nm { overflow:hidden; text-overflow:ellipsis; }
+  #fileEdit textarea { width:100%; height:100%; border:none; outline:none; background:var(--bg); color:var(--fg); font:12.5px/1.6 ui-monospace,monospace; padding:10px; resize:none; min-height:180px; }
+  #fileEdit .bar { display:flex; gap:6px; align-items:center; margin-bottom:8px; flex-wrap:wrap; }
+  #fileEdit .path { flex:1; color:var(--muted); font-size:11.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+  /* 输入区 */
+  #askbar { display:none; padding:10px 16px; background:var(--panel); border-top:1px solid var(--border); text-align:center; }
+  #composer { padding:12px 16px 16px; border-top:1px solid var(--border); background:var(--bg); }
+  .box { max-width:760px; margin:0 auto; }
+  #composer .sel { display:flex; gap:8px; margin-bottom:8px; align-items:center; }
+  #composer select { background:var(--panel); color:var(--fg); border:1px solid var(--border); border-radius:8px; padding:4px 8px; font:inherit; font-size:12px; outline:none; }
+  .inputrow { display:flex; gap:8px; align-items:flex-end; border:1px solid var(--border); border-radius:16px; background:var(--panel); padding:6px 6px 6px 14px; }
+  .inputrow:focus-within { border-color:var(--accent); }
+  textarea#input { flex:1; resize:none; height:40px; max-height:170px; background:none; border:none; outline:none; color:var(--fg); font:inherit; padding:8px 0; }
+  #send { border:none; background:var(--accent); color:#fff; border-radius:12px; padding:9px 18px; font:inherit; cursor:pointer; }
+  #send:disabled { opacity:.5; cursor:default; }
+  .hint { margin-top:6px; color:var(--muted); font-size:11.5px; text-align:center; }
+
+  /* 弹窗 */
+  .modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:10; align-items:center; justify-content:center; }
+  .modal.on { display:flex; }
+  .modal .panel { width:min(560px,94vw); max-height:88vh; overflow-y:auto; background:var(--bg); border:1px solid var(--border); border-radius:18px; padding:20px 24px; }
+  .modal h3 { margin:0 0 14px; color:var(--accent); }
+  .modal .row { display:flex; align-items:center; gap:10px; margin-bottom:10px; }
+  .modal label { width:120px; color:var(--muted); font-size:12.5px; flex-shrink:0; }
+  .modal input,.modal select,.modal textarea { flex:1; background:var(--panel); color:var(--fg); border:1px solid var(--border); border-radius:10px; padding:7px 9px; font:inherit; font-size:13px; }
+  .modal textarea { font:12px/1.4 ui-monospace,monospace; resize:vertical; }
+  .modal .btns { display:flex; gap:10px; margin-top:16px; justify-content:flex-end; }
+  .modal .about { line-height:1.9; } .modal .about a { color:var(--accent); text-decoration:none; }
+
+  /* 动画（默认关闭，设置可开启） */
+  html[data-anim="on"] .msg { animation:fadeUp .35s ease; }
+  html[data-anim="on"] .msg.user .body { animation:popIn .3s ease; }
+  html[data-anim="on"] .tool { animation:slideIn .3s ease; }
+  html[data-anim="on"] .cursor { animation:blink 1s steps(2) infinite; }
+  @keyframes fadeUp { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:none} }
+  @keyframes popIn { from{opacity:0;transform:scale(.97)} to{opacity:1;transform:none} }
+  @keyframes slideIn { from{opacity:0;transform:translateX(-6px)} to{opacity:1;transform:none} }
+  @keyframes blink { 50%{opacity:0} }
+
+  /* 未登录提醒横幅 */
+  .banner { display:none; align-items:center; gap:8px; padding:8px 16px; font-size:12.5px;
+    background:var(--yellow); color:#1f1f1f; border-bottom:1px solid var(--border); }
+  .banner.show { display:flex; }
+  .banner .txt { flex:1; }
+  .banner button { border:none; background:none; font-size:14px; cursor:pointer; color:#1f1f1f; }
+
+  /* 移动端适配：横屏 / 竖屏 */
+  @media (max-width: 960px) { #sidebar { margin-left:-230px; } #right { margin-right:-260px; } }
+  @media (max-width: 480px), (orientation: portrait) and (max-width: 768px) {
+    .msg.user .body { max-width:100%; }
+    #composer { padding:10px; }
+    .wrap { max-width:100%; }
+    #chat { padding:12px 10px; }
+    .empty { padding:8vh 0 1vh; }
   }
-  header .logo { font-weight: 700; color: var(--accent); letter-spacing: .5px; }
-  header .dot {
-    width: 8px; height: 8px; border-radius: 50%; background: var(--muted);
-    display: inline-block; margin-right: 4px;
-  }
-  header .dot.online { background: var(--green); }
-  header .dot.offline { background: var(--red); }
-  header .spacer { flex: 1; }
-  header .meta { color: var(--muted); }
-  .btn {
-    border: 1px solid var(--border); background: var(--input); color: var(--fg);
-    border-radius: 8px; padding: 4px 12px; font: inherit; font-size: 13px; cursor: pointer;
-  }
-  .btn:hover { border-color: var(--accent); color: var(--accent); }
-  #chat { flex: 1; overflow-y: auto; padding: 16px; }
-  .msg { margin: 0 auto 14px; max-width: 900px; }
-  .msg .role {
-    font-size: 12px; text-transform: uppercase; letter-spacing: 1px;
-    color: var(--muted); margin-bottom: 4px;
-  }
-  .msg.user .role { color: var(--accent); }
-  .msg.assistant .role { color: var(--green); }
-  .msg .body { white-space: pre-wrap; word-break: break-word; }
-  .msg.user .body {
-    background: var(--panel); border: 1px solid var(--border);
-    border-radius: 10px; padding: 10px 14px;
-  }
-  .msg.assistant .body { padding: 2px 0; }
-  .msg.error .body { color: var(--red); }
-  .tool { margin: 6px 0; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
-  .tool .head {
-    display: flex; align-items: center; gap: 8px; padding: 6px 10px;
-    background: var(--panel); cursor: pointer; font-size: 13px;
-  }
-  .tool .head .name { color: var(--purple); font-weight: 600; }
-  .tool .head .status { color: var(--yellow); }
-  .tool .head .status.done { color: var(--green); }
-  .tool .head .chev { margin-left: auto; color: var(--muted); }
-  .tool .detail { display: none; padding: 8px 12px; border-top: 1px solid var(--border); }
-  .tool.open .detail { display: block; }
-  .tool .detail pre {
-    margin: 0; white-space: pre-wrap; word-break: break-word;
-    font-size: 12.5px; color: var(--muted);
-  }
-  .tool .detail .args { color: var(--yellow); }
-  .cursor { display: inline-block; width: 8px; background: var(--accent); animation: blink 1s steps(2) infinite; }
-  @keyframes blink { 50% { opacity: 0; } }
-  #askbar {
-    display: none; padding: 10px 16px; background: var(--panel);
-    border-top: 1px solid var(--border);
-  }
-  #askbar .toolname { color: var(--purple); font-weight: 600; }
-  #composer {
-    border-top: 1px solid var(--border); background: var(--panel);
-    padding: 10px 16px 14px;
-  }
-  #composer .row { display: flex; gap: 8px; max-width: 900px; margin: 0 auto; }
-  textarea {
-    flex: 1; resize: none; height: 46px; max-height: 160px;
-    background: var(--input); color: var(--fg); border: 1px solid var(--border);
-    border-radius: 8px; padding: 10px 12px; font: inherit; outline: none;
-  }
-  textarea:focus { border-color: var(--accent); }
-  button#send {
-    border: 1px solid var(--border); background: var(--input); color: var(--fg);
-    border-radius: 8px; padding: 0 18px; font: inherit; cursor: pointer;
-  }
-  button#send:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
-  button#send:disabled { opacity: .5; cursor: default; }
-  .hint { color: var(--muted); font-size: 12px; text-align: center; margin-top: 6px; }
-  /* 设置弹窗 */
-  #settings {
-    display: none; position: fixed; inset: 0; background: rgba(0,0,0,.6);
-    z-index: 10; align-items: center; justify-content: center;
-  }
-  #settings .panel {
-    width: min(560px, 92vw); max-height: 86vh; overflow-y: auto;
-    background: var(--panel); border: 1px solid var(--border);
-    border-radius: 12px; padding: 18px 22px;
-  }
-  #settings h3 { margin: 0 0 14px; color: var(--accent); }
-  #settings .row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
-  #settings label { width: 130px; color: var(--muted); font-size: 13px; flex-shrink: 0; }
-  #settings input, #settings select {
-    flex: 1; background: var(--input); color: var(--fg); border: 1px solid var(--border);
-    border-radius: 6px; padding: 7px 9px; font: inherit; font-size: 13.5px;
-  }
-  #settings input:focus, #settings select:focus, #settings textarea:focus { border-color: var(--accent); outline: none; }
-  #settings textarea {
-    flex: 1; background: var(--input); color: var(--fg); border: 1px solid var(--border);
-    border-radius: 6px; padding: 7px 9px; font: 12px/1.4 ui-monospace, monospace; resize: vertical;
-  }
-  #settings .btns { display: flex; gap: 10px; margin-top: 16px; justify-content: flex-end; }
-  #settings .btn.primary { border-color: var(--accent); color: var(--accent); }
+  @media (orientation: landscape) and (max-height: 520px) { #chat { padding:12px; } }
 </style>
 </head>
 <body>
-<header>
-  <span class="logo">licode</span>
-  <span><span class="dot" id="dot"></span><span id="conn">disconnected</span></span>
-  <span class="spacer"></span>
-  <span class="meta" id="meta"></span>
-  <button class="btn" id="settingsBtn">设置</button>
-</header>
-<div id="chat"></div>
-<div id="askbar">
-  是否允许执行工具 <span class="toolname" id="askTool">…</span>？
-  <button class="btn" id="askNo" style="margin-left:12px">拒绝</button>
-  <button class="btn primary" id="askYes">允许</button>
+<div class="banner" id="authBanner">
+  <span class="txt" id="authBannerText"></span>
+  <button id="authBannerClose">✕</button>
 </div>
-<div id="composer">
-  <div class="row">
-    <textarea id="input" placeholder="问点什么…  /clear 清空会话，Enter 发送，Shift+Enter 换行"></textarea>
-    <button id="send" disabled>发送</button>
-  </div>
-  <div class="hint">licode — Enter 发送 · Shift+Enter 换行 · /clear 清空 · 设置按钮可修改提供商/模型/密钥</div>
+<header>
+  <button class="icon-btn" id="sideToggle" title="折叠/展开侧边栏">☰</button>
+  <span class="logo">licode</span>
+  <span class="badge" id="modelBadge"></span>
+  <span class="spacer"></span>
+  <span class="badge" id="meta"></span>
+  <button class="icon-btn" id="rightToggle" title="信息/文件">☷</button>
+</header>
+
+<div id="layout">
+  <aside id="sidebar">
+    <div class="top">
+      <button class="btn primary" id="newSession">+ 新对话</button>
+    </div>
+    <div id="sideBody">
+      <div class="group" data-i18n="g_sessions">对话</div>
+      <div id="sessionList"></div>
+      <div class="group" data-i18n="g_system">系统</div>
+      <div class="sess" id="btnSettings"><span class="t" data-i18n="settings_btn">设置</span></div>
+      <div class="sess" id="btnAbout"><span class="t" data-i18n="about_btn">关于</span></div>
+    </div>
+    <div id="sideFoot">
+      <span id="ver"></span>
+    </div>
+  </aside>
+
+  <main id="main">
+    <div id="chat"><div class="wrap" id="chatInner"></div></div>
+
+    <div id="askbar">
+      <span data-i18n="ask_prefix">是否允许执行工具</span> <b id="askTool"></b>？
+      <button class="btn" id="askNo" data-i18n="ask_no">拒绝</button>
+      <button class="btn" id="askYes" data-i18n="ask_yes">允许</button>
+      <button class="btn primary" id="askAlways" data-i18n="ask_always">始终允许</button>
+    </div>
+
+    <div id="composer">
+      <div class="box">
+        <div class="sel">
+          <select id="selProvider">
+            <option>openai</option><option>claude</option><option>ollama</option><option>gemini</option>
+          </select>
+          <select id="selThink">
+            <option value="0" data-i18n="think_off">思考：关闭</option>
+            <option value="0.3" data-i18n="think_low">思考：低</option>
+            <option value="0.7" data-i18n="think_mid">思考：中</option>
+            <option value="1.0" data-i18n="think_high">思考：高</option>
+            <option value="1.5" data-i18n="think_max">思考：max</option>
+          </select>
+          <span class="spacer"></span>
+        </div>
+        <div class="inputrow">
+          <textarea id="input" data-i18n-placeholder="input_ph" rows="1"></textarea>
+          <button id="send" disabled data-i18n="send">发送</button>
+        </div>
+        <div class="hint" data-i18n="hint"></div>
+      </div>
+    </div>
+  </main>
+
+  <aside id="right">
+    <div class="tabs">
+      <div class="tab active" id="tabInfo" data-i18n="tab_info">信息</div>
+      <div class="tab" id="tabFiles" data-i18n="tab_files">文件</div>
+    </div>
+    <div id="rightBody">
+      <div id="infoPanel">
+        <div class="stat"><div class="k" data-i18n="st_messages">消息数</div><div class="v" id="stMessages">0</div></div>
+        <div class="stat"><div class="k" data-i18n="st_tokens">上下文 tokens（估算）</div><div class="v" id="stTokens">0</div></div>
+        <div class="stat"><div class="k" data-i18n="st_model">模型</div><div class="v" id="stModel">-</div></div>
+        <div class="stat"><div class="k" data-i18n="st_workspace">工作目录</div><div class="v" id="stWorkspace">-</div></div>
+      </div>
+      <div id="filePanel" style="display:none">
+        <div id="fileTree"></div>
+        <div id="fileEdit">
+          <div class="bar">
+            <span class="path" id="filePath"></span>
+            <button class="btn" id="fileSetWs" data-i18n="set_workspace">设为工作目录</button>
+            <button class="btn primary" id="fileSave" data-i18n="save">保存</button>
+          </div>
+          <textarea id="fileContent" placeholder="…"></textarea>
+        </div>
+      </div>
+    </div>
+  </aside>
 </div>
 
-<div id="settings">
+<div class="modal" id="settings">
   <div class="panel">
-    <h3>设置</h3>
-    <div class="row"><label>提供商</label>
-      <select id="st_provider">
-        <option>openai</option><option>claude</option><option>ollama</option><option>gemini</option>
-      </select>
-    </div>
-    <div class="row"><label>模型</label><input id="st_model"></div>
-    <div class="row"><label>API 地址</label><input id="st_base_url"></div>
-    <div class="row"><label>API 密钥</label><input id="st_api_key" type="password"></div>
-    <div class="row"><label>温度</label><input id="st_temperature"></div>
-    <div class="row"><label>最大输出 tokens</label><input id="st_max_tokens"></div>
-    <div class="row"><label>最大迭代次数</label><input id="st_max_iterations"></div>
-    <div class="row"><label>子代理</label>
-      <select id="st_subagents"><option>开启</option><option>关闭</option></select>
-    </div>
-    <div class="row"><label>上下文压缩</label>
-      <select id="st_compaction"><option>开启</option><option>关闭</option></select>
-    </div>
-    <div class="row"><label>自动标题</label>
-      <select id="st_titlegen"><option>开启</option><option>关闭</option></select>
-    </div>
-    <div class="row"><label>需确认工具</label><input id="st_ask_tools" placeholder="逗号分隔"></div>
-    <div class="row"><label>禁用工具</label><input id="st_deny_tools" placeholder="逗号分隔"></div>
-    <div class="row"><label>MCP 服务器</label><textarea id="st_mcp" rows="3" placeholder='[{"name":"fs","command":"npx","args":["-y","@modelcontextprotocol/server-filesystem","."]}]'></textarea></div>
+    <h3 data-i18n="settings_title">设置</h3>
+    <div class="row"><label data-i18n="l_provider">提供商</label>
+      <select id="st_provider"><option>openai</option><option>claude</option><option>ollama</option><option>gemini</option></select></div>
+    <div class="row"><label data-i18n="l_model">模型</label>
+      <input id="st_model" list="modelList">
+      <button class="btn" id="btnModels" data-i18n="fetch_models">获取模型</button></div>
+    <datalist id="modelList"></datalist>
+    <div class="row"><label data-i18n="l_base">API 地址</label><input id="st_base_url"></div>
+    <div class="row"><label data-i18n="l_key">API 密钥</label><input id="st_api_key" type="password"></div>
+    <div class="row"><label data-i18n="l_providers">厂商列表</label><textarea id="st_providers" rows="4" placeholder='[{"provider":"openai","base_url":"...","api_key":"...","model":"gpt-4o"}]'></textarea></div>
+    <div class="row"><label data-i18n="l_temp">温度</label><input id="st_temperature"></div>
+    <div class="row"><label data-i18n="l_maxtok">最大输出 tokens</label><input id="st_max_tokens"></div>
+    <div class="row"><label data-i18n="l_maxiter">最大迭代次数</label><input id="st_max_iterations"></div>
+    <div class="row"><label data-i18n="l_sub">子代理</label>
+      <select id="st_subagents"><option data-i18n-opt="on">开启</option><option data-i18n-opt="off">关闭</option></select></div>
+    <div class="row"><label data-i18n="l_compact">上下文压缩</label>
+      <select id="st_compaction"><option data-i18n-opt="on">开启</option><option data-i18n-opt="off">关闭</option></select></div>
+    <div class="row"><label data-i18n="l_title">自动标题</label>
+      <select id="st_titlegen"><option data-i18n-opt="on">开启</option><option data-i18n-opt="off">关闭</option></select></div>
+    <div class="row"><label data-i18n="l_auto">自动允许</label>
+      <select id="st_auto"><option data-i18n-opt="off">关闭</option><option data-i18n-opt="on">开启</option></select></div>
+    <div class="row"><label data-i18n="l_rules">工具规则</label>
+      <input id="st_rules" placeholder="read_file:allow, write_file:ask, run_shell:deny"></div>
+    <div class="row"><label data-i18n="l_mcp">MCP 服务器</label><textarea id="st_mcp" rows="3"></textarea></div>
+    <div class="row"><label data-i18n="l_theme">主题</label>
+      <select id="st_theme"><option data-i18n-opt="light">浅色</option><option data-i18n-opt="dark">深色</option></select></div>
+    <div class="row"><label data-i18n="l_lang">语言</label>
+      <select id="st_lang"><option>简体中文</option><option>English</option></select></div>
+    <div class="row"><label data-i18n="l_anim">动画</label>
+      <select id="st_anim"><option data-i18n-opt="off">关闭</option><option data-i18n-opt="on">开启</option></select></div>
+    <div class="row"><label data-i18n="l_toolsopen">工具详情默认</label>
+      <select id="st_toolsopen"><option data-i18n-opt="expand">展开</option><option data-i18n-opt="fold">折叠</option></select></div>
+    <div class="row"><label data-i18n="l_ssh_pub">SSH 公钥</label><input id="st_ssh_pub" placeholder="/path/to/id_rsa.pub"></div>
+    <div class="row"><label data-i18n="l_ssh_priv">SSH 私钥</label><input id="st_ssh_priv" placeholder="/path/to/id_rsa"></div>
+    <div class="row"><label data-i18n="l_ws">工作目录</label><input id="st_workspace" placeholder="/path"></div>
+    <div class="row"><label data-i18n="l_version">版本</label><input id="st_version" readonly></div>
     <div class="btns">
-      <button class="btn" id="settingsCancel">取消</button>
-      <button class="btn primary" id="settingsSave">保存</button>
+      <button class="btn" id="settingsCancel" data-i18n="cancel">取消</button>
+      <button class="btn primary" id="settingsSave" data-i18n="save">保存</button>
     </div>
+  </div>
+</div>
+
+<div class="modal" id="about">
+  <div class="panel">
+    <h3 data-i18n="about_title">关于 licode</h3>
+    <div class="about">
+      <p data-i18n="about_desc">licode —— AI 编程助手（Web 版）。支持多 AI 提供商、工具调用、子代理、多对话、文件编辑、MCP/Skills。</p>
+      <p>
+        <b data-i18n="about_dev">开发者：</b>小帅5656<br>
+        <b data-i18n="about_qq">QQ 交流群：</b>1026939741<br>
+        <b data-i18n="about_email">开发者邮箱：</b>li63050@qq.com<br>
+        <b data-i18n="about_gh">GitHub：</b><a href="https://github.com/li63050a/licode" target="_blank" rel="noopener">github.com/li63050a/licode</a><br>
+        <b data-i18n="about_ge">Gitee：</b><a href="https://gitee.com/li63050a/licode" target="_blank" rel="noopener">gitee.com/li63050a/licode</a><br>
+        <b data-i18n="about_bili">B 站：</b>小帅5656<br>
+        <b data-i18n="about_ver">当前版本：</b><span id="aboutVer">-</span>
+      </p>
+    </div>
+    <div class="btns"><button class="btn" id="aboutClose" data-i18n="close">关闭</button></div>
   </div>
 </div>
 
 <script>
-const $ = id => document.getElementById(id);
-const chat = $('chat'), input = $('input'), sendBtn = $('send');
-let ws = null, busy = false, firstConnect = true, curAsk = null;
-let stDirty = false;
+const I18N = {
+  'zh-CN': { conn_connecting:'连接中…', conn_ok:'已连接', conn_bad:'已断开', g_sessions:'对话', g_system:'系统',
+    settings_btn:'设置', about_btn:'关于', new_chat:'+ 新对话',
+    input_ph:'问点什么…（Enter 发送，Shift+Enter 换行）', send:'发送', hint:'licode · Enter 发送 · 工具调用 · 多对话 · 文件编辑',
+    think_off:'思考：关闭', think_low:'思考：低', think_mid:'思考：中', think_high:'思考：高', think_max:'思考：max',
+    tab_info:'信息', tab_files:'文件', st_messages:'消息数', st_tokens:'上下文 tokens（估算）', st_model:'模型', st_workspace:'工作目录',
+    ask_prefix:'是否允许执行工具', ask_no:'拒绝', ask_yes:'允许', ask_always:'始终允许',
+    set_workspace:'设为工作目录', save:'保存', empty_dir:'（空目录）', no_session:'暂无对话',
+    settings_title:'设置', l_provider:'提供商', l_model:'模型', l_base:'API 地址', l_key:'API 密钥', l_temp:'温度',
+    l_maxtok:'最大输出 tokens', l_maxiter:'最大迭代次数', l_sub:'子代理', l_compact:'上下文压缩', l_title:'自动标题',
+    l_auto:'自动允许', l_rules:'工具规则', l_mcp:'MCP 服务器', l_theme:'主题', l_lang:'语言', l_anim:'动画', l_ws:'工作目录', l_version:'版本',
+    l_providers:'厂商列表', l_ssh_pub:'SSH 公钥', l_ssh_priv:'SSH 私钥', l_toolsopen:'工具详情默认',
+    fetch_models:'获取模型', no_models:'该厂商暂无模型列表接口', expand:'展开', fold:'折叠',
+    banner_off:'未启用登录：当前无需密码即可访问。启用方法：licode serve --password 你的密码（默认用户名 licode），或设置环境变量 LICODE_PASSWORD。',
+    on:'开启', off:'关闭', light:'浅色', dark:'深色', cancel:'取消', close:'关闭',
+    about_title:'关于 licode', about_desc:'licode —— AI 编程助手（Web 版）。支持多 AI 提供商、工具调用、子代理、多对话、文件编辑、MCP/Skills。',
+    about_dev:'开发者：', about_qq:'QQ 交流群：', about_email:'开发者邮箱：', about_gh:'GitHub：', about_ge:'Gitee：', about_bili:'B 站：', about_ver:'当前版本：' },
+  'en': { conn_connecting:'Connecting…', conn_ok:'Connected', conn_bad:'Disconnected', g_sessions:'Sessions', g_system:'System',
+    settings_btn:'Settings', about_btn:'About', new_chat:'+ New chat',
+    input_ph:'Ask anything… (Enter to send, Shift+Enter for newline)', send:'Send', hint:'licode · Enter to send · Tools · Sessions · File editor',
+    think_off:'Thinking: Off', think_low:'Thinking: Low', think_mid:'Thinking: Medium', think_high:'Thinking: High', think_max:'Thinking: Max',
+    tab_info:'Info', tab_files:'Files', st_messages:'Messages', st_tokens:'Context tokens (est.)', st_model:'Model', st_workspace:'Workspace',
+    ask_prefix:'Allow tool', ask_no:'Deny', ask_yes:'Allow', ask_always:'Always allow',
+    set_workspace:'Set as workspace', save:'Save', empty_dir:'(empty)', no_session:'No sessions',
+    settings_title:'Settings', l_provider:'Provider', l_model:'Model', l_base:'API URL', l_key:'API Key', l_temp:'Temperature',
+    l_maxtok:'Max tokens', l_maxiter:'Max iterations', l_sub:'Subagents', l_compact:'Compaction', l_title:'Auto title',
+    l_auto:'Auto allow', l_rules:'Tool rules', l_mcp:'MCP servers', l_theme:'Theme', l_lang:'Language', l_anim:'Animations', l_ws:'Workspace', l_version:'Version',
+    l_providers:'Providers', l_ssh_pub:'SSH public key', l_ssh_priv:'SSH private key', l_toolsopen:'Tool details default',
+    fetch_models:'Fetch models', no_models:'This provider has no model list API', expand:'Expand', fold:'Collapse',
+    banner_off:'Login disabled: no password needed. Enable: licode serve --password YOUR_PASSWORD (default username licode), or set env LICODE_PASSWORD.',
+    on:'On', off:'Off', light:'Light', dark:'Dark', cancel:'Cancel', close:'Close',
+    about_title:'About licode', about_desc:'licode — AI coding assistant (Web). Multi-provider, tools, subagents, sessions, file editor, MCP/Skills.',
+    about_dev:'Developer:', about_qq:'QQ group:', about_email:'Email:', about_gh:'GitHub:', about_ge:'Gitee:', about_bili:'Bilibili:', about_ver:'Version:' },
+};
 
-function el(tag, cls, text) {
-  const e = document.createElement(tag);
-  if (cls) e.className = cls;
-  if (text !== undefined) e.textContent = text;
-  return e;
+const $ = id => document.getElementById(id);
+const chatInner = $('chatInner'), input = $('input'), sendBtn = $('send');
+let ws = null, busy = false, lastAssistant = null, tools = [], curAsk = null;
+let sessions = [], curSession = '', rightTab = 'info';
+let theme = localStorage.getItem('licode_theme') || 'light';
+let lang = localStorage.getItem('licode_lang') || 'zh-CN';
+let anim = localStorage.getItem('licode_anim') === 'on';
+let toolOpen = localStorage.getItem('licode_tool_open') !== 'off';
+let curSettings = {};
+
+function t(key) { const d = I18N[lang] || I18N['zh-CN']; return d[key] || key; }
+function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }
+function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+function autoScroll() { const c = $('chat'); c.scrollTop = c.scrollHeight; }
+function setConn(ok) {
+  $('dot') ? $('dot').className = 'dot ' + (ok ? 'online' : 'offline') : null;
+  sendBtn.disabled = !ok;
+  document.title = ok ? 'licode' : 'licode (disconnected)';
+  $('modelBadge').textContent = ok ? (curSettings.provider + '/' + curSettings.model) : t('conn_bad');
 }
-function autoScroll() { chat.scrollTop = chat.scrollHeight; }
-function setConn(online) {
-  $('dot').className = 'dot ' + (online ? 'online' : 'offline');
-  $('conn').textContent = online ? 'connected' : 'disconnected';
-  sendBtn.disabled = !online;
+function applyI18n() {
+  document.querySelectorAll('[data-i18n]').forEach(e => e.textContent = t(e.getAttribute('data-i18n')));
+  document.querySelectorAll('[data-i18n-placeholder]').forEach(e => e.placeholder = t(e.getAttribute('data-i18n-placeholder')));
+  document.querySelectorAll('[data-i18n-opt]').forEach(e => e.textContent = t(e.getAttribute('data-i18n-opt')));
+  document.documentElement.lang = lang;
+  $('st_lang').value = lang === 'zh-CN' ? '简体中文' : 'English';
+  $('st_theme').value = theme === 'dark' ? t('dark') : t('light');
+  $('st_anim').value = anim ? t('on') : t('off');
 }
+
+/* ---------- Markdown ---------- */
+function md(s) {
+  s = esc(s);
+  const blocks = [];
+  s = s.replace(/```(\w*)\n([\s\S]*?)```/g, (m, l, c) => { blocks.push('<pre><code class="lang-' + (l||'') + '">' + c.replace(/\n+$/,'') + '</code></pre>'); return '\u0000' + (blocks.length-1) + '\u0000'; });
+  s = s.replace(/^#### (.*)$/gm, '<h4>$1</h4>')
+       .replace(/^### (.*)$/gm, '<h3>$1</h3>')
+       .replace(/^## (.*)$/gm, '<h2>$1</h2>')
+       .replace(/^# (.*)$/gm, '<h1>$1</h1>');
+  s = s.replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>')
+       .replace(/\*([^*]+)\*/g, '<i>$1</i>')
+       .replace(/`([^`]+)`/g, '<code>$1</code>')
+       .replace(/~~([^~]+)~~/g, '<s>$1</s>')
+       .replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+  // 表格
+  s = s.replace(/(\|[^\n]+\|\n\|[\s:-|]+\|\n(?:[^\n]+\|\n?)+)/g, (m) => {
+    const rows = m.trim().split('\n').filter(r => r.trim());
+    if (rows.length < 2) return m;
+    const parse = r => r.replace(/^\||\|$/g, '').split('|').map(c => c.trim());
+    let html = '<table><thead><tr>';
+    parse(rows[0]).forEach(c => html += '<th>' + c + '</th>');
+    html += '</tr></thead><tbody>';
+    for (let i = 2; i < rows.length; i++) {
+      html += '<tr>';
+      parse(rows[i]).forEach(c => html += '<td>' + c + '</td>');
+      html += '</tr>';
+    }
+    html += '</tbody></table>';
+    return html;
+  });
+  // 引用
+  s = s.replace(/^(>.*(?:\n>.*)*)$/gm, (m) => '<blockquote>' + m.replace(/^>\s?/gm, '').replace(/\n/g, '<br>') + '</blockquote>');
+  // 有序/无序列表（临时换行处理）
+  const listItems = [];
+  s = s.replace(/^(\s*)[-*+]\s+(.*)$/gm, (m, ind, t) => { listItems.push('<li>' + t + '</li>'); return '\u0001li\u0001'; });
+  s = s.replace(/^(\s*)\d+\.\s+(.*)$/gm, (m, ind, t) => { listItems.push('<li>' + t + '</li>'); return '\u0001ol\u0001'; });
+  s = s.replace(/((?:\u0001li\u0001)+)/g, '<ul>$1</ul>');
+  s = s.replace(/((?:\u0001ol\u0001)+)/g, '<ol>$1</ol>');
+  listItems.length = 0;
+  // 段落
+  s = s.split(/\n{2,}/).map(p => {
+    p = p.trim();
+    if (!p) return '';
+    if (/^<(h\d|ul|ol|blockquote|pre|table|p)/.test(p)) return p;
+    return '<p>' + p.replace(/\n/g, '<br>') + '</p>';
+  }).join('');
+  s = s.replace(/\u0000(\d+)\u0000/g, (m, i) => blocks[+i]);
+  return s;
+}
+
+/* ---------- 消息 ---------- */
 function addMsg(role, text, isError) {
   const m = el('div', 'msg ' + role + (isError ? ' error' : ''));
-  m.appendChild(el('div', 'role', role === 'user' ? 'you' : role === 'assistant' ? 'licode' : role));
+  m.appendChild(el('div', 'role', role === 'user' ? '你' : 'licode'));
   const body = el('div', 'body');
-  if (text !== undefined) body.textContent = text;
-  m.appendChild(body);
-  chat.appendChild(m);
-  autoScroll();
+  if (role === 'assistant' && text) body.innerHTML = md(text);
+  else if (text !== undefined) body.textContent = text;
+  m.appendChild(body); chatInner.appendChild(m); autoScroll();
   return m;
 }
-function appendTo(m, text) {
-  const body = m.querySelector('.body');
-  body.textContent += text;
-  autoScroll();
-}
+function appendTo(m, text) { const b = m.querySelector('.body'); b.innerHTML = md(b.textContent + text); autoScroll(); }
 function addTool(evt) {
-  const t = el('div', 'tool');
-  const head = el('div', 'head');
+  const t = el('div', 'tool'), head = el('div', 'head');
   head.appendChild(el('span', 'name', '⚙ ' + evt.toolName));
-  const status = el('span', 'status', '运行中…');
-  head.appendChild(status);
+  const st = el('span', 'status', '…'); head.appendChild(st);
   head.appendChild(el('span', 'chev', '▸'));
-  const detail = el('div', 'detail');
-  detail.appendChild(el('pre', 'args', evt.toolArgs || ''));
-  detail.appendChild(el('pre', 'out', ''));
-  t.appendChild(head); t.appendChild(detail);
-  head.addEventListener('click', () => {
-    t.classList.toggle('open');
-    head.querySelector('.chev').textContent = t.classList.contains('open') ? '▾' : '▸';
-  });
-  chat.appendChild(t);
-  autoScroll();
-  return { root: t, status, out: detail.querySelector('pre.out') };
+  const det = el('div', 'detail'); det.appendChild(el('pre', 'args', evt.toolArgs || '')); det.appendChild(el('pre', 'out', ''));
+  t.appendChild(head); t.appendChild(det);
+  head.addEventListener('click', () => { t.classList.toggle('open'); head.querySelector('.chev').textContent = t.classList.contains('open') ? '▾' : '▸'; });
+  if (toolOpen) { t.classList.add('open'); head.querySelector('.chev').textContent = '▾'; }
+  chatInner.appendChild(t); autoScroll();
+  return { root: t, status: st, out: det.querySelector('pre.out') };
 }
-function setToolDone(tool, evt) {
-  tool.status.className = 'status done';
-  tool.status.textContent = '✓ done';
-  tool.out.textContent = (evt.toolOut || '').slice(0, 4000);
-}
-function showAsk(evt) {
-  curAsk = evt.askId;
-  $('askTool').textContent = evt.toolName;
-  $('askbar').style.display = 'block';
-  busy = true;
-}
-function hideAsk() { $('askbar').style.display = 'none'; curAsk = null; }
-function replyAsk(ok) {
-  if (!curAsk) return;
-  ws.send(JSON.stringify({ type: 'ask_reply', askId: curAsk, askApprove: ok }));
-  hideAsk(); busy = false;
-}
-$('askYes').addEventListener('click', () => replyAsk(true));
-$('askNo').addEventListener('click', () => replyAsk(false));
+function setToolDone(tool, evt) { tool.status.className = 'status done'; tool.status.textContent = '✓'; tool.out.textContent = (evt.toolOut || '').slice(0, 4000); }
 
-// 设置弹窗
-function openSettings() {
-  if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'settings_get' }));
-  $('settings').style.display = 'flex';
+/* ---------- 会话 ---------- */
+function renderSessions() {
+  const list = $('sessionList'); list.innerHTML = '';
+  if (!sessions.length) list.appendChild(el('div', 'badge', '  ' + t('no_session')));
+  for (const s of sessions) {
+    const row = el('div', 'sess' + (s.id === curSession ? ' active' : ''));
+    row.appendChild(el('span', 't', s.title || '新对话'));
+    const del = el('span', 'del', '✕');
+    del.addEventListener('click', e => { e.stopPropagation(); ws.send(JSON.stringify({ type:'session_delete', sessionId:s.id })); });
+    row.appendChild(del);
+    row.addEventListener('click', () => { if (s.id !== curSession) ws.send(JSON.stringify({ type:'session_switch', sessionId:s.id })); });
+    list.appendChild(row);
+  }
 }
-function fillSettings(s) {
-  $('st_provider').value = s.provider || 'openai';
-  $('st_model').value = s.model || '';
-  $('st_base_url').value = s.base_url || '';
-  $('st_api_key').value = s.api_key || '';
-  $('st_temperature').value = s.temperature != null ? s.temperature : 0.7;
-  $('st_max_tokens').value = s.max_tokens || 4096;
-  $('st_max_iterations').value = s.max_iterations || 16;
-  $('st_subagents').value = s.subagents ? '开启' : '关闭';
-  $('st_compaction').value = s.compaction ? '开启' : '关闭';
-  $('st_titlegen').value = s.title_gen ? '开启' : '关闭';
-  $('st_ask_tools').value = (s.ask_tools || []).join(', ');
-  $('st_deny_tools').value = (s.deny_tools || []).join(', ');
-  $('st_mcp').value = JSON.stringify(s.mcp_servers || [], null, 1);
+
+/* ---------- 文件 ---------- */
+let wsRoot = '';
+async function api(url, opts) {
+  const res = await fetch(url, opts);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'HTTP ' + res.status);
+  return data;
 }
-function readSettings() {
-  let mcp = [];
-  try { mcp = JSON.parse($('st_mcp').value || '[]'); } catch (e) {}
-  return {
-    provider: $('st_provider').value,
-    model: $('st_model').value,
-    base_url: $('st_base_url').value,
-    api_key: $('st_api_key').value,
-    temperature: parseFloat($('st_temperature').value) || 0.7,
-    max_tokens: parseInt($('st_max_tokens').value) || 4096,
-    max_iterations: parseInt($('st_max_iterations').value) || 16,
-    subagents: $('st_subagents').value === '开启',
-    compaction: $('st_compaction').value === '开启',
-    title_gen: $('st_titlegen').value === '开启',
-    ask_tools: $('st_ask_tools').value.split(/[,，\s]+/).filter(Boolean),
-    deny_tools: $('st_deny_tools').value.split(/[,，\s]+/).filter(Boolean),
-    mcp_servers: mcp,
-  };
+async function loadFiles(path) {
+  try {
+    const data = await api('/api/files?path=' + encodeURIComponent(path || ''));
+    wsRoot = data.root;
+    renderTree(data.entries, path || '');
+  } catch (e) { $('fileTree').innerHTML = '<div class="badge">' + esc(e.message) + '</div>'; }
 }
-$('settingsBtn').addEventListener('click', openSettings);
-$('settingsCancel').addEventListener('click', () => $('settings').style.display = 'none');
-$('settingsSave').addEventListener('click', () => {
-  const s = readSettings();
-  if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'settings_set', settings: s }));
-  $('settings').style.display = 'none';
+function renderTree(entries, base) {
+  const tree = $('fileTree'); tree.innerHTML = '';
+  if (base) {
+    const up = el('div', 'fnode dir'); up.appendChild(el('span', 'ico', '↑')); up.appendChild(el('span', 'nm', '..'));
+    up.addEventListener('click', () => loadFiles(base.split('/').slice(0, -1).join('/')));
+    tree.appendChild(up);
+  }
+  for (const e of entries) {
+    const n = el('div', 'fnode' + (e.isDir ? ' dir' : ''));
+    n.appendChild(el('span', 'ico', e.isDir ? '▸' : '📄'));
+    n.appendChild(el('span', 'nm', e.name));
+    n.addEventListener('click', () => {
+      tree.querySelectorAll('.fnode').forEach(x => x.classList.remove('sel'));
+      n.classList.add('sel');
+      if (e.isDir) loadFiles(e.path); else openFile(e.path);
+    });
+    tree.appendChild(n);
+  }
+}
+async function openFile(path) {
+  try {
+    const data = await api('/api/file?path=' + encodeURIComponent(path));
+    $('filePath').textContent = data.path;
+    $('fileContent').value = data.content;
+    $('fileContent').dataset.path = path;
+  } catch (e) { $('filePath').textContent = e.message; }
+}
+$('fileSave').addEventListener('click', async () => {
+  const path = $('fileContent').dataset.path;
+  if (!path) return;
+  try { await api('/api/file', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ path, content:$('fileContent').value }) }); $('filePath').textContent = '✓ ' + path; }
+  catch (e) { alert(e.message); }
+});
+$('fileSetWs').addEventListener('click', async () => {
+  const path = $('fileContent').dataset.path;
+  const dir = path ? path.split('/').slice(0, -1).join('/') : wsRoot;
+  try { const d = await api('/api/workspace', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ path:dir }) }); $('st_workspace').value = d.root; $('stWorkspace').textContent = d.root; }
+  catch (e) { alert(e.message); }
 });
 
+/* ---------- 工具确认 ---------- */
+function showAsk(evt) { curAsk = evt.askId; $('askTool').textContent = evt.toolName; $('askbar').style.display = 'block'; busy = true; }
+function hideAsk() { $('askbar').style.display = 'none'; curAsk = null; }
+function replyAsk(ok, always) { if (!curAsk) return; ws.send(JSON.stringify({ type:'ask_reply', askId:curAsk, askApprove:ok, askAlways:always })); hideAsk(); busy = false; }
+$('askYes').addEventListener('click', () => replyAsk(true, false));
+$('askNo').addEventListener('click', () => replyAsk(false, false));
+$('askAlways').addEventListener('click', () => replyAsk(true, true));
+
+/* ---------- 设置 ---------- */
+function openSettings() { ws.send(JSON.stringify({ type:'settings_get' })); $('settings').classList.add('on'); }
+function fillSettings(s) {
+  curSettings = s;
+  $('st_provider').value = s.provider || 'openai';
+  $('st_model').value = s.model || ''; $('st_base_url').value = s.base_url || ''; $('st_api_key').value = s.api_key || '';
+  $('st_providers').value = JSON.stringify(s.providers || [], null, 1);
+  $('st_temperature').value = s.temperature != null ? s.temperature : 0.7;
+  $('st_max_tokens').value = s.max_tokens || 4096; $('st_max_iterations').value = s.max_iterations || 16;
+  $('st_subagents').value = s.subagents ? t('on') : t('off');
+  $('st_compaction').value = s.compaction ? t('on') : t('off');
+  $('st_titlegen').value = s.title_gen ? t('on') : t('off');
+  $('st_auto').value = s.auto_allow ? t('on') : t('off');
+  const rules = (s.tool_rules || {});
+  $('st_rules').value = Object.keys(rules).map(k => k + ':' + rules[k]).join(', ');
+  $('st_mcp').value = JSON.stringify(s.mcp_servers || [], null, 1);
+  $('st_ssh_pub').value = s.ssh_pubkey || '';
+  $('st_ssh_priv').value = s.ssh_privkey || '';
+  $('st_toolsopen').value = toolOpen ? t('expand') : t('fold');
+  $('selProvider').value = s.provider || 'openai';
+  populateProviders();
+  setConn(true);
+}
+function readSettings() {
+  let mcp = []; try { mcp = JSON.parse($('st_mcp').value || '[]'); } catch (e) {}
+  let providers = []; try { providers = JSON.parse($('st_providers').value || '[]'); } catch (e) {}
+  const rules = {};
+  $('st_rules').value.split(/[,，]/).forEach(p => { const [k, v] = p.split(':').map(x => x.trim()); if (k && v) rules[k] = v; });
+  return {
+    provider: $('st_provider').value, model: $('st_model').value, base_url: $('st_base_url').value, api_key: $('st_api_key').value,
+    temperature: parseFloat($('st_temperature').value) || 0.7, max_tokens: parseInt($('st_max_tokens').value) || 4096,
+    max_iterations: parseInt($('st_max_iterations').value) || 16,
+    subagents: $('st_subagents').value === t('on'), compaction: $('st_compaction').value === t('on'), title_gen: $('st_titlegen').value === t('on'),
+    auto_allow: $('st_auto').value === t('on'),
+    tool_rules: rules, mcp_servers: mcp,
+    ssh_pubkey: $('st_ssh_pub').value, ssh_privkey: $('st_ssh_priv').value,
+    providers: providers,
+  };
+}
+function populateProviders() {
+  const sel = $('selProvider');
+  const cur = sel.value;
+  sel.innerHTML = '';
+  let list = [];
+  if (curSettings.providers && curSettings.providers.length) {
+    curSettings.providers.forEach(p => { if (p.provider) list.push({ provider: p.provider, label: p.provider + (p.model ? '/' + p.model : '') }); });
+  }
+  if (!list.length) ['openai','claude','ollama','gemini'].forEach(p => list.push({ provider: p, label: p }));
+  list.forEach(it => { const o = document.createElement('option'); o.value = it.label; o.textContent = it.label; sel.appendChild(o); });
+  if (cur) { [...sel.options].some(o => o.value === cur) && (sel.value = cur); }
+}
+$('settingsBtn') && ($('settingsBtn').addEventListener('click', openSettings));
+$('btnSettings').addEventListener('click', openSettings);
+$('settingsCancel').addEventListener('click', () => $('settings').classList.remove('on'));
+$('settingsSave').addEventListener('click', () => {
+  ws.send(JSON.stringify({ type:'settings_set', settings: readSettings() }));
+  $('settings').classList.remove('on');
+  localStorage.setItem('licode_theme', $('st_theme').value === t('dark') ? 'dark' : 'light');
+  const lm = { '简体中文':'zh-CN', 'English':'en' };
+  localStorage.setItem('licode_lang', lm[$('st_lang').value] || 'zh-CN');
+  localStorage.setItem('licode_anim', $('st_anim').value === t('on') ? 'on' : 'off');
+  localStorage.setItem('licode_tool_open', $('st_toolsopen').value === t('expand') ? 'on' : 'off');
+  toolOpen = localStorage.getItem('licode_tool_open') !== 'off';
+  theme = localStorage.getItem('licode_theme'); lang = localStorage.getItem('licode_lang'); anim = localStorage.getItem('licode_anim') === 'on';
+  document.documentElement.setAttribute('data-theme', theme);
+  document.documentElement.setAttribute('data-anim', anim ? 'on' : '');
+  applyI18n();
+});
+$('aboutBtn') && ($('aboutBtn').addEventListener('click', () => $('about').classList.add('on')));
+$('btnAbout').addEventListener('click', () => $('about').classList.add('on'));
+$('aboutClose').addEventListener('click', () => $('about').classList.remove('on'));
+
+/* 提供商 / 思考程度 快捷切换 */
+$('selProvider').addEventListener('change', () => {
+  const label = $('selProvider').value || '';
+  const prov = label.split('/')[0];
+  let entry = null;
+  if (curSettings.providers) entry = curSettings.providers.find(p => p.provider === prov);
+  const s = readSettings();
+  s.provider = prov;
+  if (entry) { s.base_url = entry.base_url || ''; s.api_key = entry.api_key || ''; s.model = entry.model || ''; }
+  else { s.base_url = ''; s.api_key = ''; s.model = ''; }
+  ws.send(JSON.stringify({ type:'settings_set', settings: s }));
+});
+$('selThink').addEventListener('change', () => {
+  ws.send(JSON.stringify({ type:'settings_set', settings: Object.assign({}, readSettings(), { temperature: parseFloat($('selThink').value) }) }));
+});
+
+/* ---------- 右侧栏 ---------- */
+function switchRight(tab) {
+  rightTab = tab;
+  $('tabInfo').classList.toggle('active', tab === 'info');
+  $('tabFiles').classList.toggle('active', tab === 'files');
+  $('infoPanel').style.display = tab === 'info' ? '' : 'none';
+  $('filePanel').style.display = tab === 'files' ? '' : 'none';
+  if (tab === 'files') loadFiles('');
+}
+$('tabInfo').addEventListener('click', () => switchRight('info'));
+$('tabFiles').addEventListener('click', () => switchRight('files'));
+$('sideToggle').addEventListener('click', () => $('sidebar').classList.toggle('collapsed'));
+$('rightToggle').addEventListener('click', () => $('right').classList.toggle('collapsed'));
+
+/* ---------- 连接 ---------- */
 function connect() {
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
   ws = new WebSocket(proto + '://' + location.host + '/ws');
-  ws.onopen = () => { setConn(true); firstConnect = false; document.title = 'licode'; };
-  ws.onclose = () => {
-    setConn(false);
-    document.title = '● licode (disconnected)';
-    setTimeout(connect, 2000);
-  };
+  ws.onopen = () => { ws.send(JSON.stringify({ type:'sessions_get' })); ws.send(JSON.stringify({ type:'settings_get' })); setConn(true); };
+  ws.onclose = () => { setConn(false); setTimeout(connect, 2000); };
   ws.onmessage = e => {
-    let evt;
-    try { evt = JSON.parse(e.data); } catch { return; }
+    let evt; try { evt = JSON.parse(e.data); } catch { return; }
     switch (evt.type) {
-      case 'delta': {
-        if (busy && !lastAssistant) lastAssistant = addMsg('assistant');
-        if (lastAssistant) appendTo(lastAssistant, evt.content);
-        break;
-      }
+      case 'delta': { if (busy && !lastAssistant) lastAssistant = addMsg('assistant', ''); if (lastAssistant) appendTo(lastAssistant, evt.content); break; }
       case 'tool_start': tools.push(addTool(evt)); break;
-      case 'tool_done':
-        if (tools.length) setToolDone(tools.pop(), evt);
-        break;
+      case 'tool_done': if (tools.length) setToolDone(tools.pop(), evt); break;
       case 'status': $('meta').textContent = evt.content || ''; break;
-      case 'settings':
-        if ($('settings').style.display === 'flex') fillSettings(evt.settings || {});
+      case 'settings': if ($('settings').classList.contains('on')) fillSettings(evt.settings || {}); else { curSettings = evt.settings || {}; setConn(true); } break;
+      case 'sessions': sessions = evt.sessions || []; curSession = evt.sessionId || ''; renderSessions(); break;
+      case 'stats':
+        $('stMessages').textContent = (evt.stats && evt.stats.messages) || 0;
+        $('stTokens').textContent = (evt.stats && evt.stats.tokens) || 0;
         break;
       case 'ask': showAsk(evt); break;
       case 'done':
-        busy = false; lastAssistant = null; tools = [];
-        $('meta').textContent = '';
+        busy = false; lastAssistant = null; tools = []; $('meta').textContent = '';
+        ws.send(JSON.stringify({ type:'sessions_get' }));
         sendBtn.disabled = !(ws && ws.readyState === WebSocket.OPEN);
         break;
       case 'error':
-        addMsg('assistant', '⚠ ' + evt.error, true);
-        busy = false; lastAssistant = null;
+        addMsg('assistant', '⚠ ' + evt.error, true); busy = false; lastAssistant = null;
         sendBtn.disabled = !(ws && ws.readyState === WebSocket.OPEN);
         break;
     }
   };
 }
-let lastAssistant = null, tools = [];
 
+/* ---------- 发送 ---------- */
 function send() {
   const text = input.value.trim();
   if (!text || busy || !ws || ws.readyState !== WebSocket.OPEN) return;
-  if (text === '/clear') { chat.innerHTML = ''; input.value = ''; ws.send(JSON.stringify({ type: 'message', content: '/clear' })); return; }
-  addMsg('user', text);
-  input.value = '';
-  busy = true;
-  sendBtn.disabled = true;
-  ws.send(JSON.stringify({ type: 'message', content: text }));
+  if (text === '/clear') { chatInner.innerHTML = ''; renderEmpty(); ws.send(JSON.stringify({ type:'message', content:'/clear' })); input.value = ''; return; }
+  addMsg('user', text); input.value = ''; busy = true; sendBtn.disabled = true;
+  ws.send(JSON.stringify({ type:'message', content:text }));
 }
-
-input.addEventListener('keydown', e => {
-  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
-  if (e.key === 'Escape') { input.value = ''; }
-});
+function renderEmpty() {
+  chatInner.innerHTML = '';
+  const e = el('div', 'empty');
+  e.appendChild(el('div', 'title', 'licode'));
+  e.appendChild(el('div', 'sub', t('hint')));
+  const chips = el('div', 'chips');
+  const list = [t('think_max'), '帮我写一段 Go 代码', '解释这段代码', '找到并修复这个 bug'];
+  list.forEach(s => { const c = el('button', 'chip', s); c.addEventListener('click', () => { input.value = s; input.focus(); }); chips.appendChild(c); });
+  e.appendChild(chips);
+  chatInner.appendChild(e);
+}
+input.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } });
 sendBtn.addEventListener('click', send);
+$('newSession').addEventListener('click', () => ws.send(JSON.stringify({ type:'session_new' })));
+
+/* ---------- 初始化 ---------- */
+document.documentElement.setAttribute('data-theme', theme);
+document.documentElement.setAttribute('data-anim', anim ? 'on' : '');
+applyI18n();
+renderEmpty();
+if (window.innerWidth < 960) { $('sidebar').classList.add('collapsed'); $('right').classList.add('collapsed'); }
+$('authBannerClose').addEventListener('click', () => $('authBanner').classList.remove('show'));
+fetch('/api/auth').then(r => r.json()).then(d => { if (d && !d.enabled) { $('authBannerText').textContent = t('banner_off'); $('authBanner').classList.add('show'); } }).catch(() => {});
+$('btnModels').addEventListener('click', async () => {
+  try {
+    const d = await api('/api/models');
+    const dl = $('modelList'); dl.innerHTML = '';
+    (d.models || []).forEach(m => { const o = document.createElement('option'); o.value = m; dl.appendChild(o); });
+    if (!d.models || !d.models.length) alert(t('no_models'));
+  } catch (e) { alert(e.message); }
+});
+fetch('/api/version').then(r => r.json()).then(d => {
+  const v = d.version || '';
+  $('ver').textContent = 'licode ' + v;
+  $('st_version').value = v;
+  $('aboutVer').textContent = v;
+}).catch(() => {});
+fetch('/api/workspace').then(r => r.json()).then(d => { $('stWorkspace').textContent = d.root || ''; $('st_workspace').value = d.root || ''; }).catch(() => {});
 connect();
 </script>
 </body>

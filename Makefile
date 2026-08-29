@@ -24,11 +24,18 @@ build-all:
 build-host:
 	CGO_ENABLED=0 go build -ldflags="$(LDFLAGS)" -o $(DIST)/$(BINARY) .
 
-# 安装到 bin：默认 /usr/local/bin，可用 PREFIX=~/... 覆盖
+# 安装到 bin：/usr/local/bin 优先，不可写则 ~/.local/bin（已在 PATH）
 PREFIX ?= /usr/local
 install: build-host
-	install -m 0755 $(DIST)/$(BINARY) $(PREFIX)/bin/$(BINARY)
-	@echo "已安装到 $(PREFIX)/bin/$(BINARY)，直接运行 licode 即可进入 TUI"
+	@if [ -w /usr/local/bin ]; then \
+		install -m 0755 $(DIST)/$(BINARY) /usr/local/bin/$(BINARY); \
+		echo "已安装到 /usr/local/bin/$(BINARY)"; \
+	else \
+		mkdir -p $$HOME/.local/bin; \
+		install -m 0755 $(DIST)/$(BINARY) $$HOME/.local/bin/$(BINARY); \
+		echo "已安装到 $$HOME/.local/bin/$(BINARY)（/usr/local/bin 需 root）"; \
+	fi
+	@echo "直接运行 $(BINARY) 进入 TUI"
 
 # 可选：UPX 压缩
 upx:

@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>登录 · licode</title>
+  <style>
+    /* ===== 与主界面完全一致的变量 ===== */
+    :root {
+      --bg: #ffffff;
+      --panel: #f7f7f8;
+      --border: #e8e8e8;
+      --fg: #1f1f1f;
+      --muted: #8a8a8a;
+      --accent: #4d6bfe;
+      --radius: 8px;
+      --shadow: 0 2px 12px rgba(0,0,0,0.06);
+    }
+    html[data-theme="dark"] {
+      --bg: #0d1117;
+      --panel: #161b22;
+      --border: #21262d;
+      --fg: #e6edf3;
+      --muted: #8b949e;
+      --accent: #e77f24;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--bg);
+      color: var(--fg);
+      font: 14px/1.6 -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      padding: 16px;
+    }
+    /* ===== 登录卡片 ===== */
+    .card {
+      width: min(360px, 92vw);
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 28px 26px;
+      box-shadow: var(--shadow);
+      transition: background 0.2s, border-color 0.2s;
+    }
+    .logo {
+      text-align: center;
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--accent);
+      margin-bottom: 4px;
+      letter-spacing: 0.3px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    .logo i { font-size: 26px; }
+    .sub {
+      text-align: center;
+      color: var(--muted);
+      font-size: 13px;
+      margin-bottom: 20px;
+    }
+    input {
+      width: 100%;
+      padding: 9px 12px;
+      margin-bottom: 12px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--bg);
+      color: var(--fg);
+      font: inherit;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    input:focus { border-color: var(--accent); }
+    button {
+      width: 100%;
+      padding: 10px;
+      border: none;
+      border-radius: var(--radius);
+      background: var(--accent);
+      color: #fff;
+      font: inherit;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    button:hover { opacity: 0.9; }
+    .err {
+      color: #e5484d;
+      font-size: 12.5px;
+      text-align: center;
+      margin-bottom: 10px;
+      display: none;
+    }
+    .lang {
+      position: fixed;
+      top: 14px;
+      right: 18px;
+      color: var(--muted);
+      font-size: 13px;
+      cursor: pointer;
+      padding: 4px 10px;
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      background: var(--panel);
+      transition: 0.15s;
+      user-select: none;
+    }
+    .lang:hover { border-color: var(--accent); color: var(--accent); }
+    .theme-toggle {
+      position: fixed;
+      top: 14px;
+      left: 18px;
+      color: var(--muted);
+      font-size: 18px;
+      cursor: pointer;
+      padding: 4px 8px;
+      border-radius: 50%;
+      transition: 0.15s;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      line-height: 1;
+    }
+    .theme-toggle:hover { border-color: var(--accent); color: var(--accent); }
+    /* ===== 响应式 ===== */
+    @media (max-width: 480px) {
+      .card { padding: 20px 16px; }
+      .logo { font-size: 20px; }
+      .lang { top: 10px; right: 12px; font-size: 12px; padding: 2px 8px; }
+      .theme-toggle { top: 10px; left: 12px; font-size: 16px; }
+    }
+  </style>
+  <!-- Font Awesome (与主界面一致) -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+</head>
+<body>
+
+  <!-- 语言切换 -->
+  <div class="lang" id="langSwitch">English</div>
+  <!-- 主题切换 -->
+  <div class="theme-toggle" id="themeToggle" title="切换主题">
+    <i class="fas fa-moon"></i>
+  </div>
+
+  <div class="card">
+    <div class="logo">
+      <i class="fas fa-code"></i>licode
+    </div>
+    <div class="sub" data-i18n="sub">AI 编程助手 · 请登录</div>
+    <div class="err" id="err" data-i18n="err">用户名或密码错误</div>
+    <form method="post" action="/login">
+      <input name="username" id="username" placeholder="用户名" data-i18n-placeholder="user" autocomplete="username" required>
+      <input name="password" type="password" id="password" placeholder="密码" data-i18n-placeholder="pass" autocomplete="current-password" required>
+      <button type="submit" data-i18n="login">登录</button>
+    </form>
+    <!-- 已移除忘记密码和注册链接 -->
+  </div>
+
+  <script>
+    // ===== 国际化支持（与主界面共用） =====
+    const I18N = {
+      'zh-CN': {
+        sub: 'AI 编程助手 · 请登录',
+        err: '用户名或密码错误',
+        user: '用户名',
+        pass: '密码',
+        login: '登录',
+        lang: 'English'
+      },
+      'en': {
+        sub: 'AI Coding Assistant · Sign in',
+        err: 'Incorrect username or password',
+        user: 'Username',
+        pass: 'Password',
+        login: 'Sign in',
+        lang: '中文'
+      }
+    };
+
+    function getLang() {
+      return localStorage.getItem('licode_lang') || (navigator.language || 'zh-CN');
+    }
+
+    function applyI18n() {
+      const lang = getLang();
+      const t = I18N[lang] || I18N['zh-CN'];
+      document.querySelectorAll('[data-i18n]').forEach(el => {
+        if (el.id === 'err') return; // 错误信息由后端控制
+        el.textContent = t[el.id] || el.textContent;
+      });
+      document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+        const key = el.getAttribute('data-i18n-placeholder');
+        el.placeholder = t[key] || el.placeholder;
+      });
+      document.getElementById('langSwitch').textContent = t.lang;
+      document.documentElement.lang = lang;
+    }
+
+    function applyTheme() {
+      const theme = localStorage.getItem('licode_theme') || 'light';
+      document.documentElement.setAttribute('data-theme', theme);
+      const icon = document.querySelector('#themeToggle i');
+      if (theme === 'dark') {
+        icon.className = 'fas fa-sun';
+      } else {
+        icon.className = 'fas fa-moon';
+      }
+    }
+
+    // ===== 错误显示 =====
+    if (new URLSearchParams(location.search).has('error')) {
+      document.getElementById('err').style.display = 'block';
+    }
+
+    // ===== 事件绑定 =====
+    document.getElementById('langSwitch').addEventListener('click', function() {
+      const cur = document.documentElement.lang;
+      const next = cur === 'zh-CN' ? 'en' : 'zh-CN';
+      localStorage.setItem('licode_lang', next);
+      applyI18n();
+    });
+
+    document.getElementById('themeToggle').addEventListener('click', function() {
+      const cur = document.documentElement.getAttribute('data-theme');
+      const next = cur === 'dark' ? 'light' : 'dark';
+      localStorage.setItem('licode_theme', next);
+      applyTheme();
+    });
+
+    // ===== 初始化 =====
+    applyI18n();
+    applyTheme();
+  </script>
+</body>
+</html>

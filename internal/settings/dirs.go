@@ -39,6 +39,18 @@ func LogsDir() string     { return filepath.Join(BaseDir(), "logs") }
 func CacheDir() string    { return filepath.Join(BaseDir(), "cache") }
 func MDPromptDir() string { return filepath.Join(BaseDir(), "md") }
 
+// SystemPromptPath 系统提示词文件（可直接编辑生效）。
+func SystemPromptPath() string { return filepath.Join(BaseDir(), "system-prompt.md") }
+
+// ReadSystemPrompt 读取系统提示词文件；不存在或为空时返回空串。
+func ReadSystemPrompt() string {
+	data, err := os.ReadFile(SystemPromptPath())
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(data))
+}
+
 // EnsureDirs 创建用户数据目录与子目录（首次使用自动生成）。
 func EnsureDirs() error {
 	dirs := []string{BaseDir(), SkillsDir(), MCPDir(), SessionsDir(), LogsDir(), CacheDir(), MDPromptDir()}

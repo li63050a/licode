@@ -39,6 +39,7 @@ const (
 	EvtSettings  = "settings"
 	EvtAsk       = "ask"
 	EvtSessions  = "sessions"
+	EvtStats     = "stats"
 )
 
 // ServerEvent is a JSON event streamed to clients.
@@ -52,6 +53,7 @@ type ServerEvent struct {
 	Settings  any    `json:"settings,omitempty"`
 	Sessions  any    `json:"sessions,omitempty"`
 	SessionID string `json:"sessionId,omitempty"`
+	Stats     any    `json:"stats,omitempty"`
 	// AskID 标识一次待确认的工具调用。
 	AskID string `json:"askId,omitempty"`
 }
@@ -64,6 +66,7 @@ type ClientMessage struct {
 	// AskReply 对应 AskID 的确认结果。
 	AskID      string `json:"askId,omitempty"`
 	AskApprove bool   `json:"askApprove,omitempty"`
+	AskAlways  bool   `json:"askAlways,omitempty"`
 	SessionID  string `json:"sessionId,omitempty"`
 }
 

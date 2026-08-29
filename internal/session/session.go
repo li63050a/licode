@@ -29,13 +29,14 @@ func EstimateTokens(s string) int {
 
 // Session holds the rolling conversation history.
 type Session struct {
-	mu       sync.Mutex
-	id       string
-	title    string
-	messages []ai.Message
-	maxTok   int
-	summary  string
-	onChange func()
+	mu          sync.Mutex
+	id          string
+	title       string
+	messages    []ai.Message
+	maxTok      int
+	summary     string
+	onChange    func()
+	alwaysAllow map[string]bool
 }
 
 // SetOnChange 设置消息变化回调（用于实时落盘）。
@@ -50,7 +51,28 @@ func NewSession(maxTokens int) *Session {
 	if maxTokens <= 0 {
 		maxTokens = DefaultMaxTokens
 	}
-	return &Session{id: genID(), title: "新对话", maxTok: maxTokens}
+	return &Session{id: genID(), title: "新对话", maxTok: maxTokens, alwaysAllow: map[string]bool{}}
+}
+
+// AlwaysAllowed 返回某工具是否在本对话被"始终允许"。
+func (s *Session) AlwaysAllowed(name string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.alwaysAllow[name]
+}
+
+// SetAlwaysAllowed 记录某工具在本对话始终允许。
+func (s *Session) SetAlwaysAllowed(name string) {
+	s.mu.Lock()
+	if s.alwaysAllow == nil {
+		s.alwaysAllow = map[string]bool{}
+	}
+	s.alwaysAllow[name] = true
+	onChange := s.onChange
+	s.mu.Unlock()
+	if onChange != nil {
+		go onChange()
+	}
 }
 
 // ID returns the session identifier.

@@ -22,6 +22,7 @@ import (
 	"licode/internal/ai"
 	"licode/internal/session"
 	"licode/internal/settings"
+	"licode/internal/version"
 	"licode/internal/web"
 	"licode/internal/websocket"
 )
@@ -29,6 +30,8 @@ import (
 // ServeOptions holds resolved configuration for the serve command.
 type ServeOptions struct {
 	Addr        string
+	Host        string
+	Port        int
 	Provider    string
 	BaseURL     string
 	APIKey      string
@@ -36,6 +39,8 @@ type ServeOptions struct {
 	NoSubAgents bool
 	Username    string
 	Password    string
+	SSHPubKey   string
+	SSHPrivKey  string
 }
 
 // NewServeCommand 返回 serve 子命令。
@@ -45,28 +50,44 @@ func newServeCmd() *cobra.Command {
 	opts := &ServeOptions{}
 	c := &cobra.Command{
 		Use:   "serve",
-		Short: "启动 Web 服务器（浏览器 + 远程 TUI 均可连接）",
-		Long: `启动 licode 的 HTTP + WebSocket 服务器。
+		Short: "启动 Web 服务器（浏览器直接使用）",
+		Long: `启动 licode 的 Web 服务器。
 
-浏览器访问 http://<host>:<port> 使用网页界面；
-另一台设备用 licode tui --remote ws://<host>:<port>/ws 远程连接。
+浏览器访问 http://<host>:<port> 即可使用，支持手机/电脑。
+直接运行 licode（不带参数）等价于本命令。
 
-所有 AI 推理都在本服务器执行。设置（提供商/模型/密钥等）可在网页端或
-远程 TUI 的设置界面中实时修改，无需配置文件。`,
+默认监听 127.0.0.1:8080；手机/其他设备访问请用 --host 0.0.0.0。
+设置用户名密码后启用登录界面（默认用户名 licode，密码无默认值，
+通过 --password 或环境变量 LICODE_PASSWORD 设置）。
+
+所有 AI 推理都在本服务器执行。设置可在网页端实时修改并写回
+~/.licode/config.json，无需重启。`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runServe(opts)
 		},
 	}
 	f := c.Flags()
-	f.StringVarP(&opts.Addr, "addr", "a", ":8080", "监听地址")
+	f.StringVar(&opts.Addr, "addr", "", "监听地址（如 0.0.0.0:8080）；不填则用 --host/--port")
+	f.StringVar(&opts.Host, "host", "127.0.0.1", "监听主机（默认 127.0.0.1，局域网/手机访问用 0.0.0.0）")
+	f.IntVar(&opts.Port, "port", 8080, "监听端口")
 	f.StringVar(&opts.Provider, "provider", "", "AI 提供商: openai | claude | ollama | gemini")
 	f.StringVar(&opts.BaseURL, "base-url", "", "提供商 API 地址")
 	f.StringVar(&opts.APIKey, "api-key", "", "API 密钥")
 	f.StringVar(&opts.Model, "model", "", "模型名")
 	f.BoolVar(&opts.NoSubAgents, "no-subagents", false, "禁用子代理编排")
-	f.StringVar(&opts.Username, "username", "", "访问用户名（默认 licode；环境变量 LICODE_USERNAME）")
-	f.StringVar(&opts.Password, "password", "", "访问密码（环境变量 LICODE_PASSWORD）；未设置则不启用认证")
+	f.StringVar(&opts.Username, "username", "", "登录用户名（默认 licode；环境变量 LICODE_USERNAME）")
+	f.StringVar(&opts.Password, "password", "", "登录密码（环境变量 LICODE_PASSWORD）；未设置则不启用登录")
+	f.StringVar(&opts.SSHPubKey, "ssh-pubkey", "", "SSH 公钥文件路径")
+	f.StringVar(&opts.SSHPrivKey, "ssh-privkey", "", "SSH 私钥文件路径")
 	return c
+}
+
+// listenAddr 计算实际监听地址：--addr 优先，否则 host:port。
+func listenAddr(opts *ServeOptions) string {
+	if opts.Addr != "" {
+		return opts.Addr
+	}
+	return fmt.Sprintf("%s:%d", opts.Host, opts.Port)
 }
 
 // serverState 持有可变的全局设置与当前客户端。
@@ -81,6 +102,7 @@ type connState struct {
 	mu       sync.Mutex
 	sessions *session.Manager
 	pending  map[string]chan bool
+	askTool  map[string]string // askID -> 工具名
 	askSeq   atomic.Int64
 	busy     bool
 }
@@ -89,6 +111,7 @@ func newConnState(sessionsDir string) *connState {
 	return &connState{
 		sessions: session.NewManager(sessionsDir, false),
 		pending:  map[string]chan bool{},
+		askTool:  map[string]string{},
 	}
 }
 
@@ -100,9 +123,14 @@ func runServe(opts *ServeOptions) error {
 		log.SetOutput(io.MultiWriter(os.Stderr, lf))
 	}
 
+	// 版本计数递增（0.0.0.0 → … → 0.0.0.100 → 0.0.1.0）
+	runVersion := version.Bump()
+	log.Printf("licode 版本 %s", runVersion)
+
 	st := &serverState{}
 	st.settings = settings.Defaults()
 	st.settings.ApplyFlags(opts.Provider, opts.BaseURL, opts.APIKey, opts.Model, opts.NoSubAgents)
+	st.settings.SetSSH(opts.SSHPubKey, opts.SSHPrivKey)
 	client, err := st.settings.NewClient()
 	if err != nil {
 		return err
@@ -172,7 +200,13 @@ func runServe(opts *ServeOptions) error {
 				if ok {
 					delete(cs.pending, msg.AskID)
 				}
+				tool := cs.askTool[msg.AskID]
+				delete(cs.askTool, msg.AskID)
 				cs.mu.Unlock()
+				if msg.AskAlways && tool != "" {
+					// 当前对话始终允许该工具
+					cs.sessions.Current().SetAlwaysAllowed(tool)
+				}
 				if ok {
 					ch <- msg.AskApprove
 				}
@@ -208,43 +242,114 @@ func runServe(opts *ServeOptions) error {
 	}
 
 	authUser, authPass, authEnabled := ResolveAuth(opts.Username, opts.Password)
+	auth := newAuthState(authUser, authPass, authEnabled)
+	wsState := newWorkspace()
 
 	fileServer := http.FileServer(http.FS(sub))
 	mux := http.NewServeMux()
+	mux.HandleFunc("/login", func(w http.ResponseWriter, r *http.Request) {
+		auth.handleLogin(w, r)
+	})
+	// 文件浏览/编辑与工作目录 API
+	mux.HandleFunc("/api/files", func(w http.ResponseWriter, r *http.Request) {
+		if !auth.require(w, r) {
+			return
+		}
+		handleFiles(w, r, wsState)
+	})
+	mux.HandleFunc("/api/file", func(w http.ResponseWriter, r *http.Request) {
+		if !auth.require(w, r) {
+			return
+		}
+		if r.Method == http.MethodGet {
+			handleFile(w, r, wsState)
+		} else {
+			handleSaveFile(w, r, wsState)
+		}
+	})
+	mux.HandleFunc("/api/mkdir", func(w http.ResponseWriter, r *http.Request) {
+		if !auth.require(w, r) {
+			return
+		}
+		handleMkdir(w, r, wsState)
+	})
+	mux.HandleFunc("/api/delete", func(w http.ResponseWriter, r *http.Request) {
+		if !auth.require(w, r) {
+			return
+		}
+		handleDeleteFile(w, r, wsState)
+	})
+	mux.HandleFunc("/api/workspace", func(w http.ResponseWriter, r *http.Request) {
+		if !auth.require(w, r) {
+			return
+		}
+		handleWorkspace(w, r, wsState)
+	})
+	mux.HandleFunc("/api/version", func(w http.ResponseWriter, r *http.Request) {
+		if !auth.require(w, r) {
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{
+			"version": version.Current(),
+			"counter": version.Parse(version.Current()),
+		})
+	})
+	mux.HandleFunc("/api/models", func(w http.ResponseWriter, r *http.Request) {
+		if !auth.require(w, r) {
+			return
+		}
+		st.mu.RLock()
+		cfg := st.settings.AIConfig()
+		st.mu.RUnlock()
+		ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+		defer cancel()
+		models, err := ai.ListModels(ctx, cfg)
+		if err != nil {
+			writeJSON(w, http.StatusBadGateway, map[string]any{"error": err.Error()})
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{
+			"provider": cfg.Provider,
+			"models":   models,
+		})
+	})
+	mux.HandleFunc("/api/auth", func(w http.ResponseWriter, r *http.Request) {
+		// 登录信息不需要认证即可查询（用于页面提示）
+		writeJSON(w, http.StatusOK, map[string]any{
+			"enabled":          auth.enabled,
+			"username":         auth.user,
+			"default_username": DefaultUsername,
+		})
+	})
 	mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !checkAuth(r, authUser, authPass, authEnabled) {
-			unauthorized(w)
+		if !auth.require(w, r) {
 			return
 		}
 		fileServer.ServeHTTP(w, r)
 	}))
 	mux.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
-		if !checkAuth(r, authUser, authPass, authEnabled) {
-			unauthorized(w)
+		if !auth.require(w, r) {
 			return
 		}
 		hub.ServeWS(w, r)
 	})
 
 	srv := &http.Server{
-		Addr:              opts.Addr,
+		Addr:              listenAddr(opts),
 		Handler:           mux,
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
-	host := opts.Addr
-	if strings.HasPrefix(host, ":") {
-		host = "0.0.0.0" + host
-	}
-	url := "http://" + host + "/"
-	wsURL := "ws://" + strings.TrimPrefix(host, "0.0.0.0") + "/ws"
+	host := listenAddr(opts)
+	displayHost := strings.TrimPrefix(host, "0.0.0.0:")
+	displayHost = strings.TrimPrefix(displayHost, ":")
+	url := "http://" + displayHost + "/"
 	log.Printf("licode serve 已启动: %s", url)
-	log.Printf("provider=%s model=%s （网页端: %s | 远程 TUI: licode tui --remote %s）",
-		st.settings.Provider, st.settings.Model, url, wsURL)
+	log.Printf("provider=%s model=%s", st.settings.Provider, st.settings.Model)
 	if authEnabled {
-		log.Printf("认证已启用：用户名 %s（请用用户名密码访问网页/远程）", authUser)
+		log.Printf("登录已启用：用户名 %s（浏览器打开后需登录）", authUser)
 	} else {
-		log.Printf("认证未启用（可用 --password 或环境变量 %s 开启）", EnvPassword)
+		log.Printf("登录未启用（可用 --password 或环境变量 %s 开启）", EnvPassword)
 	}
 
 	stop := make(chan os.Signal, 1)
@@ -273,6 +378,7 @@ func applyServerSettings(st *serverState, msg websocket.ClientMessage) error {
 	if err := json.Unmarshal(data, &s); err != nil {
 		return fmt.Errorf("设置格式错误: %w", err)
 	}
+	s.EnsureDefaults()
 	if err := s.Validate(); err != nil {
 		return fmt.Errorf("设置无效: %v", err)
 	}
@@ -302,10 +408,15 @@ func runServerAgent(ctx context.Context, st *serverState, cs *connState, c *webs
 	ag := s.BuildAgent(client)
 	ag.Session = sess
 	ag.Ask = func(ctx context.Context, toolName, args string) (bool, error) {
+		// 自动允许，或本对话已"始终允许"该工具 → 不再询问
+		if s.AutoAllow || sess.AlwaysAllowed(toolName) {
+			return true, nil
+		}
 		askID := fmt.Sprintf("ask-%d", cs.askSeq.Add(1))
 		ch := make(chan bool, 1)
 		cs.mu.Lock()
 		cs.pending[askID] = ch
+		cs.askTool[askID] = toolName
 		cs.mu.Unlock()
 		c.SendEvent(websocket.ServerEvent{
 			Type: websocket.EvtAsk, ToolName: toolName, ToolArgs: args, AskID: askID,
@@ -316,6 +427,7 @@ func runServerAgent(ctx context.Context, st *serverState, cs *connState, c *webs
 		case <-ctx.Done():
 			cs.mu.Lock()
 			delete(cs.pending, askID)
+			delete(cs.askTool, askID)
 			cs.mu.Unlock()
 			return false, ctx.Err()
 		}
@@ -331,8 +443,29 @@ func runServerAgent(ctx context.Context, st *serverState, cs *connState, c *webs
 			Error:    e.Error,
 		})
 	})
+	// 推送会话统计（消息数 / 上下文 token 估算）
+	c.SendEvent(websocket.ServerEvent{
+		Type:  websocket.EvtStats,
+		Stats: sessionStats(sess),
+	})
 	if err != nil && ctx.Err() == nil {
 		c.SendEvent(websocket.ServerEvent{Type: websocket.EvtError, Error: err.Error()})
+	}
+}
+
+// sessionStats 估算会话 token 用量。
+func sessionStats(s *session.Session) map[string]any {
+	messages := s.Messages()
+	tokens := 0
+	for _, m := range messages {
+		tokens += session.EstimateTokens(m.Content)
+		for _, tc := range m.ToolCalls {
+			tokens += session.EstimateTokens(tc.Function.Arguments)
+		}
+	}
+	return map[string]any{
+		"messages": len(messages),
+		"tokens":   tokens,
 	}
 }
 
