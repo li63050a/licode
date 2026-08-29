@@ -1,52 +1,72 @@
-
-
 # licode —— 终端里的 AI 编程助手
 
-用 Go 编写的 AI 编程助手，单二进制、静态编译、跨平台。
+用 Go 编写的 AI 编程助手：单二进制、静态编译、跨平台。在本地终端（TUI）或浏览器（Web）中使用，也支持远程瘦客户端模式。
 
-- **本地 TUI**：`licode tui`
+- **本地 TUI**：直接运行 `licode`（无需参数）
 - **Web 网页端**：`licode serve`，手机/电脑浏览器均可访问
-- **远程连接**：`licode tui --remote ws://服务器:8080/ws`，瘦客户端只渲染界面，推理全部在服务器执行
+- **远程连接**：`licode tui --remote ws://服务器:8080/ws`，瘦客户端只渲染界面，AI 推理全部在服务器执行
 
-## 功能
+## 功能一览
 
-- 多 AI 提供商一键切换：**OpenAI / Claude / Ollama**，工厂模式 + 统一 `LLMClient` 接口，改配置即可切换，业务代码零改动
-- 工具调用（Function Calling）：内置 `read_file` / `write_file` / `list_dir` / `grep` / `glob` / `run_shell`，Agent 自主调用并回填结果
-- 子代理系统：`explorer` / `builder` / `planner` 三个专用子代理，支持 `depends_on` 依赖形成 DAG，同层任务并行执行
-- 会话管理：多轮历史 + 上下文窗口截断，会话隔离（每个连接独立 Session）
-- 远程机制：服务器执行推理，客户端只渲染，WebSocket 转发流式结果
+- 多 AI 提供商一键切换：**OpenAI / Claude / Ollama / Gemini**，均使用各自原生接口，工厂模式 + 统一 `LLMClient` 接口
+- 工具调用（Function Calling）：内置读写文件、目录、代码搜索、shell 执行等工具，Agent 自主调用并回填结果
+- 子代理系统：`explorer` / `builder` / `planner` 专用子代理，支持 DAG 依赖并行调度
+- 运行时设置：**无需任何配置文件**，在 TUI / Web / 远程界面中实时修改、立即生效
+- 访问认证：网页与远程连接均支持用户名密码（默认用户名 `licode`）
+- 会话管理：多轮历史 + 上下文窗口截断，每个连接独立会话
+- 完全静态编译：`CGO_ENABLED=0`，不依赖任何动态库
 
 ## 快速开始
 
 ```bash
-make build          # 一键编译（多平台静态二进制）
-./dist/licode --help
+make build          # 编译当前平台（输出 build/）
+./build.sh          # 47 平台全量交叉编译
+./build/licode --help
 
-# 本地 TUI（默认 provider=openai，可用环境变量覆盖）
-export LICODE_API_KEY=sk-...
-./dist/licode tui
+# 直接进入 TUI（默认模式）
+./build/licode
 
 # 指定提供商
-./dist/licode tui --provider claude --api-key $ANTHROPIC_KEY
-./dist/licode tui --provider ollama          # 本地 Ollama，无需密钥
+export LICODE_API_KEY=sk-...
+./build/licode --provider openai
+./build/licode --provider claude --api-key $ANTHROPIC_API_KEY
+./build/licode --provider ollama          # 本地 Ollama，无需密钥
 
-# 启动服务器（浏览器 + 远程 TUI）
-./dist/licode serve --addr :8080
+# 启动服务器（浏览器 + 远程 TUI 均可连接）
+./build/licode serve --addr :8080
 
 # 另一台机器 / 手机以远程瘦客户端连接
-./dist/licode tui --remote ws://192.168.1.10:8080/ws
+./build/licode tui --remote ws://192.168.1.10:8080/ws
+```
+
+安装到系统：
+
+```bash
+make install         # 安装到 /usr/local/bin/licode
+# 或自定义目录
+make install PREFIX=$HOME
+licode               # 直接进入 TUI
 ```
 
 ## 设置
 
-无需任何配置文件。设置可在 **TUI（按 s 键）/ 网页端（设置按钮）/ 远程连接** 中实时修改并立即生效：提供商、模型、API 地址、API 密钥、温度、最大输出 tokens、最大迭代次数、子代理开关、需确认/禁用的工具。
+无需配置文件。设置可在 **TUI（按 `s`）**、**网页端（设置按钮）**、**远程连接** 中实时修改：
 
-启动时也可用命令行参数或环境变量初始化：
+提供商、模型、API 地址、API 密钥、温度、最大输出 tokens、最大迭代次数、子代理开关、需确认/禁用的工具。
 
-- 环境变量：`LICODE_PROVIDER`、`LICODE_BASE_URL`、`LICODE_API_KEY`、`LICODE_MODEL`（以及标准的 `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` / `GEMINI_API_KEY`）
-- 命令行：`--provider`、`--base-url`、`--api-key`、`--model`
+启动时可用环境变量或命令行参数初始化：
 
-内置默认值：
+| 环境变量 | 说明 |
+| --- | --- |
+| `LICODE_PROVIDER` | 提供商（openai/claude/ollama/gemini） |
+| `LICODE_BASE_URL` | API 地址 |
+| `LICODE_API_KEY` | API 密钥 |
+| `LICODE_MODEL` | 模型名 |
+| `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` / `GEMINI_API_KEY` | 各提供商标准密钥 |
+
+命令行参数：`--provider`、`--base-url`、`--api-key`、`--model`。
+
+### 提供商默认值
 
 | 提供商 | 默认地址 | 默认模型 |
 | --- | --- | --- |
@@ -55,108 +75,168 @@ export LICODE_API_KEY=sk-...
 | ollama | `http://localhost:11434` | `llama3.1:8b` |
 | gemini | `https://generativelanguage.googleapis.com` | `gemini-2.0-flash` |
 
-各提供商使用其原生接口：
+各提供商使用原生接口：
 
-- OpenAI：`POST /v1/chat/completions`（SSE 流式 + 工具调用增量）
-- Claude (Anthropic)：`POST /v1/messages`（原生路径与请求体）
-- Gemini (Google)：`POST /v1/models/{模型名}:generateContent`（原生 RPC 风格）
-
-## 构建
-
-```bash
-make build      # Linux amd64/arm64 + macOS + Windows，静态编译
-make build-host # 仅当前主机版本（./dist/licode）
-make upx        # UPX 压缩（可选）
-make size       # 查看产物体积
-./build.sh      # 47 平台全量交叉编译（见下方说明）
-```
-
-约束：
-
-- `CGO_ENABLED=0` 完全静态编译，二进制不依赖 glibc/libc 等任何动态库
-- 单二进制约 7 MB，UPX 后可 < 10 MB
-- 空闲内存 < 30 MB
-- 复制到任意同架构 Linux/macOS/Windows 机器直接运行
-
-> `build.sh`：47 平台全量交叉编译脚本，静态编译优先，个别强制要求 cgo 的平台自动回退动态编译，无法编译的平台自动跳过。
+- **OpenAI**：`POST /v1/chat/completions`（SSE 流式 + 工具调用增量）
+- **Claude (Anthropic)**：`POST /v1/messages`（原生路径与请求体）
+- **Gemini (Google)**：`POST /v1/models/{模型名}:generateContent`（原生 RPC 风格）
 
 ## 访问认证
 
-`serve` 支持用户名/密码认证，网页端与远程 TUI 均受保护。
+`serve` 支持用户名密码认证，网页端与远程 TUI 均受保护。
 
 - 默认用户名：`licode`
 - 未设置密码时认证关闭；设置后网页与远程连接都要求登录
-- 配置方式（环境变量或启动参数二选一）：
 
 ```bash
-# 方式一：环境变量
+# 环境变量方式
 export LICODE_USERNAME=myname
 export LICODE_PASSWORD=mypass
-./dist/licode serve
+./build/licode serve
 
-# 方式二：启动参数
-./dist/licode serve --username myname --password mypass
+# 启动参数方式
+./build/licode serve --username myname --password mypass
 
-# 远程 TUI 使用相同凭据（同样支持环境变量）
-./dist/licode tui --remote ws://192.168.1.10:8080/ws --username myname --password mypass
+# 远程 TUI 使用相同凭据
+./build/licode tui --remote ws://192.168.1.10:8080/ws --username myname --password mypass
 ```
 
 ## 界面操作
 
-**TUI**
+**TUI 快捷键**
 
 | 按键 | 作用 |
 | --- | --- |
-| Enter | 发送 |
-| Tab | 切换 聊天 / 文件栏 焦点 |
-| ↑↓ | 文件栏中移动选择；Enter 将所选路径放入输入框 |
-| PageUp / PageDown | 回看 / 回到底部 |
-| /clear | 清空会话 |
-| Esc | 取消当前输出 |
-| Ctrl+C | 取消输出；再按一次退出 |
+| enter | 发送消息 |
+| `/` | 命令面板（/clear /settings /help /files /exit） |
+| tab | 切换 消息区 / 文件树 |
+| ↑↓ →← | 文件树移动、展开/折叠目录 |
+| enter（文件） | 将所选文件路径放入输入框 |
+| `s` | 打开设置 |
+| `?` | 快捷键帮助 |
+| esc | 取消当前输出 / 返回 |
+| ctrl+c | 取消输出；再次按下退出 |
 
 **Web**
 
-浏览器打开 `http://<host>:8080`，Enter 发送、Shift+Enter 换行、`/clear` 清空。
+浏览器打开 `http://<host>:8080`：Enter 发送、Shift+Enter 换行、`/clear` 清空、设置按钮修改配置。
+
+## 工具调用
+
+内置工具（`internal/agent/tools.go`）：
+
+| 工具 | 说明 |
+| --- | --- |
+| `read_file` | 读取文件（支持 offset/limit） |
+| `write_file` | 写入/替换文件 |
+| `list_dir` | 列出目录 |
+| `grep` | 正则搜索代码 |
+| `glob` | 按通配符查找文件 |
+| `run_shell` | 执行 shell 命令（构建/测试/git） |
+
+Agent 循环：调用 LLM → 若返回工具调用则执行并回填结果 → 重复，直到模型直接给出答案。工具的权限可在设置中设为「需确认」或「禁用」。
+
+## 子代理系统
+
+主 Agent 面对复杂任务时，把工作拆解成多个专门子任务交给**专门的子代理**并行执行，例如「先探索代码 → 再制定计划 → 最后实施修改」。子代理之间通过 **DAG 依赖**约束先后关系。
+
+### 子代理（SubAgent）
+
+每个子代理是一个**独立的 Agent 实例**：拥有自己的 System Prompt、自己的工具集（默认工具的子集）、独立的会话历史，共用同一个 AI 提供商。
+
+内置子代理：
+
+| 名称 | 职责 | 工具 |
+| --- | --- | --- |
+| `explorer` | 探索代码库，给出带 文件:行号 的结论 | read_file, list_dir, glob, grep |
+| `builder` | 实施改动并用构建/测试验证 | read_file, write_file, list_dir, grep, glob, run_shell |
+| `planner` | 制定分步实施计划（不写代码） | 无 |
+
+### 任务（Task）
+
+```json
+{
+  "name": "t1",
+  "agent": "explorer",
+  "prompt": "找出配置解析相关代码",
+  "depends_on": []
+}
+```
+
+- `name`：任务唯一标识，供其它任务引用
+- `agent`：使用哪个子代理
+- `depends_on`：依赖的任务名列表，依赖任务完成后当前任务才能启动
+
+### DAG 调度（Scheduler）
+
+1. 校验：任务名唯一、子代理存在、依赖引用有效
+2. 分层：每一轮选出「依赖全部完成」的任务作为当前层
+3. 并行：同层任务用 goroutine 并行执行（WaitGroup 同步）
+4. 循环：执行完一层再选下一层，直到全部完成
+5. 死锁检测：某轮没有可执行任务但仍有剩余 → 报告依赖环
+
+```
+    ┌─ t1(explorer) ──────────┐
+    │          ┌─ t3(builder)  ── 汇总
+    └─ t2(planner) ───────────┘
+        depends_on: t1 ──► t3
+```
+
+### 与主 Agent 的集成
+
+主 Agent 注册 `dispatch_subagents` 工具（参数：`tasks` 数组，含 `depends_on`）。主 Agent 决定拆解策略 → 工具执行调度 → 返回各任务 JSON 结果 → 主 Agent 汇总成最终回答。
+
+### 扩展子代理
+
+```go
+agent.SubAgentSpec{
+    Name:   "tester",
+    Prompt: "你是测试子代理…",
+    Tools:  []string{"run_shell", "read_file"},
+    Client: client,
+}
+```
+
+通过 `agent.RegisterSubAgents(specs)` 挂到主 Agent 即可，`dispatch_subagents` 工具会自动把这些名字暴露给模型。
+
+## 远程连接机制
+
+- `serve` 监听 `/ws`，每个连接拥有独立 Agent + Session（会话隔离）
+- 远程 `tui --remote ws://…` 变成瘦客户端：只渲染，所有推理在服务器
+- 事件协议：`delta`（流式文本）/ `tool_start` / `tool_done` / `done` / `error` / `status` / `ask` / `settings`
+- 认证：HTTP Basic Auth，WebSocket 握手时携带凭据
 
 ## 架构
 
 ```
-├── main.go                # Cobra 根命令
+├── main.go                # Cobra 根命令（无参数默认进入 TUI）
 ├── cmd/
-│   ├── tui.go             # 本地/远程 Bubble Tea 终端界面
-│   └── serve.go           # Web 服务器 + WebSocket 端点
+│   ├── tui.go             # 本地/远程 Bubble Tea 终端界面（文件树/命令面板/设置）
+│   ├── serve.go           # Web 服务器 + WebSocket 端点
+│   └── auth.go            # 用户名密码认证
 ├── internal/
 │   ├── ai/                # LLMClient 接口 + 工厂 + openai/claude/ollama/gemini
-│   ├── agent/             # 主 Agent、工具注册与执行、子代理调度
+│   ├── agent/             # 主 Agent、工具注册与执行、子代理 DAG 调度
 │   ├── session/           # 多轮会话 + 上下文窗口截断
 │   ├── settings/          # 运行时设置（无配置文件，界面内实时修改）
-│   ├── websocket/         # Hub + Client 连接管理、事件协议、认证
+│   ├── websocket/         # Hub + Client 连接管理、事件协议
 │   └── web/               # go:embed 嵌入的静态页面
-├── Makefile
+├── Makefile               # build / build-all / install / upx
 ├── build.sh               # 47 平台交叉编译脚本
 └── go.mod
 ```
 
-`licode` 直接运行（不带参数）即进入 TUI；`licode serve` 启动服务器。
+## 构建
 
-### AI 提供商（工厂模式）
+```bash
+make build          # 当前平台（含测试），输出 build/
+make build-all      # 47 平台全量交叉编译（./build.sh）
+make install        # 安装到 /usr/local/bin/licode
+make upx            # UPX 压缩（可选）
+make size           # 查看产物体积
+```
 
-统一接口 `ai.LLMClient`（`internal/ai/ai.go`）：`Chat`、`ChatStream`（SSE 流式 + 工具调用增量解析）。`ai.New(cfg)` 按 `provider` 字段创建实现，切换提供商只改配置，业务代码零改动。
-
-### 工具调用
-
-`internal/agent/tools.go` 内置：`read_file`、`write_file`、`list_dir`、`grep`、`glob`、`run_shell`。Agent 循环：调用 LLM → 若返回工具调用则执行并把结果回填 → 重复，直到模型直接给出答案。
-
-### 子代理系统
-
-见 [docs/subagents.md](docs/subagents.md)。主 Agent 通过 `dispatch_subagents` 工具把任务拆解给专门的子代理（`explorer` / `builder` / `planner`），支持 `depends_on` 依赖形成 DAG，同一层的任务并行执行。
-
-### 远程连接机制
-
-- `serve` 监听 `/ws`，每个连接拥有独立 Agent + Session（会话隔离）
-- 远程 `tui --remote ws://…` 变成瘦客户端：只渲染，所有推理在服务器
-- 事件协议：`delta`（流式文本）/ `tool_start` / `tool_done` / `done` / `error` / `status`
+约束：`CGO_ENABLED=0` 完全静态编译；单二进制约 7 MB（UPX 后 < 10 MB）；空闲内存 < 30 MB；复制到任意同架构 Linux/macOS/Windows 直接运行。
 
 ## 开发
 
@@ -165,11 +245,6 @@ go build ./...     # 编译检查
 go vet ./...       # 静态检查
 go test ./...      # 单元测试（AI 流式解析 / Agent 工具循环 / DAG 调度 / 会话截断）
 ```
-
-## 说明
-
-- 所有面向用户的文字均为简体中文
-- 仅依赖 `bubbletea`、`lipgloss`、`gorilla/websocket`、`cobra` 与 Go 标准库
 
 ## 联系与交流
 
