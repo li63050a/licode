@@ -3,26 +3,25 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#4d6bfe">
   <title>登录 · licode</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'%3E%3Cpath d='M8 44 Q24 58 38 54 C52 50 74 48 90 46 Q104 44 110 54 Q114 62 108 70 Q98 78 82 76 C62 74 46 74 34 72 Q20 70 10 78 Q16 64 8 44 Z' fill='%234d6bfe'/%3E%3Cpath d='M98 42 Q96 34 88 30 Q96 34 102 32 Q96 38 98 42 Z' fill='%239db8ff'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     /* ===== 与主界面完全一致的变量 ===== */
     :root {
-      --bg: #ffffff;
-      --panel: #f7f7f8;
-      --border: #e8e8e8;
-      --fg: #1f1f1f;
-      --muted: #8a8a8a;
-      --accent: #4d6bfe;
-      --radius: 8px;
-      --shadow: 0 2px 12px rgba(0,0,0,0.06);
+      --base:#eef1ff; --glass:rgba(255,255,255,.6); --glass-strong:rgba(255,255,255,.82);
+      --glass-border:rgba(255,255,255,.6); --fg:#1a2036; --muted:#667085;
+      --accent:#4d6bfe; --accent-2:#7c5cff; --accent-soft:rgba(77,107,254,.13);
+      --red:#e5484d; --radius:14px; --shadow:0 12px 40px rgba(30,45,120,.10);
     }
     html[data-theme="dark"] {
-      --bg: #0d1117;
-      --panel: #161b22;
-      --border: #21262d;
-      --fg: #e6edf3;
-      --muted: #8b949e;
-      --accent: #e77f24;
+      --base:#0a0e1d; --glass:rgba(18,24,46,.6); --glass-strong:rgba(15,21,42,.88);
+      --glass-border:rgba(255,255,255,.09); --fg:#e8edf9; --muted:#8b94ad;
+      --accent:#6d8bff; --accent-2:#9d7bff; --accent-soft:rgba(109,139,255,.16);
+      --shadow:0 12px 40px rgba(0,0,0,.35);
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -31,68 +30,100 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      background: var(--bg);
+      background: var(--base);
       color: var(--fg);
-      font: 14px/1.6 -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      font: 14px/1.6 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', sans-serif;
+      -webkit-font-smoothing: antialiased;
       padding: 16px;
+      overflow: hidden;
     }
-    /* ===== 登录卡片 ===== */
+    /* 流动渐变背景 */
+    body::before {
+      content:''; position:fixed; inset:-30%; z-index:-1;
+      background:
+        radial-gradient(38% 38% at 18% 22%, rgba(77,107,254,.35), transparent 60%),
+        radial-gradient(34% 34% at 82% 18%, rgba(0,190,255,.26), transparent 60%),
+        radial-gradient(42% 42% at 72% 78%, rgba(124,92,255,.30), transparent 62%),
+        radial-gradient(36% 36% at 24% 74%, rgba(0,180,210,.22), transparent 60%);
+      filter: blur(10px);
+      animation: flow 26s ease-in-out infinite alternate;
+      will-change: transform;
+    }
+    html[data-theme="dark"] body::before {
+      background:
+        radial-gradient(38% 38% at 18% 22%, rgba(77,107,254,.42), transparent 60%),
+        radial-gradient(34% 34% at 82% 18%, rgba(0,190,255,.30), transparent 60%),
+        radial-gradient(42% 42% at 72% 78%, rgba(124,92,255,.38), transparent 62%),
+        radial-gradient(36% 36% at 24% 74%, rgba(0,180,210,.28), transparent 60%);
+    }
+    @keyframes flow {
+      0%   { transform: translate(0,0) scale(1); }
+      50%  { transform: translate(4%,3%) scale(1.14); }
+      100% { transform: translate(-3%,-2%) scale(1.06); }
+    }
+    /* ===== 登录卡片（毛玻璃） ===== */
     .card {
       width: min(360px, 92vw);
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 28px 26px;
+      background: var(--glass);
+      border: 1px solid var(--glass-border);
+      border-radius: 22px;
+      padding: 30px 28px;
+      backdrop-filter: blur(28px) saturate(180%);
+      -webkit-backdrop-filter: blur(28px) saturate(180%);
       box-shadow: var(--shadow);
       transition: background 0.2s, border-color 0.2s;
+      position: relative;
+      z-index: 1;
     }
     .logo {
       text-align: center;
       font-size: 24px;
-      font-weight: 700;
+      font-weight: 800;
       color: var(--accent);
       margin-bottom: 4px;
       letter-spacing: 0.3px;
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 8px;
+      gap: 10px;
     }
-    .logo i { font-size: 26px; }
+    .logo .whale { display: block; filter: drop-shadow(0 2px 10px rgba(77,107,254,.5)); }
     .sub {
       text-align: center;
       color: var(--muted);
       font-size: 13px;
-      margin-bottom: 20px;
+      margin-bottom: 22px;
     }
     input {
       width: 100%;
-      padding: 9px 12px;
+      padding: 10px 13px;
       margin-bottom: 12px;
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      background: var(--bg);
+      border: 1px solid var(--glass-border);
+      border-radius: 12px;
+      background: var(--glass);
       color: var(--fg);
       font: inherit;
       outline: none;
-      transition: border-color 0.15s;
+      transition: border-color 0.15s, box-shadow 0.15s;
     }
-    input:focus { border-color: var(--accent); }
+    input::placeholder { color: var(--muted); }
+    input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
     button {
       width: 100%;
-      padding: 10px;
+      padding: 11px;
       border: none;
-      border-radius: var(--radius);
-      background: var(--accent);
+      border-radius: 12px;
+      background: linear-gradient(135deg, var(--accent-2), var(--accent));
       color: #fff;
       font: inherit;
       font-weight: 600;
       cursor: pointer;
-      transition: opacity 0.15s;
+      box-shadow: 0 6px 18px rgba(77,107,254,.35);
+      transition: opacity 0.15s, transform 0.1s;
     }
-    button:hover { opacity: 0.9; }
+    button:hover { opacity: 0.92; transform: translateY(-1px); }
     .err {
-      color: #e5484d;
+      color: var(--red);
       font-size: 12.5px;
       text-align: center;
       margin-bottom: 10px;
@@ -105,12 +136,15 @@
       color: var(--muted);
       font-size: 13px;
       cursor: pointer;
-      padding: 4px 10px;
-      border: 1px solid var(--border);
-      border-radius: 20px;
-      background: var(--panel);
+      padding: 6px 14px;
+      border: 1px solid var(--glass-border);
+      border-radius: 999px;
+      background: var(--glass);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
       transition: 0.15s;
       user-select: none;
+      z-index: 2;
     }
     .lang:hover { border-color: var(--accent); color: var(--accent); }
     .theme-toggle {
@@ -120,24 +154,25 @@
       color: var(--muted);
       font-size: 18px;
       cursor: pointer;
-      padding: 4px 8px;
+      padding: 8px 10px;
       border-radius: 50%;
       transition: 0.15s;
-      background: var(--panel);
-      border: 1px solid var(--border);
+      background: var(--glass);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border: 1px solid var(--glass-border);
       line-height: 1;
+      z-index: 2;
     }
     .theme-toggle:hover { border-color: var(--accent); color: var(--accent); }
     /* ===== 响应式 ===== */
     @media (max-width: 480px) {
-      .card { padding: 20px 16px; }
+      .card { padding: 24px 18px; }
       .logo { font-size: 20px; }
-      .lang { top: 10px; right: 12px; font-size: 12px; padding: 2px 8px; }
+      .lang { top: 10px; right: 12px; font-size: 12px; padding: 4px 10px; }
       .theme-toggle { top: 10px; left: 12px; font-size: 16px; }
     }
   </style>
-  <!-- Font Awesome (与主界面一致) -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
 </head>
 <body>
 
@@ -145,12 +180,24 @@
   <div class="lang" id="langSwitch">English</div>
   <!-- 主题切换 -->
   <div class="theme-toggle" id="themeToggle" title="切换主题">
-    <i class="fas fa-moon"></i>
+    <svg id="themeIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
   </div>
 
   <div class="card">
     <div class="logo">
-      <i class="fas fa-code"></i>licode
+      <svg class="whale" viewBox="0 0 120 120" width="26" height="26" aria-hidden="true">
+        <defs>
+          <linearGradient id="lwg" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#6d8bff"/><stop offset="1" stop-color="#4d6bfe"/>
+          </linearGradient>
+        </defs>
+        <path d="M8 44 Q24 58 38 54 C52 50 74 48 90 46 Q104 44 110 54 Q114 62 108 70 Q98 78 82 76 C62 74 46 74 34 72 Q20 70 10 78 Q16 64 8 44 Z" fill="url(#lwg)"/>
+        <path d="M34 72 Q60 80 90 74 Q68 86 40 78 Z" fill="#9db8ff" opacity=".55"/>
+        <path d="M98 42 Q96 34 88 30 Q96 34 102 32 Q96 38 98 42 Z" fill="#9db8ff"/>
+        <circle cx="100" cy="54" r="2.6" fill="#fff"/>
+        <path d="M94 66 Q100 72 106 66" stroke="#fff" stroke-width="1.6" stroke-linecap="round" fill="none" opacity=".9"/>
+      </svg>
+      licode
     </div>
     <div class="sub" data-i18n="sub">AI 编程助手 · 请登录</div>
     <div class="err" id="err" data-i18n="err">用户名或密码错误</div>
@@ -159,7 +206,6 @@
       <input name="password" type="password" id="password" placeholder="密码" data-i18n-placeholder="pass" autocomplete="current-password" required>
       <button type="submit" data-i18n="login">登录</button>
     </form>
-    <!-- 已移除忘记密码和注册链接 -->
   </div>
 
   <script>
@@ -205,11 +251,11 @@
     function applyTheme() {
       const theme = localStorage.getItem('licode_theme') || 'light';
       document.documentElement.setAttribute('data-theme', theme);
-      const icon = document.querySelector('#themeToggle i');
+      const icon = document.getElementById('themeIcon');
       if (theme === 'dark') {
-        icon.className = 'fas fa-sun';
+        icon.outerHTML = '<svg id="themeIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>';
       } else {
-        icon.className = 'fas fa-moon';
+        icon.outerHTML = '<svg id="themeIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>';
       }
     }
 
