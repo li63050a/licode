@@ -4,7 +4,7 @@
 # 或:   ./install.sh [github|gitee]
 set -e
 
-VERSION="${VERSION:-v0.1.0}"
+VERSION="${VERSION:-v0.2.0}"
 SOURCE="${1:-github}"
 
 case "$(uname -s)-$(uname -m)" in

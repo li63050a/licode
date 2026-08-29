@@ -3,7 +3,7 @@ REM licode 一键安装脚本 (Windows)
 REM 用法: 双击运行，或  install.bat [github|gitee]
 setlocal EnableDelayedExpansion
 
-set "VERSION=v0.1.0"
+set "VERSION=v0.2.0"
 set "SOURCE=%~1"
 if "%SOURCE%"=="" set "SOURCE=github"
 
