@@ -357,14 +357,17 @@ func runServe(opts *ServeOptions) error {
 	}
 
 	host := listenAddr(opts)
-	displayHost := strings.TrimPrefix(host, "0.0.0.0:")
-	displayHost = strings.TrimPrefix(displayHost, ":")
 	useTLS := opts.HTTPS || (opts.TLSCert != "" && opts.TLSKey != "")
 	scheme := "http"
 	if useTLS {
 		scheme = "https"
 	}
-	url := scheme + "://" + displayHost + "/"
+	// 显示地址：0.0.0.0 时给出本机可访问地址
+	dispHost := host
+	if strings.HasPrefix(dispHost, "0.0.0.0:") {
+		dispHost = "127.0.0.1:" + strings.TrimPrefix(dispHost, "0.0.0.0:")
+	}
+	url := scheme + "://" + dispHost + "/"
 	log.Printf("licode serve 已启动: %s", url)
 	log.Printf("provider=%s model=%s", st.settings.Provider, st.settings.Model)
 	if authEnabled {

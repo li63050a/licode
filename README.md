@@ -49,6 +49,39 @@ Windows 双击 `install.bat`。安装后直接运行 `licode` 启动服务器。
 
 环境变量：`LICODE_PROVIDER` `LICODE_BASE_URL` `LICODE_API_KEY` `LICODE_MODEL` `LICODE_USERNAME` `LICODE_PASSWORD` `LICODE_HOME`
 
+### 启动参数说明（全部为可选项）
+
+| 参数 | 说明 | 示例 |
+| --- | --- | --- |
+| `--host` | 监听主机。默认 `127.0.0.1`（仅本机）。手机/局域网访问请用 `0.0.0.0` | `--host 0.0.0.0` |
+| `--port` | 监听端口，默认 `8080` | `--port 8080` |
+| `--addr` | 直接指定监听地址（优先于 host/port） | `--addr 0.0.0.0:9000` |
+| `--provider` | AI 提供商：`openai` / `claude` / `google` / `ollama` | `--provider ollama` |
+| `--base-url` | AI 提供商 API 地址 | `--base-url http://localhost:11434/v1` |
+| `--api-key` | AI 提供商 API 密钥 | `--api-key sk-xxx` |
+| `--model` | 模型名 | `--model gpt-4o-mini` |
+| `--username` | 登录用户名，默认 `licode` | `--username admin` |
+| `--password` | 登录密码；**设置后才启用登录** | `--password mypass` |
+| `--https` | 启用 HTTPS（无证书时自动生成自签名证书） | `--https` |
+| `--tls-cert` / `--tls-key` | 指定 TLS 证书/私钥文件（配合 HTTPS） | `--tls-cert cert.pem --tls-key key.pem` |
+| `--no-subagents` | 禁用子代理编排 | `--no-subagents` |
+
+> 说明：`licode` 不带子命令直接带参数运行，等价于 `licode serve <参数>`。例如
+> `licode --host 0.0.0.0 --port 8080 --password 123` 即可启动并启用登录。
+
+### 环境变量说明（与参数等价，参数优先级更高）
+
+| 环境变量 | 说明 |
+| --- | --- |
+| `LICODE_PROVIDER` | AI 提供商（同 `--provider`） |
+| `LICODE_BASE_URL` | API 地址（同 `--base-url`） |
+| `LICODE_API_KEY` | API 密钥（同 `--api-key`） |
+| `LICODE_MODEL` | 模型名（同 `--model`） |
+| `LICODE_USERNAME` | 登录用户名（同 `--username`） |
+| `LICODE_PASSWORD` | 登录密码（同 `--password`） |
+| `LICODE_HOME` | 用户数据目录（默认 `~/.licode`） |
+| `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` / `GEMINI_API_KEY` | 各厂商标准密钥，未设 `LICODE_API_KEY` 时自动读取 |
+
 | 提供商 | 默认地址 | 默认模型 |
 | --- | --- | --- |
 | openai | `https://api.openai.com/v1` | `gpt-4o-mini` |
