@@ -13,12 +13,13 @@ import (
 
 // OllamaProvider talks to a local Ollama server (native /api/chat endpoint).
 type OllamaProvider struct {
+	name    string
 	baseURL string
 	model   string
 	client  *http.Client
 }
 
-func (p *OllamaProvider) Provider() string { return "ollama" }
+func (p *OllamaProvider) Provider() string { return p.name }
 func (p *OllamaProvider) Model() string    { return p.model }
 
 func (p *OllamaProvider) httpClient() *http.Client {

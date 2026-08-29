@@ -8,7 +8,8 @@ import (
 
 // Config holds connection settings for an LLM provider.
 type Config struct {
-	Provider string // "openai" | "claude" | "ollama"
+	Provider string // 显示名（如 "openai" 或自定义名称）
+	Type     string // 协议类型：openai | claude | ollama | gemini；空则按 Provider 推断，未知按 openai 兼容
 	BaseURL  string
 	APIKey   string
 	Model    string
@@ -21,47 +22,65 @@ const (
 	EnvModel    = "LICODE_MODEL"
 )
 
-// Default provider settings.
+// Default provider settings. 协议类型：openai / claude / google
+// （ollama 属 openai 兼容，地址给 /v1）。
 var Defaults = map[string]struct {
 	BaseURL string
 	Model   string
 }{
 	"openai": {BaseURL: "https://api.openai.com/v1", Model: "gpt-4o-mini"},
 	"claude": {BaseURL: "https://api.anthropic.com", Model: "claude-sonnet-4-20250514"},
-	"ollama": {BaseURL: "http://localhost:11434", Model: "llama3.1:8b"},
-	"gemini": {BaseURL: "https://generativelanguage.googleapis.com", Model: "gemini-2.0-flash"},
+	"ollama": {BaseURL: "http://localhost:11434/v1", Model: "llama3.1:8b"},
+	"google": {BaseURL: "https://generativelanguage.googleapis.com", Model: "gemini-2.0-flash"},
+}
+
+// normalizeType 规范化协议类型：ollama -> openai（兼容），gemini -> google。
+func normalizeType(t string) string {
+	switch strings.ToLower(strings.TrimSpace(t)) {
+	case "ollama":
+		return "openai"
+	case "gemini", "google":
+		return "google"
+	case "openai":
+		return "openai"
+	case "claude", "anthropic":
+		return "claude"
+	}
+	return "openai"
 }
 
 // Resolve fills empty Config fields from environment variables, then defaults.
 // Precedence: explicit field > env var > default.
+// 支持自定义厂商：Provider 可为任意名称，Type 指定协议；未知 Type 按 openai 兼容。
 func (c *Config) Resolve() error {
 	if c.Provider == "" {
 		c.Provider = os.Getenv(EnvProvider)
 	}
-	c.Provider = strings.ToLower(strings.TrimSpace(c.Provider))
+	c.Provider = strings.TrimSpace(c.Provider)
 	if c.Provider == "" {
 		c.Provider = "openai"
 	}
-	d, ok := Defaults[c.Provider]
-	if !ok {
-		return fmt.Errorf("unsupported provider %q (want openai, claude or ollama)", c.Provider)
+	if c.Type == "" {
+		c.Type = strings.ToLower(c.Provider)
 	}
+	c.Type = normalizeType(c.Type)
+	d, ok := Defaults[c.Type]
 	if c.BaseURL == "" {
 		c.BaseURL = os.Getenv(EnvBaseURL)
 	}
-	if c.BaseURL == "" {
+	if c.BaseURL == "" && ok {
 		c.BaseURL = d.BaseURL
 	}
 	if c.APIKey == "" {
 		c.APIKey = os.Getenv(EnvAPIKey)
 		if c.APIKey == "" {
-			c.APIKey = providerEnvKey(c.Provider)
+			c.APIKey = providerEnvKey(c.Type)
 		}
 	}
 	if c.Model == "" {
 		c.Model = os.Getenv(EnvModel)
 	}
-	if c.Model == "" {
+	if c.Model == "" && ok {
 		c.Model = d.Model
 	}
 	c.BaseURL = strings.TrimRight(c.BaseURL, "/")
@@ -75,7 +94,7 @@ func providerEnvKey(provider string) string {
 		return os.Getenv("OPENAI_API_KEY")
 	case "claude":
 		return os.Getenv("ANTHROPIC_API_KEY")
-	case "gemini":
+	case "google":
 		return os.Getenv("GEMINI_API_KEY")
 	}
 	return ""
@@ -86,16 +105,17 @@ func New(cfg Config) (LLMClient, error) {
 	if err := cfg.Resolve(); err != nil {
 		return nil, err
 	}
-	switch cfg.Provider {
+	name := cfg.Provider
+	switch cfg.Type {
 	case "openai":
-		return &OpenAIProvider{baseURL: cfg.BaseURL, apiKey: cfg.APIKey, model: cfg.Model}, nil
+		return &OpenAIProvider{name: name, baseURL: cfg.BaseURL, apiKey: cfg.APIKey, model: cfg.Model}, nil
 	case "claude":
-		return &ClaudeProvider{baseURL: cfg.BaseURL, apiKey: cfg.APIKey, model: cfg.Model}, nil
+		return &ClaudeProvider{name: name, baseURL: cfg.BaseURL, apiKey: cfg.APIKey, model: cfg.Model}, nil
 	case "ollama":
-		return &OllamaProvider{baseURL: cfg.BaseURL, model: cfg.Model}, nil
-	case "gemini":
-		return &GeminiProvider{baseURL: cfg.BaseURL, apiKey: cfg.APIKey, model: cfg.Model}, nil
+		return &OllamaProvider{name: name, baseURL: cfg.BaseURL, model: cfg.Model}, nil
+	case "google", "gemini":
+		return &GeminiProvider{name: name, baseURL: cfg.BaseURL, apiKey: cfg.APIKey, model: cfg.Model}, nil
 	default:
-		return nil, fmt.Errorf("unsupported provider %q", cfg.Provider)
+		return nil, fmt.Errorf("unsupported protocol type %q", cfg.Type)
 	}
 }

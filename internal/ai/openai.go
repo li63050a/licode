@@ -14,13 +14,14 @@ import (
 // OpenAIProvider implements the OpenAI Chat Completions API (also compatible
 // with any OpenAI-compatible endpoint such as vLLM, LM Studio, OpenRouter).
 type OpenAIProvider struct {
+	name    string
 	baseURL string
 	apiKey  string
 	model   string
 	client  *http.Client
 }
 
-func (p *OpenAIProvider) Provider() string { return "openai" }
+func (p *OpenAIProvider) Provider() string { return p.name }
 func (p *OpenAIProvider) Model() string    { return p.model }
 
 func (p *OpenAIProvider) httpClient() *http.Client {

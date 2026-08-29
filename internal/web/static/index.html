@@ -248,14 +248,26 @@
   <div class="panel">
     <h3 data-i18n="settings_title">设置</h3>
     <div class="row"><label data-i18n="l_provider">提供商</label>
-      <select id="st_provider"><option>openai</option><option>claude</option><option>ollama</option><option>gemini</option></select></div>
+      <input id="st_provider" list="providerList">
+      <datalist id="providerList"></datalist></div>
     <div class="row"><label data-i18n="l_model">模型</label>
       <input id="st_model" list="modelList">
       <button class="btn" id="btnModels" data-i18n="fetch_models">获取模型</button></div>
     <datalist id="modelList"></datalist>
     <div class="row"><label data-i18n="l_base">API 地址</label><input id="st_base_url"></div>
     <div class="row"><label data-i18n="l_key">API 密钥</label><input id="st_api_key" type="password"></div>
-    <div class="row"><label data-i18n="l_providers">厂商列表</label><textarea id="st_providers" rows="4" placeholder='[{"provider":"openai","base_url":"...","api_key":"...","model":"gpt-4o"}]'></textarea></div>
+    <div class="row"><label data-i18n="l_providers">厂商列表</label><textarea id="st_providers" rows="4" placeholder='[{"provider":"openai","name":"OpenAI","type":"openai","base_url":"https://api.openai.com/v1","api_key":"","model":"gpt-4o"}]'></textarea></div>
+    <div class="row"><label data-i18n="l_newprov">新增厂商</label></div>
+    <div class="row"><label data-i18n="l_ptype">类型</label>
+      <select id="st_ptype"><option>openai</option><option>claude</option><option>google</option></select></div>
+    <div class="row"><label data-i18n="l_pname">名称</label><input id="st_pname" placeholder="自定义显示名"></div>
+    <div class="row"><label data-i18n="l_pbase">API 地址</label><input id="st_pbase" placeholder="https://api.example.com/v1"></div>
+    <div class="row"><label data-i18n="l_pkey">API 密钥</label><input id="st_pkey" type="password"></div>
+    <div class="row"><label data-i18n="l_pmodel">模型</label>
+      <input id="st_pmodel" list="newModelList">
+      <button class="btn" id="btnNewModels" data-i18n="fetch_models">获取模型</button></div>
+    <datalist id="newModelList"></datalist>
+    <div class="btns"><button class="btn primary" id="btnAddProv" data-i18n="add_prov">添加厂商</button></div>
     <div class="row"><label data-i18n="l_temp">温度</label><input id="st_temperature"></div>
     <div class="row"><label data-i18n="l_maxtok">最大输出 tokens</label><input id="st_max_tokens"></div>
     <div class="row"><label data-i18n="l_maxiter">最大迭代次数</label><input id="st_max_iterations"></div>
@@ -278,8 +290,6 @@
       <select id="st_anim"><option data-i18n-opt="off">关闭</option><option data-i18n-opt="on">开启</option></select></div>
     <div class="row"><label data-i18n="l_toolsopen">工具详情默认</label>
       <select id="st_toolsopen"><option data-i18n-opt="expand">展开</option><option data-i18n-opt="fold">折叠</option></select></div>
-    <div class="row"><label data-i18n="l_ssh_pub">SSH 公钥</label><input id="st_ssh_pub" placeholder="/path/to/id_rsa.pub"></div>
-    <div class="row"><label data-i18n="l_ssh_priv">SSH 私钥</label><input id="st_ssh_priv" placeholder="/path/to/id_rsa"></div>
     <div class="row"><label data-i18n="l_ws">工作目录</label><input id="st_workspace" placeholder="/path"></div>
     <div class="row"><label data-i18n="l_version">版本</label><input id="st_version" readonly></div>
     <div class="btns">
@@ -321,6 +331,7 @@ const I18N = {
     l_maxtok:'最大输出 tokens', l_maxiter:'最大迭代次数', l_sub:'子代理', l_compact:'上下文压缩', l_title:'自动标题',
     l_auto:'自动允许', l_rules:'工具规则', l_mcp:'MCP 服务器', l_theme:'主题', l_lang:'语言', l_anim:'动画', l_ws:'工作目录', l_version:'版本',
     l_providers:'厂商列表', l_ssh_pub:'SSH 公钥', l_ssh_priv:'SSH 私钥', l_toolsopen:'工具详情默认',
+    l_newprov:'新增厂商', l_ptype:'类型', l_pname:'名称', l_pbase:'API 地址', l_pkey:'API 密钥', l_pmodel:'模型', add_prov:'添加厂商',
     fetch_models:'获取模型', no_models:'该厂商暂无模型列表接口', expand:'展开', fold:'折叠',
     banner_off:'未启用登录：当前无需密码即可访问。启用方法：licode serve --password 你的密码（默认用户名 licode），或设置环境变量 LICODE_PASSWORD。',
     on:'开启', off:'关闭', light:'浅色', dark:'深色', cancel:'取消', close:'关闭',
@@ -543,8 +554,6 @@ function fillSettings(s) {
   const rules = (s.tool_rules || {});
   $('st_rules').value = Object.keys(rules).map(k => k + ':' + rules[k]).join(', ');
   $('st_mcp').value = JSON.stringify(s.mcp_servers || [], null, 1);
-  $('st_ssh_pub').value = s.ssh_pubkey || '';
-  $('st_ssh_priv').value = s.ssh_privkey || '';
   $('st_toolsopen').value = toolOpen ? t('expand') : t('fold');
   $('selProvider').value = s.provider || 'openai';
   populateProviders();
@@ -562,7 +571,6 @@ function readSettings() {
     subagents: $('st_subagents').value === t('on'), compaction: $('st_compaction').value === t('on'), title_gen: $('st_titlegen').value === t('on'),
     auto_allow: $('st_auto').value === t('on'),
     tool_rules: rules, mcp_servers: mcp,
-    ssh_pubkey: $('st_ssh_pub').value, ssh_privkey: $('st_ssh_priv').value,
     providers: providers,
   };
 }
@@ -570,14 +578,42 @@ function populateProviders() {
   const sel = $('selProvider');
   const cur = sel.value;
   sel.innerHTML = '';
+  const dl = $('providerList'); dl.innerHTML = '';
   let list = [];
   if (curSettings.providers && curSettings.providers.length) {
-    curSettings.providers.forEach(p => { if (p.provider) list.push({ provider: p.provider, label: p.provider + (p.model ? '/' + p.model : '') }); });
+    curSettings.providers.forEach(p => { if (p.provider) list.push({ provider: p.provider, label: (p.name || p.provider) + (p.model ? '/' + p.model : '') }); });
   }
-  if (!list.length) ['openai','claude','ollama','gemini'].forEach(p => list.push({ provider: p, label: p }));
-  list.forEach(it => { const o = document.createElement('option'); o.value = it.label; o.textContent = it.label; sel.appendChild(o); });
+  if (!list.length) ['openai','claude','google'].forEach(p => list.push({ provider: p, label: p }));
+  list.forEach(it => {
+    const o = document.createElement('option'); o.value = it.label; o.textContent = it.label; sel.appendChild(o);
+    const d = document.createElement('option'); d.value = it.provider; d.textContent = it.provider; dl.appendChild(d);
+  });
   if (cur) { [...sel.options].some(o => o.value === cur) && (sel.value = cur); }
 }
+/* 一键添加厂商：获取模型列表 */
+$('btnNewModels').addEventListener('click', async () => {
+  const q = new URLSearchParams({ type: $('st_ptype').value, base: $('st_pbase').value, key: $('st_pkey').value });
+  try {
+    const d = await api('/api/models?' + q.toString());
+    const dl = $('newModelList'); dl.innerHTML = '';
+    (d.models || []).forEach(m => { const o = document.createElement('option'); o.value = m; dl.appendChild(o); });
+    if (!d.models || !d.models.length) alert(t('no_models'));
+  } catch (e) { alert(e.message); }
+});
+/* 一键添加厂商：加入列表并激活 */
+$('btnAddProv').addEventListener('click', () => {
+  const ptype = $('st_ptype').value;
+  const name = $('st_pname').value.trim() || ptype;
+  let providers = []; try { providers = JSON.parse($('st_providers').value || '[]'); } catch (e) {}
+  providers = providers.filter(p => p.provider !== name);
+  providers.push({ provider: name, name: name, type: ptype, base_url: $('st_pbase').value.trim(), api_key: $('st_pkey').value.trim(), model: $('st_pmodel').value.trim() });
+  $('st_providers').value = JSON.stringify(providers, null, 1);
+  $('st_provider').value = name;
+  $('st_model').value = $('st_pmodel').value.trim();
+  $('st_base_url').value = $('st_pbase').value.trim();
+  $('st_api_key').value = $('st_pkey').value.trim();
+  $('settingsSave').click();
+});
 $('settingsBtn') && ($('settingsBtn').addEventListener('click', openSettings));
 $('btnSettings').addEventListener('click', openSettings);
 $('settingsCancel').addEventListener('click', () => $('settings').classList.remove('on'));

@@ -11,25 +11,22 @@ import (
 )
 
 // ListModels 获取某厂商可用模型列表（各厂商原生接口）。
-//   - openai: GET {base}/models
-//   - ollama: GET {base}/api/tags
-//   - gemini: GET {base}/v1beta/models?key=...
+//   - openai: GET {base}/models（含 Ollama 等 OpenAI 兼容）
+//   - google: GET {base}/v1beta/models?key=...
 //   - claude: 无公开列表接口，返回空
 func ListModels(ctx context.Context, cfg Config) ([]string, error) {
 	if err := cfg.Resolve(); err != nil {
 		return nil, err
 	}
-	switch cfg.Provider {
+	switch cfg.Type {
 	case "openai":
 		return listOpenAIModels(ctx, cfg)
-	case "ollama":
-		return listOllamaModels(ctx, cfg)
-	case "gemini":
+	case "google":
 		return listGeminiModels(ctx, cfg)
 	case "claude":
 		return nil, nil
 	}
-	return nil, fmt.Errorf("不支持的提供商 %q", cfg.Provider)
+	return nil, fmt.Errorf("不支持的协议类型 %q", cfg.Type)
 }
 
 func httpGetJSON(ctx context.Context, url, apiKey string) (*http.Response, error) {

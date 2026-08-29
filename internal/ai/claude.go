@@ -13,13 +13,14 @@ import (
 
 // ClaudeProvider implements the Anthropic Messages API (streaming SSE).
 type ClaudeProvider struct {
+	name    string
 	baseURL string
 	apiKey  string
 	model   string
 	client  *http.Client
 }
 
-func (p *ClaudeProvider) Provider() string { return "claude" }
+func (p *ClaudeProvider) Provider() string { return p.name }
 func (p *ClaudeProvider) Model() string    { return p.model }
 
 func (p *ClaudeProvider) httpClient() *http.Client {

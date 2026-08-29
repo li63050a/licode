@@ -13,12 +13,47 @@ import (
 // ProviderChoices 是可选厂商。
 var ProviderChoices = []string{"openai", "claude", "ollama", "gemini"}
 
-// ProviderConfig 描述一个已配置的厂商条目（同一厂商可配多个模型/密钥）。
+// ProviderConfig 描述一个已配置的厂商条目（可自定义名称与协议类型）。
 type ProviderConfig struct {
-	Provider string `json:"provider"`
+	Provider string `json:"provider"` // 标识（内置名或自定义）
+	Name     string `json:"name"`     // 自定义显示名称
+	Type     string `json:"type"`     // 协议类型：openai/claude/ollama/gemini；空按 Provider 推断
 	BaseURL  string `json:"base_url"`
 	APIKey   string `json:"api_key"`
 	Model    string `json:"model"`
+}
+
+// resolveType 推断协议类型（openai / claude / google；ollama 归 openai）。
+func (p *ProviderConfig) resolveType() string {
+	t := strings.ToLower(p.Type)
+	switch t {
+	case "openai", "claude", "google":
+		return t
+	case "ollama":
+		return "openai"
+	case "gemini", "anthropic":
+		if t == "gemini" {
+			return "google"
+		}
+		return "claude"
+	}
+	switch strings.ToLower(p.Provider) {
+	case "openai", "ollama", "custom":
+		return "openai"
+	case "claude", "anthropic":
+		return "claude"
+	case "gemini", "google":
+		return "google"
+	}
+	return "openai" // 自定义厂商默认 OpenAI 兼容
+}
+
+// DisplayName 显示名称：Name > Provider。
+func (p *ProviderConfig) DisplayName() string {
+	if p.Name != "" {
+		return p.Name
+	}
+	return p.Provider
 }
 
 // MCPServer 描述一个 MCP 服务器（stdio 进程）。
@@ -42,18 +77,6 @@ type Settings struct {
 	AutoAllow     bool              `json:"auto_allow"`  // 风险工具自动允许
 	ToolRules     map[string]string `json:"tool_rules"`  // 工具名 -> allow/ask/deny
 	MCPServers    []MCPServer       `json:"mcp_servers"` // MCP 服务器列表
-	SSHPubKey     string            `json:"ssh_pubkey"`  // SSH 公钥文件路径
-	SSHPrivKey    string            `json:"ssh_privkey"` // SSH 私钥文件路径
-}
-
-// SetSSH 设置 SSH 密钥路径。
-func (s *Settings) SetSSH(pub, priv string) {
-	if pub != "" {
-		s.SSHPubKey = pub
-	}
-	if priv != "" {
-		s.SSHPrivKey = priv
-	}
 }
 
 // Defaults 返回合并了配置文件、环境变量与内置默认值的初始设置。
@@ -114,6 +137,7 @@ func (s *Settings) UpsertActive() {
 			if s.Model != "" {
 				s.Providers[i].Model = s.Model
 			}
+			s.Providers[i].Type = s.Providers[i].resolveType()
 			return
 		}
 	}
@@ -123,12 +147,13 @@ func (s *Settings) UpsertActive() {
 		APIKey:   s.APIKey,
 		Model:    s.Model,
 	}
-	if d, ok := ai.Defaults[s.Provider]; ok && pc.BaseURL == "" {
+	if d, ok := ai.Defaults[strings.ToLower(s.Provider)]; ok && pc.BaseURL == "" {
 		pc.BaseURL = d.BaseURL
 	}
-	if d, ok := ai.Defaults[s.Provider]; ok && pc.Model == "" {
+	if d, ok := ai.Defaults[strings.ToLower(s.Provider)]; ok && pc.Model == "" {
 		pc.Model = d.Model
 	}
+	pc.Type = pc.resolveType()
 	s.Providers = append(s.Providers, pc)
 }
 
@@ -173,7 +198,8 @@ func (s *Settings) SetActiveProvider(name string) {
 func (s *Settings) AIConfig() ai.Config {
 	pc := s.ActiveProvider()
 	return ai.Config{
-		Provider: pc.Provider,
+		Provider: pc.DisplayName(),
+		Type:     pc.resolveType(),
 		BaseURL:  pc.BaseURL,
 		APIKey:   pc.APIKey,
 		Model:    pc.Model,
@@ -211,12 +237,7 @@ func (s *Settings) BuildAgent(client ai.LLMClient) *agent.Agent {
 		ag.Permissions[t] = "ask"
 	}
 	if s.SubAgents {
-		specs := agent.DefaultSubAgentSpecs(client)
-		// 加载项目/用户定义的 agent（.licode/agents 等）
-		for _, af := range agent.LoadAgentFiles(agent.AgentDirs()...) {
-			specs = append(specs, af.ToSpec(client))
-		}
-		ag.RegisterSubAgents(specs)
+		ag.RegisterSubAgents(agent.DefaultSubAgentSpecs(client))
 	}
 	agent.RegisterSkills(ag.Tools, agent.LoadSkills(agent.SkillDirs()...))
 	_ = agent.RegisterMCPServers(ag.Tools, s.MCPServers)
@@ -255,8 +276,6 @@ func (s *Settings) Snapshot() Settings {
 		AutoAllow:     s.AutoAllow,
 		MCPServers:    append([]MCPServer{}, s.MCPServers...),
 		ToolRules:     map[string]string{},
-		SSHPubKey:     s.SSHPubKey,
-		SSHPrivKey:    s.SSHPrivKey,
 	}
 	for k, v := range s.ToolRules {
 		out.ToolRules[k] = v

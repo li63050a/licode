@@ -39,8 +39,9 @@ type ServeOptions struct {
 	NoSubAgents bool
 	Username    string
 	Password    string
-	SSHPubKey   string
-	SSHPrivKey  string
+	HTTPS       bool
+	TLSCert     string
+	TLSKey      string
 }
 
 // NewServeCommand 返回 serve 子命令。
@@ -77,8 +78,9 @@ func newServeCmd() *cobra.Command {
 	f.BoolVar(&opts.NoSubAgents, "no-subagents", false, "禁用子代理编排")
 	f.StringVar(&opts.Username, "username", "", "登录用户名（默认 licode；环境变量 LICODE_USERNAME）")
 	f.StringVar(&opts.Password, "password", "", "登录密码（环境变量 LICODE_PASSWORD）；未设置则不启用登录")
-	f.StringVar(&opts.SSHPubKey, "ssh-pubkey", "", "SSH 公钥文件路径")
-	f.StringVar(&opts.SSHPrivKey, "ssh-privkey", "", "SSH 私钥文件路径")
+	f.BoolVar(&opts.HTTPS, "https", false, "启用 HTTPS（未指定证书时自动生成自签名证书）")
+	f.StringVar(&opts.TLSCert, "tls-cert", "", "TLS 证书文件路径（cert.pem）")
+	f.StringVar(&opts.TLSKey, "tls-key", "", "TLS 私钥文件路径（key.pem）")
 	return c
 }
 
@@ -130,7 +132,6 @@ func runServe(opts *ServeOptions) error {
 	st := &serverState{}
 	st.settings = settings.Defaults()
 	st.settings.ApplyFlags(opts.Provider, opts.BaseURL, opts.APIKey, opts.Model, opts.NoSubAgents)
-	st.settings.SetSSH(opts.SSHPubKey, opts.SSHPrivKey)
 	client, err := st.settings.NewClient()
 	if err != nil {
 		return err
@@ -301,6 +302,20 @@ func runServe(opts *ServeOptions) error {
 		st.mu.RLock()
 		cfg := st.settings.AIConfig()
 		st.mu.RUnlock()
+		// 支持参数覆盖（用于新增厂商前预览模型列表）
+		q := r.URL.Query()
+		if t := q.Get("type"); t != "" {
+			cfg.Type = t
+		}
+		if b := q.Get("base"); b != "" {
+			cfg.BaseURL = b
+		}
+		if k := q.Get("key"); k != "" {
+			cfg.APIKey = k
+		}
+		if p := q.Get("provider"); p != "" {
+			cfg.Provider = p
+		}
 		ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
 		defer cancel()
 		models, err := ai.ListModels(ctx, cfg)
@@ -310,6 +325,7 @@ func runServe(opts *ServeOptions) error {
 		}
 		writeJSON(w, http.StatusOK, map[string]any{
 			"provider": cfg.Provider,
+			"type":     cfg.Type,
 			"models":   models,
 		})
 	})
@@ -343,7 +359,12 @@ func runServe(opts *ServeOptions) error {
 	host := listenAddr(opts)
 	displayHost := strings.TrimPrefix(host, "0.0.0.0:")
 	displayHost = strings.TrimPrefix(displayHost, ":")
-	url := "http://" + displayHost + "/"
+	useTLS := opts.HTTPS || (opts.TLSCert != "" && opts.TLSKey != "")
+	scheme := "http"
+	if useTLS {
+		scheme = "https"
+	}
+	url := scheme + "://" + displayHost + "/"
 	log.Printf("licode serve 已启动: %s", url)
 	log.Printf("provider=%s model=%s", st.settings.Provider, st.settings.Model)
 	if authEnabled {
@@ -361,6 +382,23 @@ func runServe(opts *ServeOptions) error {
 		defer cancel()
 		_ = srv.Shutdown(ctx)
 	}()
+
+	if useTLS {
+		cert, key := opts.TLSCert, opts.TLSKey
+		if cert == "" || key == "" {
+			var err error
+			cert, key, err = ensureSelfSignedCert()
+			if err != nil {
+				return fmt.Errorf("自动生成证书失败: %w", err)
+			}
+			log.Printf("已自动生成自签名证书：%s", cert)
+		}
+		err = srv.ListenAndServeTLS(cert, key)
+		if err != nil && err != http.ErrServerClosed {
+			return fmt.Errorf("serve: %w", err)
+		}
+		return nil
+	}
 	err = srv.ListenAndServe()
 	if err != nil && err != http.ErrServerClosed {
 		return fmt.Errorf("serve: %w", err)

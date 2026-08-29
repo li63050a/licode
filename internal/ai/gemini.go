@@ -20,13 +20,14 @@ import (
 // 使用 Google 自己的 RPC 风格请求体（contents / parts / functionCall /
 // functionResponse），与 OpenAI 的 chat/completions 完全不同。
 type GeminiProvider struct {
+	name    string
 	baseURL string
 	apiKey  string
 	model   string
 	client  *http.Client
 }
 
-func (p *GeminiProvider) Provider() string { return "gemini" }
+func (p *GeminiProvider) Provider() string { return p.name }
 func (p *GeminiProvider) Model() string    { return p.model }
 
 func (p *GeminiProvider) httpClient() *http.Client {

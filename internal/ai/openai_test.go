@@ -124,6 +124,8 @@ func TestNewFactory(t *testing.T) {
 		{"openai", "openai"},
 		{"claude", "claude"},
 		{"ollama", "ollama"},
+		{"google", "google"},
+		{"gemini", "gemini"},
 	} {
 		c, err := New(Config{Provider: tc.provider})
 		if err != nil {
@@ -133,8 +135,13 @@ func TestNewFactory(t *testing.T) {
 			t.Errorf("provider = %s", c.Provider())
 		}
 	}
-	if _, err := New(Config{Provider: "bogus"}); err == nil {
-		t.Fatal("expected error for bogus provider")
+	// 自定义厂商：按 OpenAI 兼容处理，保留显示名
+	c, err := New(Config{Provider: "my-custom", BaseURL: "http://127.0.0.1:9999"})
+	if err != nil {
+		t.Fatalf("custom provider: %v", err)
+	}
+	if c.Provider() != "my-custom" {
+		t.Errorf("custom provider name = %s", c.Provider())
 	}
 	if !strings.Contains(Defaults["ollama"].BaseURL, "11434") {
 		t.Errorf("ollama default base url: %s", Defaults["ollama"].BaseURL)
