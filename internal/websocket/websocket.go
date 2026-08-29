@@ -16,8 +16,11 @@ import (
 
 // Message types (client -> server).
 const (
-	TypeMessage = "message" // {content}
-	TypePing    = "ping"
+	TypeMessage     = "message" // {content}
+	TypePing        = "ping"
+	TypeSettingsGet = "settings_get"
+	TypeSettingsSet = "settings_set"
+	TypeAskReply    = "ask_reply"
 )
 
 // Event types (server -> client), mirroring agent.Event.
@@ -28,6 +31,8 @@ const (
 	EvtDone      = "done"
 	EvtError     = "error"
 	EvtStatus    = "status"
+	EvtSettings  = "settings"
+	EvtAsk       = "ask"
 )
 
 // ServerEvent is a JSON event streamed to clients.
@@ -38,12 +43,19 @@ type ServerEvent struct {
 	ToolArgs string `json:"toolArgs,omitempty"`
 	ToolOut  string `json:"toolOut,omitempty"`
 	Error    string `json:"error,omitempty"`
+	Settings any    `json:"settings,omitempty"`
+	// AskID 标识一次待确认的工具调用。
+	AskID string `json:"askId,omitempty"`
 }
 
 // ClientMessage is a request sent from a client.
 type ClientMessage struct {
-	Type    string `json:"type"`
-	Content string `json:"content,omitempty"`
+	Type     string `json:"type"`
+	Content  string `json:"content,omitempty"`
+	Settings any    `json:"settings,omitempty"`
+	// AskReply 对应 AskID 的确认结果。
+	AskID     string `json:"askId,omitempty"`
+	AskApprove bool   `json:"askApprove,omitempty"`
 }
 
 var upgrader = websocket.Upgrader{
@@ -122,7 +134,7 @@ type Client struct {
 	conn          *websocket.Conn
 	send          chan []byte
 	mu            sync.Mutex
-	onUserMessage func(ctx context.Context, content string)
+	onUserMessage func(ctx context.Context, msg ClientMessage)
 }
 
 func NewClient(hub *Hub, conn *websocket.Conn) *Client {
@@ -181,15 +193,13 @@ func (c *Client) readPump(ctx context.Context) {
 		if err := json.Unmarshal(data, &msg); err != nil {
 			continue
 		}
-		if msg.Type == TypeMessage {
-			if c.onUserMessage != nil {
-				go c.onUserMessage(ctx, msg.Content)
-			}
+		if c.onUserMessage != nil {
+			go c.onUserMessage(ctx, msg)
 		}
 	}
 }
 
-// OnUserMessage lets the server attach a handler that runs the agent.
-func (c *Client) OnUserMessage(fn func(ctx context.Context, content string)) {
+// OnUserMessage lets the server attach a handler for every client message.
+func (c *Client) OnUserMessage(fn func(ctx context.Context, msg ClientMessage)) {
 	c.onUserMessage = fn
 }

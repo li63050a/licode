@@ -1,10 +1,8 @@
 package ai
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 )
 
@@ -31,6 +29,7 @@ var Defaults = map[string]struct {
 	"openai": {BaseURL: "https://api.openai.com/v1", Model: "gpt-4o-mini"},
 	"claude": {BaseURL: "https://api.anthropic.com", Model: "claude-sonnet-4-20250514"},
 	"ollama": {BaseURL: "http://localhost:11434", Model: "llama3.1:8b"},
+	"gemini": {BaseURL: "https://generativelanguage.googleapis.com", Model: "gemini-2.0-flash"},
 }
 
 // Resolve fills empty Config fields from environment variables, then defaults.
@@ -55,6 +54,9 @@ func (c *Config) Resolve() error {
 	}
 	if c.APIKey == "" {
 		c.APIKey = os.Getenv(EnvAPIKey)
+		if c.APIKey == "" {
+			c.APIKey = providerEnvKey(c.Provider)
+		}
 	}
 	if c.Model == "" {
 		c.Model = os.Getenv(EnvModel)
@@ -66,57 +68,17 @@ func (c *Config) Resolve() error {
 	return nil
 }
 
-// LoadConfig reads an optional JSON config file and overlays the result on cfg.
-// Looked up in order: <path> (if given), .licode.json (cwd), ~/.licode.json.
-// Explicit fields in cfg (e.g. from CLI flags) always win over the file.
-func LoadConfig(cfg Config, path string) (Config, error) {
-	var found string
-	if path != "" {
-		if _, err := os.Stat(path); err != nil {
-			return cfg, fmt.Errorf("config file: %w", err)
-		}
-		found = path
-	} else {
-		for _, p := range []string{
-			filepath.Join(".", ".licode.json"),
-			filepath.Join(homeDir(), ".licode.json"),
-		} {
-			if _, err := os.Stat(p); err == nil {
-				found = p
-				break
-			}
-		}
+// providerEnvKey 返回各提供商标准的 API Key 环境变量名。
+func providerEnvKey(provider string) string {
+	switch provider {
+	case "openai":
+		return os.Getenv("OPENAI_API_KEY")
+	case "claude":
+		return os.Getenv("ANTHROPIC_API_KEY")
+	case "gemini":
+		return os.Getenv("GEMINI_API_KEY")
 	}
-	if found != "" {
-		data, err := os.ReadFile(found)
-		if err != nil {
-			return cfg, fmt.Errorf("read config %s: %w", found, err)
-		}
-		var fileCfg Config
-		if err := json.Unmarshal(data, &fileCfg); err != nil {
-			return cfg, fmt.Errorf("parse config %s: %w", found, err)
-		}
-		if cfg.Provider == "" {
-			cfg.Provider = fileCfg.Provider
-		}
-		if cfg.BaseURL == "" {
-			cfg.BaseURL = fileCfg.BaseURL
-		}
-		if cfg.APIKey == "" {
-			cfg.APIKey = fileCfg.APIKey
-		}
-		if cfg.Model == "" {
-			cfg.Model = fileCfg.Model
-		}
-	}
-	return cfg, nil
-}
-
-func homeDir() string {
-	if h, err := os.UserHomeDir(); err == nil {
-		return h
-	}
-	return "."
+	return ""
 }
 
 // New is the provider factory.
@@ -131,6 +93,8 @@ func New(cfg Config) (LLMClient, error) {
 		return &ClaudeProvider{baseURL: cfg.BaseURL, apiKey: cfg.APIKey, model: cfg.Model}, nil
 	case "ollama":
 		return &OllamaProvider{baseURL: cfg.BaseURL, model: cfg.Model}, nil
+	case "gemini":
+		return &GeminiProvider{baseURL: cfg.BaseURL, apiKey: cfg.APIKey, model: cfg.Model}, nil
 	default:
 		return nil, fmt.Errorf("unsupported provider %q", cfg.Provider)
 	}

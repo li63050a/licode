@@ -35,6 +35,8 @@ type Message struct {
 	Content    string     `json:"content"`
 	ToolCalls  []ToolCall `json:"tool_calls,omitempty"`
 	ToolCallID string     `json:"tool_call_id,omitempty"`
+	// ToolName 记录工具结果对应的函数名（Gemini functionResponse 需要）。
+	ToolName string `json:"tool_name,omitempty"`
 }
 
 // FunctionSpec describes a callable tool's schema.
@@ -91,4 +93,5 @@ var (
 	_ LLMClient = (*OpenAIProvider)(nil)
 	_ LLMClient = (*ClaudeProvider)(nil)
 	_ LLMClient = (*OllamaProvider)(nil)
+	_ LLMClient = (*GeminiProvider)(nil)
 )

@@ -35,22 +35,14 @@ export LICODE_API_KEY=sk-...
 ./dist/licode tui --remote ws://192.168.1.10:8080/ws
 ```
 
-## 配置
+## 设置
 
-优先级：**命令行参数 > 环境变量 > 配置文件 > 内置默认值**。
+无需任何配置文件。设置可在 **TUI（按 s 键）/ 网页端（设置按钮）/ 远程连接** 中实时修改并立即生效：提供商、模型、API 地址、API 密钥、温度、最大输出 tokens、最大迭代次数、子代理开关、需确认/禁用的工具。
 
-环境变量：`LICODE_PROVIDER`、`LICODE_BASE_URL`、`LICODE_API_KEY`、`LICODE_MODEL`
+启动时也可用命令行参数或环境变量初始化：
 
-配置文件（`.licode.json`，工作目录或 `~/.licode.json`）：
-
-```json
-{
-  "provider": "claude",
-  "base_url": "https://api.anthropic.com",
-  "api_key": "sk-ant-xxx",
-  "model": "claude-sonnet-4-20250514"
-}
-```
+- 环境变量：`LICODE_PROVIDER`、`LICODE_BASE_URL`、`LICODE_API_KEY`、`LICODE_MODEL`（以及标准的 `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` / `GEMINI_API_KEY`）
+- 命令行：`--provider`、`--base-url`、`--api-key`、`--model`
 
 内置默认值：
 
@@ -59,6 +51,13 @@ export LICODE_API_KEY=sk-...
 | openai | `https://api.openai.com/v1` | `gpt-4o-mini` |
 | claude | `https://api.anthropic.com` | `claude-sonnet-4-20250514` |
 | ollama | `http://localhost:11434` | `llama3.1:8b` |
+| gemini | `https://generativelanguage.googleapis.com` | `gemini-2.0-flash` |
+
+各提供商使用其原生接口：
+
+- OpenAI：`POST /v1/chat/completions`（SSE 流式 + 工具调用增量）
+- Claude (Anthropic)：`POST /v1/messages`（原生路径与请求体）
+- Gemini (Google)：`POST /v1/models/{模型名}:generateContent`（原生 RPC 风格）
 
 ## 构建
 
@@ -78,6 +77,27 @@ make size       # 查看产物体积
 - 复制到任意同架构 Linux/macOS/Windows 机器直接运行
 
 > `build.sh`：47 平台全量交叉编译脚本，静态编译优先，个别强制要求 cgo 的平台自动回退动态编译，无法编译的平台自动跳过。
+
+## 访问认证
+
+`serve` 支持用户名/密码认证，网页端与远程 TUI 均受保护。
+
+- 默认用户名：`licode`
+- 未设置密码时认证关闭；设置后网页与远程连接都要求登录
+- 配置方式（环境变量或启动参数二选一）：
+
+```bash
+# 方式一：环境变量
+export LICODE_USERNAME=myname
+export LICODE_PASSWORD=mypass
+./dist/licode serve
+
+# 方式二：启动参数
+./dist/licode serve --username myname --password mypass
+
+# 远程 TUI 使用相同凭据（同样支持环境变量）
+./dist/licode tui --remote ws://192.168.1.10:8080/ws --username myname --password mypass
+```
 
 ## 界面操作
 
@@ -105,15 +125,18 @@ make size       # 查看产物体积
 │   ├── tui.go             # 本地/远程 Bubble Tea 终端界面
 │   └── serve.go           # Web 服务器 + WebSocket 端点
 ├── internal/
-│   ├── ai/                # LLMClient 接口 + 工厂 + openai/claude/ollama
+│   ├── ai/                # LLMClient 接口 + 工厂 + openai/claude/ollama/gemini
 │   ├── agent/             # 主 Agent、工具注册与执行、子代理调度
 │   ├── session/           # 多轮会话 + 上下文窗口截断
-│   ├── websocket/         # Hub + Client 连接管理、事件协议
+│   ├── settings/          # 运行时设置（无配置文件，界面内实时修改）
+│   ├── websocket/         # Hub + Client 连接管理、事件协议、认证
 │   └── web/               # go:embed 嵌入的静态页面
 ├── Makefile
 ├── build.sh               # 47 平台交叉编译脚本
 └── go.mod
 ```
+
+`licode` 直接运行（不带参数）即进入 TUI；`licode serve` 启动服务器。
 
 ### AI 提供商（工厂模式）
 
@@ -145,3 +168,11 @@ go test ./...      # 单元测试（AI 流式解析 / Agent 工具循环 / DAG �
 
 - 所有面向用户的文字均为简体中文
 - 仅依赖 `bubbletea`、`lipgloss`、`gorilla/websocket`、`cobra` 与 Go 标准库
+
+## 联系与交流
+
+- GitHub 仓库：https://github.com/li63050a/licode
+- Gitee 仓库：https://gitee.com/li63050a/licode
+- 开发者 B 站：小帅5656
+- QQ 交流群：1026939741
+- 开发者邮箱：li63050@qq.com

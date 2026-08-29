@@ -45,6 +45,11 @@
   header .dot.offline { background: var(--red); }
   header .spacer { flex: 1; }
   header .meta { color: var(--muted); }
+  .btn {
+    border: 1px solid var(--border); background: var(--input); color: var(--fg);
+    border-radius: 8px; padding: 4px 12px; font: inherit; font-size: 13px; cursor: pointer;
+  }
+  .btn:hover { border-color: var(--accent); color: var(--accent); }
   #chat { flex: 1; overflow-y: auto; padding: 16px; }
   .msg { margin: 0 auto 14px; max-width: 900px; }
   .msg .role {
@@ -78,6 +83,11 @@
   .tool .detail .args { color: var(--yellow); }
   .cursor { display: inline-block; width: 8px; background: var(--accent); animation: blink 1s steps(2) infinite; }
   @keyframes blink { 50% { opacity: 0; } }
+  #askbar {
+    display: none; padding: 10px 16px; background: var(--panel);
+    border-top: 1px solid var(--border);
+  }
+  #askbar .toolname { color: var(--purple); font-weight: 600; }
   #composer {
     border-top: 1px solid var(--border); background: var(--panel);
     padding: 10px 16px 14px;
@@ -89,13 +99,33 @@
     border-radius: 8px; padding: 10px 12px; font: inherit; outline: none;
   }
   textarea:focus { border-color: var(--accent); }
-  button {
+  button#send {
     border: 1px solid var(--border); background: var(--input); color: var(--fg);
     border-radius: 8px; padding: 0 18px; font: inherit; cursor: pointer;
   }
-  button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
-  button:disabled { opacity: .5; cursor: default; }
+  button#send:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+  button#send:disabled { opacity: .5; cursor: default; }
   .hint { color: var(--muted); font-size: 12px; text-align: center; margin-top: 6px; }
+  /* 设置弹窗 */
+  #settings {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,.6);
+    z-index: 10; align-items: center; justify-content: center;
+  }
+  #settings .panel {
+    width: min(560px, 92vw); max-height: 86vh; overflow-y: auto;
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 12px; padding: 18px 22px;
+  }
+  #settings h3 { margin: 0 0 14px; color: var(--accent); }
+  #settings .row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  #settings label { width: 130px; color: var(--muted); font-size: 13px; flex-shrink: 0; }
+  #settings input, #settings select {
+    flex: 1; background: var(--input); color: var(--fg); border: 1px solid var(--border);
+    border-radius: 6px; padding: 7px 9px; font: inherit; font-size: 13.5px;
+  }
+  #settings input:focus, #settings select:focus { border-color: var(--accent); outline: none; }
+  #settings .btns { display: flex; gap: 10px; margin-top: 16px; justify-content: flex-end; }
+  #settings .btn.primary { border-color: var(--accent); color: var(--accent); }
 </style>
 </head>
 <body>
@@ -104,20 +134,53 @@
   <span><span class="dot" id="dot"></span><span id="conn">disconnected</span></span>
   <span class="spacer"></span>
   <span class="meta" id="meta"></span>
+  <button class="btn" id="settingsBtn">设置</button>
 </header>
 <div id="chat"></div>
+<div id="askbar">
+  是否允许执行工具 <span class="toolname" id="askTool">…</span>？
+  <button class="btn" id="askNo" style="margin-left:12px">拒绝</button>
+  <button class="btn primary" id="askYes">允许</button>
+</div>
 <div id="composer">
   <div class="row">
     <textarea id="input" placeholder="问点什么…  /clear 清空会话，Enter 发送，Shift+Enter 换行"></textarea>
     <button id="send" disabled>发送</button>
   </div>
-  <div class="hint">licode — Enter 发送 · Shift+Enter 换行 · /clear 清空</div>
+  <div class="hint">licode — Enter 发送 · Shift+Enter 换行 · /clear 清空 · 设置按钮可修改提供商/模型/密钥</div>
+</div>
+
+<div id="settings">
+  <div class="panel">
+    <h3>设置</h3>
+    <div class="row"><label>提供商</label>
+      <select id="st_provider">
+        <option>openai</option><option>claude</option><option>ollama</option><option>gemini</option>
+      </select>
+    </div>
+    <div class="row"><label>模型</label><input id="st_model"></div>
+    <div class="row"><label>API 地址</label><input id="st_base_url"></div>
+    <div class="row"><label>API 密钥</label><input id="st_api_key" type="password"></div>
+    <div class="row"><label>温度</label><input id="st_temperature"></div>
+    <div class="row"><label>最大输出 tokens</label><input id="st_max_tokens"></div>
+    <div class="row"><label>最大迭代次数</label><input id="st_max_iterations"></div>
+    <div class="row"><label>子代理</label>
+      <select id="st_subagents"><option>开启</option><option>关闭</option></select>
+    </div>
+    <div class="row"><label>需确认工具</label><input id="st_ask_tools" placeholder="逗号分隔"></div>
+    <div class="row"><label>禁用工具</label><input id="st_deny_tools" placeholder="逗号分隔"></div>
+    <div class="btns">
+      <button class="btn" id="settingsCancel">取消</button>
+      <button class="btn primary" id="settingsSave">保存</button>
+    </div>
+  </div>
 </div>
 
 <script>
 const $ = id => document.getElementById(id);
 const chat = $('chat'), input = $('input'), sendBtn = $('send');
-let ws = null, busy = false, firstConnect = true;
+let ws = null, busy = false, firstConnect = true, curAsk = null;
+let stDirty = false;
 
 function el(tag, cls, text) {
   const e = document.createElement(tag);
@@ -130,10 +193,6 @@ function setConn(online) {
   $('dot').className = 'dot ' + (online ? 'online' : 'offline');
   $('conn').textContent = online ? 'connected' : 'disconnected';
   sendBtn.disabled = !online;
-}
-function header() {
-  const title = document.title;
-  if (title === 'licode' && !firstConnect) document.title = '● licode';
 }
 function addMsg(role, text, isError) {
   const m = el('div', 'msg ' + role + (isError ? ' error' : ''));
@@ -154,11 +213,10 @@ function addTool(evt) {
   const t = el('div', 'tool');
   const head = el('div', 'head');
   head.appendChild(el('span', 'name', '⚙ ' + evt.toolName));
-  const status = el('span', 'status', 'running…');
+  const status = el('span', 'status', '运行中…');
   head.appendChild(status);
   head.appendChild(el('span', 'chev', '▸'));
   const detail = el('div', 'detail');
-  detail.appendChild(el('div', 'hint', ''));
   detail.appendChild(el('pre', 'args', evt.toolArgs || ''));
   detail.appendChild(el('pre', 'out', ''));
   t.appendChild(head); t.appendChild(detail);
@@ -175,6 +233,59 @@ function setToolDone(tool, evt) {
   tool.status.textContent = '✓ done';
   tool.out.textContent = (evt.toolOut || '').slice(0, 4000);
 }
+function showAsk(evt) {
+  curAsk = evt.askId;
+  $('askTool').textContent = evt.toolName;
+  $('askbar').style.display = 'block';
+  busy = true;
+}
+function hideAsk() { $('askbar').style.display = 'none'; curAsk = null; }
+function replyAsk(ok) {
+  if (!curAsk) return;
+  ws.send(JSON.stringify({ type: 'ask_reply', askId: curAsk, askApprove: ok }));
+  hideAsk(); busy = false;
+}
+$('askYes').addEventListener('click', () => replyAsk(true));
+$('askNo').addEventListener('click', () => replyAsk(false));
+
+// 设置弹窗
+function openSettings() {
+  if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'settings_get' }));
+  $('settings').style.display = 'flex';
+}
+function fillSettings(s) {
+  $('st_provider').value = s.provider || 'openai';
+  $('st_model').value = s.model || '';
+  $('st_base_url').value = s.base_url || '';
+  $('st_api_key').value = s.api_key || '';
+  $('st_temperature').value = s.temperature != null ? s.temperature : 0.7;
+  $('st_max_tokens').value = s.max_tokens || 4096;
+  $('st_max_iterations').value = s.max_iterations || 16;
+  $('st_subagents').value = s.subagents ? '开启' : '关闭';
+  $('st_ask_tools').value = (s.ask_tools || []).join(', ');
+  $('st_deny_tools').value = (s.deny_tools || []).join(', ');
+}
+function readSettings() {
+  return {
+    provider: $('st_provider').value,
+    model: $('st_model').value,
+    base_url: $('st_base_url').value,
+    api_key: $('st_api_key').value,
+    temperature: parseFloat($('st_temperature').value) || 0.7,
+    max_tokens: parseInt($('st_max_tokens').value) || 4096,
+    max_iterations: parseInt($('st_max_iterations').value) || 16,
+    subagents: $('st_subagents').value === '开启',
+    ask_tools: $('st_ask_tools').value.split(/[,，\s]+/).filter(Boolean),
+    deny_tools: $('st_deny_tools').value.split(/[,，\s]+/).filter(Boolean),
+  };
+}
+$('settingsBtn').addEventListener('click', openSettings);
+$('settingsCancel').addEventListener('click', () => $('settings').style.display = 'none');
+$('settingsSave').addEventListener('click', () => {
+  const s = readSettings();
+  if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'settings_set', settings: s }));
+  $('settings').style.display = 'none';
+});
 
 function connect() {
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
@@ -194,19 +305,17 @@ function connect() {
         if (lastAssistant) appendTo(lastAssistant, evt.content);
         break;
       }
-      case 'tool_start':
-        tools.push(addTool(evt));
-        break;
+      case 'tool_start': tools.push(addTool(evt)); break;
       case 'tool_done':
         if (tools.length) setToolDone(tools.pop(), evt);
         break;
-      case 'status':
-        $('meta').textContent = evt.content || '';
+      case 'status': $('meta').textContent = evt.content || ''; break;
+      case 'settings':
+        if ($('settings').style.display === 'flex') fillSettings(evt.settings || {});
         break;
+      case 'ask': showAsk(evt); break;
       case 'done':
-        busy = false;
-        lastAssistant = null;
-        tools = [];
+        busy = false; lastAssistant = null; tools = [];
         $('meta').textContent = '';
         sendBtn.disabled = !(ws && ws.readyState === WebSocket.OPEN);
         break;

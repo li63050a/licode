@@ -1,5 +1,6 @@
 # 构建产物
 /dist/
+/build/
 *.exe
 *.out
 

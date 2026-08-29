@@ -31,6 +31,10 @@ const (
 	EventError EventType = "error"
 	// EventStatus reports transient status like iteration count.
 	EventStatus EventType = "status"
+	// EventAsk asks the user to approve a tool call (permission=ask).
+	EventAsk EventType = "ask"
+	// EventSettings carries updated runtime settings (from a remote server).
+	EventSettings EventType = "settings"
 )
 
 // Event is a UI-agnostic stream event.
@@ -41,6 +45,8 @@ type Event struct {
 	ToolArgs  string    `json:"toolArgs,omitempty"`
 	ToolOut   string    `json:"toolOut,omitempty"`
 	Error     string    `json:"error,omitempty"`
+	Settings  any       `json:"settings,omitempty"`
+	AskID     string    `json:"askId,omitempty"`
 }
 
 // DefaultMainPrompt 是主 Agent 的系统提示词。
@@ -152,6 +158,10 @@ type Agent struct {
 	MaxIterations int
 	MaxTokens    int
 	Temperature  float64
+	// Permissions 工具名 -> allow/ask/deny；"*" 为默认模式。
+	Permissions map[string]string
+	// Ask 在 permission=ask 时被调用，返回 true 表示允许执行。
+	Ask func(ctx context.Context, toolName, args string) (bool, error)
 }
 
 func NewAgent(client ai.LLMClient, system string) *Agent {
@@ -226,13 +236,47 @@ func (a *Agent) Run(ctx context.Context, input string, onEvent func(Event)) erro
 				return err
 			}
 			onEvent(Event{Type: EventToolStart, ToolName: tc.Function.Name, ToolArgs: tc.Function.Arguments})
-			out, terr := a.Tools.Execute(ctx, tc.Function.Name, []byte(tc.Function.Arguments))
+			out, terr := a.runTool(ctx, tc)
 			if terr != nil {
 				out = fmt.Sprintf("TOOL ERROR: %v", terr)
 			}
 			onEvent(Event{Type: EventToolDone, ToolName: tc.Function.Name, ToolOut: out})
-			a.Session.Add(ai.Message{Role: ai.RoleTool, ToolCallID: tc.ID, Content: out})
+			a.Session.Add(ai.Message{Role: ai.RoleTool, ToolCallID: tc.ID, ToolName: tc.Function.Name, Content: out})
 		}
 	}
 	return errors.New("max iterations reached without a final answer")
+}
+
+// permissionMode 返回工具的执行模式：allow / ask / deny。
+func (a *Agent) permissionMode(tool string) string {
+	if len(a.Permissions) == 0 {
+		return "allow"
+	}
+	if m, ok := a.Permissions[tool]; ok {
+		return m
+	}
+	if m, ok := a.Permissions["*"]; ok {
+		return m
+	}
+	return "allow"
+}
+
+// runTool 执行单个工具，先做权限检查。
+func (a *Agent) runTool(ctx context.Context, tc ai.ToolCall) (string, error) {
+	switch a.permissionMode(tc.Function.Name) {
+	case "deny":
+		return "已拒绝执行 " + tc.Function.Name + "（权限配置为禁止）", nil
+	case "ask":
+		if a.Ask != nil {
+			ok, aerr := a.Ask(ctx, tc.Function.Name, tc.Function.Arguments)
+			if aerr != nil {
+				return "", aerr
+			}
+			if !ok {
+				return "用户拒绝执行工具 " + tc.Function.Name, nil
+			}
+		}
+		// Ask 未设置时视为允许。
+	}
+	return a.Tools.Execute(ctx, tc.Function.Name, []byte(tc.Function.Arguments))
 }
