@@ -135,7 +135,7 @@ func (s *Scheduler) Run(ctx context.Context, tasks []Task) (map[string]SubAgentR
 			for _, t := range rest {
 				pending = append(pending, t.Name)
 			}
-			return results, fmt.Errorf("dependency cycle detected among tasks: %s", strings.Join(pending, ", "))
+			return results, fmt.Errorf("任务间存在依赖环，无法执行: %s", strings.Join(pending, ", "))
 		}
 
 		// Run this level's tasks in parallel.

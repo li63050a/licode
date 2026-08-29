@@ -5,6 +5,8 @@ import (
 	"strings"
 	"sync"
 	"testing"
+
+	"licode/internal/ai"
 )
 
 // blockingMockClient 记录每次调用发生的顺序，用于验证并行与依赖顺序。
@@ -16,10 +18,10 @@ type blockingMockClient struct {
 
 func (m *blockingMockClient) Provider() string { return "mock" }
 func (m *blockingMockClient) Model() string    { return m.model }
-func (m *blockingMockClient) Chat(ctx context.Context, req ChatRequest) (string, error) {
+func (m *blockingMockClient) Chat(ctx context.Context, req ai.ChatRequest) (string, error) {
 	return "", nil
 }
-func (m *blockingMockClient) ChatStream(ctx context.Context, req ChatRequest, onEvent func(StreamEvent) error) error {
+func (m *blockingMockClient) ChatStream(ctx context.Context, req ai.ChatRequest, onEvent func(ai.StreamEvent) error) error {
 	// 从最后一条 user 消息中取任务标识
 	tag := ""
 	for i := len(req.Messages) - 1; i >= 0; i-- {
@@ -32,10 +34,10 @@ func (m *blockingMockClient) ChatStream(ctx context.Context, req ChatRequest, on
 	m.order = append(m.order, tag)
 	m.mu.Unlock()
 	// 输出内容包含自己的 tag
-	if err := onEvent(StreamEvent{Content: "output(" + tag + ")"}); err != nil {
+	if err := onEvent(ai.StreamEvent{Content: "output(" + tag + ")"}); err != nil {
 		return err
 	}
-	return onEvent(StreamEvent{Done: true})
+	return onEvent(ai.StreamEvent{Done: true})
 }
 
 func newSpec(name string, mc *blockingMockClient) SubAgentSpec {
@@ -68,13 +70,17 @@ func TestSchedulerDAGOrdering(t *testing.T) {
 	if idx["C"] < idx["A"] || idx["C"] < idx["B"] {
 		t.Fatalf("t3 must start after t1 and t2, order=%v", mc.order)
 	}
-	// 结果文本
-	for _, res := range results {
+	// 结果文本：每个任务输出应包含其 prompt 标识
+	promptByTask := map[string]string{}
+	for _, t := range tasks {
+		promptByTask[t.Name] = t.Prompt
+	}
+	for name, res := range results {
 		if res.Error != "" {
-			t.Fatalf("task %s error: %s", res.Name, res.Error)
+			t.Fatalf("task %s error: %s", name, res.Error)
 		}
-		if !strings.Contains(res.Output, "output("+res.Name+")") {
-			t.Fatalf("task %s output=%q", res.Name, res.Output)
+		if !strings.Contains(res.Output, "output("+promptByTask[name]+")") {
+			t.Fatalf("task %s output=%q", name, res.Output)
 		}
 	}
 }

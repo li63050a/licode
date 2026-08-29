@@ -276,8 +276,9 @@ func (p *OpenAIProvider) handleEvent(data []byte, acc map[int]*ToolCall, onEvent
 			}
 		}
 		// A finish_reason marks the end of this reply; emit accumulated
-		// tool calls before finishing.
-		if ch.FinishReason != nil && len(acc) > 0 {
+		// tool calls before finishing. Only a non-empty reason counts
+		// (intermediate chunks carry null).
+		if ch.FinishReason != nil && *ch.FinishReason != "" && len(acc) > 0 {
 			for _, call := range sortedToolCalls(acc) {
 				if call.Function.Name != "" {
 					if err := onEvent(StreamEvent{ToolCall: call}); err != nil {

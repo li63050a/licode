@@ -44,14 +44,15 @@ func mockOpenAIServer(t *testing.T, scenario string) *httptest.Server {
 			fmt.Fprint(w, "data: [DONE]\n\n")
 		case "tools":
 			writeChunk(openaiDelta{Content: "我需要查询。"}, "")
-			// 分两次发送同一个工具调用的增量
+			// 分两次发送同一个工具调用的增量：第一次带名称与部分参数
 			writeChunk(openaiDelta{ToolCalls: []aiToolCallReq{{
 				Index: 0, ID: "call_1", Type: "function",
 				Function: struct {
 					Name      string `json:"name,omitempty"`
 					Arguments string `json:"arguments,omitempty"`
-				}{Name: "read_", Arguments: `{"path":"`},
+				}{Name: "read_file", Arguments: `{"path":"`},
 			}}}, "")
+			// 第二次仅追加参数剩余部分
 			writeChunk(openaiDelta{ToolCalls: []aiToolCallReq{{
 				Index: 0,
 				Function: struct {

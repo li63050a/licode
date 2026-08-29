@@ -34,30 +34,39 @@ type mockStep struct {
 func (m *mockClient) Provider() string { return "mock" }
 func (m *mockClient) Model() string    { return m.model }
 
-func (m *mockClient) Chat(ctx context.Context, req ChatRequest) (string, error) { return "", nil }
+func (m *mockClient) Chat(ctx context.Context, req ai.ChatRequest) (string, error) {
+	return "", nil
+}
 
-func (m *mockClient) ChatStream(ctx context.Context, req ChatRequest, onEvent func(StreamEvent) error) error {
+func (m *mockClient) ChatStream(ctx context.Context, req ai.ChatRequest, onEvent func(ai.StreamEvent) error) error {
 	i := int(m.idx.Add(1) - 1)
 	if i >= len(m.calls) {
 		return nil
 	}
-	script := m.calls[i]
-	for _, s := range script {
+	r := mockReq{system: req.System}
+	for _, msg := range req.Messages {
+		r.messages = append(r.messages, msg.Role)
+	}
+	for _, t := range req.Tools {
+		r.tools = append(r.tools, t.Function.Name)
+	}
+	steps := m.calls[i](r)
+	for _, s := range steps {
 		if s.content != "" {
-			if err := onEvent(StreamEvent{Content: s.content}); err != nil {
+			if err := onEvent(ai.StreamEvent{Content: s.content}); err != nil {
 				return err
 			}
 		}
 		if s.toolName != "" {
-			if err := onEvent(StreamEvent{ToolCall: &ToolCall{
+			if err := onEvent(ai.StreamEvent{ToolCall: &ai.ToolCall{
 				ID: "call_x", Type: "function",
-				Function: FunctionCall{Name: s.toolName, Arguments: s.args},
+				Function: ai.FunctionCall{Name: s.toolName, Arguments: s.args},
 			}}); err != nil {
 				return err
 			}
 		}
 	}
-	return onEvent(StreamEvent{Done: true})
+	return onEvent(ai.StreamEvent{Done: true})
 }
 
 // buildMockAgent 创建带 mockClient 的 Agent，内置工具。
@@ -135,7 +144,7 @@ func fileExists(p string) bool {
 }
 
 func TestSessionTruncation(t *testing.T) {
-	s := session.NewSession(50)
+	s := session.NewSession(30)
 	s.Add(ai.Message{Role: ai.RoleUser, Content: strings.Repeat("a", 80)})
 	s.Add(ai.Message{Role: ai.RoleAssistant, Content: strings.Repeat("b", 80)})
 	s.Add(ai.Message{Role: ai.RoleUser, Content: "最近一条"})
