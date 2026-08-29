@@ -44,26 +44,25 @@ type ServeOptions struct {
 	TLSKey      string
 }
 
-// NewServeCommand 返回 serve 子命令。
+// NewServeCommand 返回根命令（licode 直接运行即启动服务器）。
 func NewServeCommand() *cobra.Command { return newServeCmd() }
 
 func newServeCmd() *cobra.Command {
 	opts := &ServeOptions{}
 	c := &cobra.Command{
-		Use:     "web",
-		Aliases: []string{"serve"},
-		Short:   "启动 Web 服务器（浏览器直接使用）",
-		Long: `启动 licode 的 Web 服务器。
+		Use:   "licode",
+		Short: "AI 编程助手（Web 界面）",
+		Long: `licode —— AI 编程助手（Web 界面）。
+
+直接运行 ./licode 即启动 Web 服务器，参数直接跟在其后，例如：
+    ./licode --host 0.0.0.0 --port 8080
+    ./licode --password 你的密码            （设置后启用登录，默认用户名 licode）
+    ./licode --provider ollama
 
 浏览器访问 http://<host>:<port> 即可使用，支持手机/电脑。
-直接运行 licode（不带参数）等价于本命令。
-
-默认监听 127.0.0.1:8080；手机/其他设备访问请用 --host 0.0.0.0。
-设置用户名密码后启用登录界面（默认用户名 licode，密码无默认值，
-通过 --password 或环境变量 LICODE_PASSWORD 设置）。
-
 所有 AI 推理都在本服务器执行。设置可在网页端实时修改并写回
 ~/.licode/config.json，无需重启。`,
+		Args: cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runServe(opts)
 		},
