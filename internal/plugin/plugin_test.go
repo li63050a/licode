@@ -112,7 +112,14 @@ func TestPluginArgsSum(t *testing.T) {
 
 func TestPluginFileRead(t *testing.T) {
 	dir := t.TempDir()
-	t.Chdir(dir)
+	old, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(dir); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(old) })
 	f, err := os.CreateTemp(dir, "data.txt")
 	if err != nil {
 		t.Fatal(err)

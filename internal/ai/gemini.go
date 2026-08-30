@@ -83,6 +83,11 @@ type geminiResponse struct {
 		Content      *geminiContent `json:"content"`
 		FinishReason string         `json:"finishReason"`
 	} `json:"candidates"`
+	UsageMetadata *struct {
+		PromptTokenCount         int `json:"promptTokenCount"`
+		CandidatesTokenCount     int `json:"candidatesTokenCount"`
+		CachedContentTokenCount  int `json:"cachedContentTokenCount"`
+	} `json:"usageMetadata"`
 	Error *struct {
 		Message string `json:"message"`
 		Status  string `json:"status"`
@@ -222,13 +227,14 @@ func (p *GeminiProvider) ChatStream(ctx context.Context, req ChatRequest, onEven
 
 	br := bufio.NewReaderSize(resp.Body, 64<<10)
 	var evt bytes.Buffer
+	usage := &Usage{}
 	for {
 		line, rerr := br.ReadBytes('\n')
 		if len(line) > 0 {
 			trimmed := bytes.TrimSpace(line)
 			switch {
 			case len(trimmed) == 0 && evt.Len() > 0:
-				if err := p.handleSSE(evt.Bytes(), onEvent); err != nil {
+				if err := p.handleSSE(evt.Bytes(), usage, onEvent); err != nil {
 					return err
 				}
 				evt.Reset()
@@ -244,14 +250,14 @@ func (p *GeminiProvider) ChatStream(ctx context.Context, req ChatRequest, onEven
 		}
 	}
 	if evt.Len() > 0 {
-		if err := p.handleSSE(evt.Bytes(), onEvent); err != nil {
+		if err := p.handleSSE(evt.Bytes(), usage, onEvent); err != nil {
 			return err
 		}
 	}
-	return onEvent(StreamEvent{Done: true})
+	return onEvent(StreamEvent{Done: true, Usage: usage})
 }
 
-func (p *GeminiProvider) handleSSE(data []byte, onEvent func(StreamEvent) error) error {
+func (p *GeminiProvider) handleSSE(data []byte, usage *Usage, onEvent func(StreamEvent) error) error {
 	payload := bytes.TrimSpace(data)
 	if len(payload) == 0 || string(payload) == "[DONE]" {
 		return nil
@@ -262,6 +268,11 @@ func (p *GeminiProvider) handleSSE(data []byte, onEvent func(StreamEvent) error)
 	}
 	if resp.Error != nil {
 		return fmt.Errorf("gemini error: %s", resp.Error.Message)
+	}
+	if resp.UsageMetadata != nil {
+		usage.InputTokens = resp.UsageMetadata.PromptTokenCount
+		usage.OutputTokens = resp.UsageMetadata.CandidatesTokenCount
+		usage.CachedTokens = resp.UsageMetadata.CachedContentTokenCount
 	}
 	for _, cand := range resp.Candidates {
 		if cand.Content == nil {

@@ -175,6 +175,8 @@ type Agent struct {
 	Ask func(ctx context.Context, toolName, args string) (bool, error)
 	// Compaction 上下文超限时用 LLM 压缩旧对话。
 	Compaction bool
+	// Usage 累计本次运行消耗的 token（含缓存读取）。
+	Usage ai.Usage
 }
 
 func NewAgent(client ai.LLMClient, system string) *Agent {
@@ -228,6 +230,11 @@ func (a *Agent) Run(ctx context.Context, input string, onEvent func(Event)) erro
 				asst.ToolCalls = append(asst.ToolCalls, *evt.ToolCall)
 			case evt.Done:
 				done = true
+				if evt.Usage != nil {
+					a.Usage.InputTokens += evt.Usage.InputTokens
+					a.Usage.OutputTokens += evt.Usage.OutputTokens
+					a.Usage.CachedTokens += evt.Usage.CachedTokens
+				}
 			case evt.Error != nil:
 				return evt.Error
 			}

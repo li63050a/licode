@@ -201,6 +201,7 @@ func (p *ClaudeProvider) ChatStream(ctx context.Context, req ChatRequest, onEven
 	defer resp.Body.Close()
 
 	toolUse := map[int]*claudeToolBlock{}
+	usage := &Usage{}
 
 	br := bufio.NewReaderSize(resp.Body, 64<<10)
 	var evt bytes.Buffer
@@ -211,7 +212,7 @@ func (p *ClaudeProvider) ChatStream(ctx context.Context, req ChatRequest, onEven
 			trimmed := bytes.TrimSpace(line)
 			switch {
 			case len(trimmed) == 0 && evt.Len() > 0:
-				if err := p.handleEvent(evtName, evt.Bytes(), toolUse, onEvent); err != nil {
+				if err := p.handleEvent(evtName, evt.Bytes(), toolUse, usage, onEvent); err != nil {
 					return err
 				}
 				evt.Reset()
@@ -230,14 +231,14 @@ func (p *ClaudeProvider) ChatStream(ctx context.Context, req ChatRequest, onEven
 		}
 	}
 	if evt.Len() > 0 {
-		if err := p.handleEvent(evtName, evt.Bytes(), toolUse, onEvent); err != nil {
+		if err := p.handleEvent(evtName, evt.Bytes(), toolUse, usage, onEvent); err != nil {
 			return err
 		}
 	}
-	return onEvent(StreamEvent{Done: true})
+	return onEvent(StreamEvent{Done: true, Usage: usage})
 }
 
-func (p *ClaudeProvider) handleEvent(name string, data []byte, toolUse map[int]*claudeToolBlock, onEvent func(StreamEvent) error) error {
+func (p *ClaudeProvider) handleEvent(name string, data []byte, toolUse map[int]*claudeToolBlock, usage *Usage, onEvent func(StreamEvent) error) error {
 	payload := bytes.TrimSpace(data)
 	if len(payload) == 0 {
 		return nil
@@ -254,6 +255,29 @@ func (p *ClaudeProvider) handleEvent(name string, data []byte, toolUse map[int]*
 			return fmt.Errorf("claude error: %s", e.Error.Message)
 		}
 		return fmt.Errorf("claude stream error: %s", truncate(string(payload), 300))
+	case "message_start":
+		var ev struct {
+			Message struct {
+				Usage struct {
+					InputTokens int `json:"input_tokens"`
+					CacheRead   int `json:"cache_read_input_tokens"`
+					CacheCreate int `json:"cache_creation_input_tokens"`
+				} `json:"usage"`
+			} `json:"message"`
+		}
+		if err := json.Unmarshal(payload, &ev); err == nil {
+			usage.InputTokens += ev.Message.Usage.InputTokens
+			usage.CachedTokens += ev.Message.Usage.CacheRead + ev.Message.Usage.CacheCreate
+		}
+	case "message_delta":
+		var ev struct {
+			Usage struct {
+				OutputTokens int `json:"output_tokens"`
+			} `json:"usage"`
+		}
+		if err := json.Unmarshal(payload, &ev); err == nil {
+			usage.OutputTokens += ev.Usage.OutputTokens
+		}
 	case "content_block_start":
 		var ev struct {
 			Index        int `json:"index"`

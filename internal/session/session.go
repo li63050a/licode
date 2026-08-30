@@ -35,6 +35,7 @@ type Session struct {
 	messages    []ai.Message
 	maxTok      int
 	summary     string
+	usage       ai.Usage // 累计 token 用量（含缓存读取）
 	onChange    func()
 	alwaysAllow map[string]bool
 }
@@ -160,12 +161,13 @@ type fileRecord struct {
 	Summary  string       `json:"summary"`
 	MaxTok   int          `json:"max_tokens"`
 	Messages []ai.Message `json:"messages"`
+	Usage    ai.Usage     `json:"usage"`
 }
 
 // SaveToFile 将会话写入磁盘（对话记录）。
 func (s *Session) SaveToFile(path string) error {
 	s.mu.Lock()
-	rec := fileRecord{ID: s.id, Title: s.title, Summary: s.summary, MaxTok: s.maxTok}
+	rec := fileRecord{ID: s.id, Title: s.title, Summary: s.summary, MaxTok: s.maxTok, Usage: s.usage}
 	rec.Messages = make([]ai.Message, len(s.messages))
 	copy(rec.Messages, s.messages)
 	s.mu.Unlock()
@@ -190,6 +192,7 @@ func LoadSessionFile(path string) (*Session, error) {
 	s.id = rec.ID
 	s.title = rec.Title
 	s.summary = rec.Summary
+	s.usage = rec.Usage
 	s.messages = rec.Messages
 	return s, nil
 }
@@ -220,6 +223,29 @@ func (s *Session) Len() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return len(s.messages)
+}
+
+// MaxTokens 返回本会话的上下文预算。
+func (s *Session) MaxTokens() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.maxTok
+}
+
+// AddUsage 累计此对话消耗的 token（含缓存读取）。
+func (s *Session) AddUsage(u ai.Usage) {
+	s.mu.Lock()
+	s.usage.InputTokens += u.InputTokens
+	s.usage.OutputTokens += u.OutputTokens
+	s.usage.CachedTokens += u.CachedTokens
+	s.mu.Unlock()
+}
+
+// Usage 返回累计用量快照。
+func (s *Session) Usage() ai.Usage {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.usage
 }
 
 // MessagesForLLM returns the message list trimmed to the context budget.

@@ -6,6 +6,7 @@
 
 # 配置与密钥
 .licode.json
+config.toml
 .env
 *.pem
 *.key

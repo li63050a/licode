@@ -75,7 +75,14 @@ type openaiChunk struct {
 	ID      string         `json:"id"`
 	Model   string         `json:"model"`
 	Choices []openaiChoice `json:"choices"`
-	Error   *struct {
+	Usage *struct {
+		PromptTokens        int `json:"prompt_tokens"`
+		CompletionTokens    int `json:"completion_tokens"`
+		PromptTokensDetails *struct {
+			CachedTokens int `json:"cached_tokens"`
+		} `json:"prompt_tokens_details"`
+	} `json:"usage"`
+	Error *struct {
 		Message string `json:"message"`
 		Type    string `json:"type"`
 	} `json:"error"`
@@ -190,6 +197,8 @@ func (p *OpenAIProvider) ChatStream(ctx context.Context, req ChatRequest, onEven
 		if chunk.Error != nil {
 			return fmt.Errorf("openai error: %s", chunk.Error.Message)
 		}
+		usage := &Usage{}
+		applyOpenAIUsage(chunk.Usage, usage)
 		for _, c := range chunk.Choices {
 			if c.Message.Content != "" {
 				if err := onEvent(StreamEvent{Content: c.Message.Content}); err != nil {
@@ -205,10 +214,11 @@ func (p *OpenAIProvider) ChatStream(ctx context.Context, req ChatRequest, onEven
 				}
 			}
 		}
-		return onEvent(StreamEvent{Done: true})
+		return onEvent(StreamEvent{Done: true, Usage: usage})
 	}
 
 	acc := map[int]*ToolCall{} // index -> accumulated tool call
+	usage := &Usage{}
 	br := bufio.NewReaderSize(resp.Body, 64<<10)
 	var evt bytes.Buffer
 	for {
@@ -217,7 +227,7 @@ func (p *OpenAIProvider) ChatStream(ctx context.Context, req ChatRequest, onEven
 			trimmed := bytes.TrimSpace(line)
 			switch {
 			case len(trimmed) == 0 && evt.Len() > 0:
-				if err := p.handleEvent(evt.Bytes(), acc, onEvent); err != nil {
+				if err := p.handleEvent(evt.Bytes(), acc, usage, onEvent); err != nil {
 					return err
 				}
 				evt.Reset()
@@ -235,14 +245,31 @@ func (p *OpenAIProvider) ChatStream(ctx context.Context, req ChatRequest, onEven
 	}
 	// Flush any trailing event without a terminating blank line.
 	if evt.Len() > 0 {
-		if err := p.handleEvent(evt.Bytes(), acc, onEvent); err != nil {
+		if err := p.handleEvent(evt.Bytes(), acc, usage, onEvent); err != nil {
 			return err
 		}
 	}
-	return onEvent(StreamEvent{Done: true})
+	return onEvent(StreamEvent{Done: true, Usage: usage})
 }
 
-func (p *OpenAIProvider) handleEvent(data []byte, acc map[int]*ToolCall, onEvent func(StreamEvent) error) error {
+func applyOpenAIUsage(u *struct {
+	PromptTokens        int `json:"prompt_tokens"`
+	CompletionTokens    int `json:"completion_tokens"`
+	PromptTokensDetails *struct {
+		CachedTokens int `json:"cached_tokens"`
+	} `json:"prompt_tokens_details"`
+}, out *Usage) {
+	if u == nil {
+		return
+	}
+	out.InputTokens = u.PromptTokens
+	out.OutputTokens = u.CompletionTokens
+	if u.PromptTokensDetails != nil {
+		out.CachedTokens = u.PromptTokensDetails.CachedTokens
+	}
+}
+
+func (p *OpenAIProvider) handleEvent(data []byte, acc map[int]*ToolCall, usage *Usage, onEvent func(StreamEvent) error) error {
 	payload := bytes.TrimSpace(data)
 	if len(payload) == 0 || bytes.Equal(payload, []byte("[DONE]")) {
 		return nil
@@ -254,6 +281,7 @@ func (p *OpenAIProvider) handleEvent(data []byte, acc map[int]*ToolCall, onEvent
 	if chunk.Error != nil {
 		return fmt.Errorf("openai error: %s", chunk.Error.Message)
 	}
+	applyOpenAIUsage(chunk.Usage, usage)
 	for _, ch := range chunk.Choices {
 		if ch.Delta.Content != "" {
 			if err := onEvent(StreamEvent{Content: ch.Delta.Content}); err != nil {

@@ -80,6 +80,48 @@ func (w *workspaceState) resolve(p string) (string, error) {
 	return resolved, nil
 }
 
+// resolveForWrite 解析目标路径，允许目标本身（或其子路径）尚不存在，
+// 用于新建/保存场景。仍会解析已存在的最深前缀并校验不越出工作目录。
+func (w *workspaceState) resolveForWrite(p string) (string, error) {
+	root := w.Root()
+	if p == "" {
+		return root, nil
+	}
+	abs := p
+	if !filepath.IsAbs(abs) {
+		abs = filepath.Join(root, p)
+	}
+	abs = filepath.Clean(abs)
+	// 从目标逐级向上，找到已存在的最深前缀并解析其符号链接
+	missing := abs
+	var existing string
+	for {
+		ex, err := filepath.EvalSymlinks(missing)
+		if err == nil {
+			existing = ex
+			break
+		}
+		parent := filepath.Dir(missing)
+		if parent == missing { // 已经到根目录仍未命中
+			return "", errors.New("路径无效")
+		}
+		missing = parent
+	}
+	relPart, err := filepath.Rel(existing, abs)
+	if err != nil {
+		return "", errors.New("路径无效")
+	}
+	combined := filepath.Clean(filepath.Join(existing, relPart))
+	rel, err := filepath.Rel(root, combined)
+	if err != nil {
+		return "", errors.New("路径无效")
+	}
+	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", errors.New("不允许访问工作目录之外")
+	}
+	return combined, nil
+}
+
 type fileEntry struct {
 	Name  string `json:"name"`
 	Path  string `json:"path"`
@@ -154,7 +196,7 @@ func handleSaveFile(w http.ResponseWriter, r *http.Request, ws *workspaceState) 
 		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "请求格式错误"})
 		return
 	}
-	abs, err := ws.resolve(body.Path)
+	abs, err := ws.resolveForWrite(body.Path)
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "路径无效"})
 		return
@@ -177,7 +219,7 @@ func handleMkdir(w http.ResponseWriter, r *http.Request, ws *workspaceState) {
 		Path string `json:"path"`
 	}
 	_ = json.NewDecoder(r.Body).Decode(&body)
-	abs, err := ws.resolve(body.Path)
+	abs, err := ws.resolveForWrite(body.Path)
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "路径无效"})
 		return

@@ -62,16 +62,25 @@ type ChatRequest struct {
 	Temperature float64
 }
 
+// Usage reports per-call token consumption. CachedTokens counts prompt tokens
+// served from the provider's context cache (cache read / cached content).
+type Usage struct {
+	InputTokens  int
+	OutputTokens int
+	CachedTokens int
+}
+
 // StreamEvent is an incremental result emitted during streaming.
 // Only one field is set per event:
 //   - Content:  a text delta to append
 //   - ToolCall: a completed tool call (emitted once the arguments are final)
-//   - Done:     the stream finished cleanly
+//   - Done:     the stream finished cleanly (Usage may be attached)
 //   - Error:    a fatal error aborted the stream
 type StreamEvent struct {
 	Content  string
 	ToolCall *ToolCall
 	Done     bool
+	Usage    *Usage
 	Error    error
 }
 

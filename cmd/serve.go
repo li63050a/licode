@@ -542,7 +542,8 @@ func runServerAgent(ctx context.Context, st *serverState, cs *connState, c *webs
 			Error:    e.Error,
 		})
 	})
-	// 推送会话统计（消息数 / 上下文 token 估算）
+	// 累计本次运行用量并推送会话统计（提供商/模型/上下文/缓存/命中率等）
+	sess.AddUsage(ag.Usage)
 	c.SendEvent(websocket.ServerEvent{
 		Type:  websocket.EvtStats,
 		Stats: sessionStats(sess),
@@ -552,7 +553,7 @@ func runServerAgent(ctx context.Context, st *serverState, cs *connState, c *webs
 	}
 }
 
-// sessionStats 估算会话 token 用量并附带"始终允许"的工具。
+// sessionStats 估算会话 token 用量并附带提供商/模型/上下文/缓存统计。
 func sessionStats(s *session.Session) map[string]any {
 	messages := s.Messages()
 	tokens := 0
@@ -562,10 +563,37 @@ func sessionStats(s *session.Session) map[string]any {
 			tokens += session.EstimateTokens(tc.Function.Arguments)
 		}
 	}
+	maxTok := s.MaxTokens()
+	ctxPct := 0
+	if maxTok > 0 && tokens > 0 {
+		ctxPct = int(float64(tokens) / float64(maxTok) * 100)
+		if ctxPct > 100 {
+			ctxPct = 100
+		}
+		if ctxPct < 1 {
+			ctxPct = 1
+		}
+	}
+	u := s.Usage()
+	hit, hitRate := 0, 0
+	if u.CachedTokens > 0 {
+		hit = u.CachedTokens
+	}
+	if in := u.InputTokens + u.CachedTokens; in > 0 {
+		hitRate = int(float64(hit) / float64(in) * 100)
+	}
 	return map[string]any{
-		"messages":     len(messages),
-		"tokens":       tokens,
-		"always_allow": s.AlwaysAllowedList(),
+		"messages":        len(messages),
+		"context_tokens":  tokens,
+		"context_max":     maxTok,
+		"context_pct":     ctxPct,
+		"provider":        "",
+		"model":           "",
+		"conversation_in": u.InputTokens,
+		"conversation_out": u.OutputTokens,
+		"usage_cached":    hit,
+		"cache_hit_rate":  hitRate,
+		"always_allow":    s.AlwaysAllowedList(),
 	}
 }
 
