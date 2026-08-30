@@ -3,6 +3,8 @@
 用 Go 编写的 AI 编程助手，单二进制、静态编译、跨平台。**只有 Web 界面**：浏览器打开即用，手机/电脑均可。
 发行版本不一定是最新的。
 
+> **重要声明：官方发行版本（GitHub / Gitee Releases）不一定是最新的。** 如需使用最新代码，请自行运行 `./build.sh` 编译（47 平台交叉编译，产物在 `build/`）。
+
 ## 功能
 
 - 多 AI 提供商一键切换：**OpenAI / Claude / Ollama / Gemini**（均用各自原生接口），可添加多个厂商并一键获取模型列表
@@ -33,14 +35,6 @@
 ```
 
 浏览器打开 `http://127.0.0.1:8080` 使用；手机访问请用 `--host 0.0.0.0` 并打开 `http://服务器IP:8080`。
-
-### 一键安装
-
-```bash
-curl -sSL https://gitee.com/li63050a/licode/raw/main/install.sh | bash
-```
-
-Windows 双击 `install.bat`。安装后直接运行 `licode` 启动服务器。
 
 ## 工具与权限
 
@@ -150,8 +144,6 @@ Windows 双击 `install.bat`。安装后直接运行 `licode` 启动服务器。
 
 单二进制约 7 MB；完全静态编译，不依赖 glibc/libc；空闲内存 < 30 MB；复制到任意同架构 Linux/macOS/Windows 直接运行。
 
-> **重要声明：发行版本（GitHub/Gitee Releases）不一定是最新的。** 如果你想使用最新代码，请自行 `./build.sh` 编译。
-
 ## 架构
 
 ```
@@ -167,7 +159,6 @@ Windows 双击 `install.bat`。安装后直接运行 `licode` 启动服务器。
 │   ├── settings/          # 设置 + ~/.licode 数据目录
 │   ├── websocket/         # Hub + 事件协议
 │   └── web/               # go:embed 静态页面（DeepSeek 风格，浅色默认）
-├── install.sh / install.bat
 └── build.sh               # 47 平台交叉编译
 ```
 
