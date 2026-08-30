@@ -132,6 +132,16 @@ Windows 双击 `install.bat`。安装后直接运行 `licode` 启动服务器。
 
 项目内也可放 `licode.json` 覆盖用户级配置；`/init`（项目内）生成 `.licode/` 目录。
 
+## 文档
+
+- [📦 插件开发指南（WebAssembly）](docs/plugins.md) —— 怎么写一个 .wasm 插件，10 分钟上手
+- [⚙️ 配置与数据目录](docs/config.md) —— 启动参数、环境变量、`~/.licode` 结构、config.json
+- [🧠 多厂商与模型](docs/providers.md) —— openai/claude/google、自定义厂商、获取模型列表、HTTPS
+- [🤖 子代理系统](docs/agents.md) —— explorer/builder/planner、DAG 并行调度、扩展
+- [🌐 Web 界面与 API](docs/web.md) —— 界面、登录、文件/工作目录 API、工具权限、WebSocket 协议
+- [🛠 开发与构建](docs/develop.md) —— 环境要求、目录结构、测试
+- [❓ 常见问题](docs/faq.md) —— Termux、登录、HTTPS、推送等
+
 ## 构建
 
 ```bash

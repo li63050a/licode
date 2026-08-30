@@ -21,6 +21,7 @@ const (
 	TypeSettingsGet   = "settings_get"
 	TypeSettingsSet   = "settings_set"
 	TypeAskReply      = "ask_reply"
+	TypeInterrupt     = "interrupt"
 	TypeSessionsGet   = "sessions_get"
 	TypeSessionNew    = "session_new"
 	TypeSessionSwitch = "session_switch" // {session_id}
@@ -71,9 +72,8 @@ type ClientMessage struct {
 }
 
 var upgrader = websocket.Upgrader{
-	ReadBufferSize:   4096,
-	WriteBufferSize:  4096,
-	MaxMessageSize:   1 << 20,
+	ReadBufferSize:  4096,
+	WriteBufferSize: 4096,
 	CheckOrigin: func(r *http.Request) bool {
 		origin := r.Header.Get("Origin")
 		if origin == "" {
@@ -138,6 +138,7 @@ func (h *Hub) ServeWS(w http.ResponseWriter, r *http.Request) {
 
 	ctx, cancel := context.WithCancel(r.Context())
 	go c.writePump(ctx)
+	go c.processMessages(ctx)
 
 	if h.onConn != nil {
 		go h.onConn(ctx, c)
@@ -145,6 +146,7 @@ func (h *Hub) ServeWS(w http.ResponseWriter, r *http.Request) {
 	c.readPump(ctx)
 
 	cancel()
+	c.cancel()
 	h.unregister(c)
 }
 
@@ -156,10 +158,22 @@ type Client struct {
 	send          chan []byte
 	mu            sync.Mutex
 	onUserMessage func(ctx context.Context, msg ClientMessage)
+	msgQueue      chan ClientMessage
+	ctx           context.Context
+	cancel        context.CancelFunc
 }
 
 func NewClient(hub *Hub, conn *websocket.Conn) *Client {
-	return &Client{hub: hub, conn: conn, send: make(chan []byte, 256)}
+	ctx, cancel := context.WithCancel(context.Background())
+	c := &Client{
+		hub:      hub,
+		conn:     conn,
+		send:     make(chan []byte, 256),
+		msgQueue: make(chan ClientMessage, 50),
+		ctx:      ctx,
+		cancel:   cancel,
+	}
+	return c
 }
 
 // SendEvent marshals and queues an event for delivery.
@@ -205,6 +219,7 @@ func (c *Client) writePump(ctx context.Context) {
 
 func (c *Client) readPump(ctx context.Context) {
 	defer c.conn.Close()
+	defer c.cancel()
 	for {
 		_, data, err := c.conn.ReadMessage()
 		if err != nil {
@@ -214,10 +229,28 @@ func (c *Client) readPump(ctx context.Context) {
 		if err := json.Unmarshal(data, &msg); err != nil {
 			continue
 		}
-		if c.onUserMessage != nil {
-			go c.onUserMessage(ctx, msg)
+		select {
+		case c.msgQueue <- msg:
+		default:
+			c.send <- mustMarshal(ServerEvent{
+				Type:  EvtError,
+				Error: "消息队列已满，请稍候",
+			})
 		}
 	}
+}
+
+func (c *Client) processMessages(ctx context.Context) {
+	for msg := range c.msgQueue {
+		if c.onUserMessage != nil {
+			c.onUserMessage(ctx, msg)
+		}
+	}
+}
+
+func mustMarshal(evt ServerEvent) []byte {
+	data, _ := json.Marshal(evt)
+	return data
 }
 
 // OnUserMessage lets the server attach a handler for every client message.

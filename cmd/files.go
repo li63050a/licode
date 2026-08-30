@@ -3,12 +3,16 @@ package cmd
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
+	"time"
+	"unicode"
 )
 
 // workspaceState 管理"工作目录"：文件浏览/编辑与 Agent 工具都基于该目录。
@@ -224,6 +228,53 @@ func handleWorkspace(w http.ResponseWriter, r *http.Request, ws *workspaceState)
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "root": ws.Root()})
 	}
+}
+
+// handleUpload 上传文件到工作目录的 uploads/ 子目录。POST /api/upload（multipart）
+func handleUpload(w http.ResponseWriter, r *http.Request, ws *workspaceState) {
+	if err := r.ParseMultipartForm(64 << 20); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "文件过大或格式错误"})
+		return
+	}
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "缺少 file 字段"})
+		return
+	}
+	defer file.Close()
+	root := ws.Root()
+	uploadDir := filepath.Join(root, "uploads")
+	if err := os.MkdirAll(uploadDir, 0o755); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
+		return
+	}
+	name := fmt.Sprintf("%d_%s", time.Now().UnixNano(), sanitizeName(header.Filename))
+	dst := filepath.Join(uploadDir, name)
+	out, err := os.Create(dst)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
+		return
+	}
+	defer out.Close()
+	if _, err := io.Copy(out, file); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
+		return
+	}
+	rel := "uploads/" + name
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "path": rel, "url": "/uploads/" + name})
+}
+
+func sanitizeName(name string) string {
+	name = filepath.Base(name)
+	var sb strings.Builder
+	for _, r := range name {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) || r == '.' || r == '-' || r == '_' {
+			sb.WriteRune(r)
+		} else {
+			sb.WriteRune('_')
+		}
+	}
+	return sb.String()
 }
 
 func writeJSON(w http.ResponseWriter, code int, v any) {

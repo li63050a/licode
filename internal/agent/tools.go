@@ -9,10 +9,28 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 )
 
-var allowedCommandPattern = regexp.MustCompile(`^[a-zA-Z0-9_./-]+$`)
+var (
+	allowedCommandPattern = regexp.MustCompile(`^[a-zA-Z0-9_./-]+$`)
+	cachedWD              string
+	cachedHome            string
+	pathCacheOnce         sync.Once
+	pathCacheErr          error
+)
+
+func initPathCache() {
+	wd, err := os.Getwd()
+	if err == nil {
+		cachedWD = filepath.Clean(wd)
+	}
+	home, err := os.UserHomeDir()
+	if err == nil {
+		cachedHome = filepath.Clean(home)
+	}
+}
 
 func validateToolPath(path string) (string, error) {
 	if path == "" {
@@ -26,33 +44,30 @@ func validateToolPath(path string) (string, error) {
 		return "", err
 	}
 	clean := filepath.Clean(abs)
-	wd, err := os.Getwd()
-	if err == nil {
-		cleanWD := filepath.Clean(wd)
-		rel, err := filepath.Rel(cleanWD, clean)
+	pathCacheOnce.Do(initPathCache)
+	if cachedWD != "" {
+		rel, err := filepath.Rel(cachedWD, clean)
 		if err == nil && !strings.HasPrefix(rel, "..") && rel != ".." {
 			resolved, err := filepath.EvalSymlinks(clean)
 			if err != nil {
 				return "", err
 			}
 			cleanResolved := filepath.Clean(resolved)
-			rel2, err := filepath.Rel(cleanWD, cleanResolved)
+			rel2, err := filepath.Rel(cachedWD, cleanResolved)
 			if err == nil && !strings.HasPrefix(rel2, "..") && rel2 != ".." {
 				return cleanResolved, nil
 			}
 		}
 	}
-	home, err := os.UserHomeDir()
-	if err == nil {
-		cleanHome := filepath.Clean(home)
-		rel, err := filepath.Rel(cleanHome, clean)
+	if cachedHome != "" {
+		rel, err := filepath.Rel(cachedHome, clean)
 		if err == nil && !strings.HasPrefix(rel, "..") && rel != ".." {
 			resolved, err := filepath.EvalSymlinks(clean)
 			if err != nil {
 				return "", err
 			}
 			cleanResolved := filepath.Clean(resolved)
-			rel2, err := filepath.Rel(cleanHome, cleanResolved)
+			rel2, err := filepath.Rel(cachedHome, cleanResolved)
 			if err == nil && !strings.HasPrefix(rel2, "..") && rel2 != ".." {
 				return cleanResolved, nil
 			}
@@ -231,6 +246,12 @@ func RegisterDefaultTools(r *Registry) {
 			if root == "" {
 				root = "."
 			}
+			if len(pattern) > 1000 {
+				return "", fmt.Errorf("pattern too long")
+			}
+			if strings.Count(pattern, "*") > 10 {
+				return "", fmt.Errorf("pattern too complex")
+			}
 			cmd := exec.CommandContext(ctx, "rg", "--line-number", "--no-heading", "-S")
 			if include != "" {
 				cmd.Args = append(cmd.Args, "-g", include)
@@ -239,7 +260,6 @@ func RegisterDefaultTools(r *Registry) {
 			cmd.Args = append(cmd.Args, pattern, root)
 			out, err := cmd.CombinedOutput()
 			if err != nil {
-				// rg exits 1 when no matches; that's not a real error.
 				if len(out) == 0 {
 					return "(no matches)", nil
 				}
@@ -267,14 +287,24 @@ func RegisterDefaultTools(r *Registry) {
 			if pattern == "" {
 				return "", fmt.Errorf("pattern required")
 			}
-			matches, err := filepath.Glob(pattern)
-			if err != nil {
-				return "", err
+			absPattern, err := filepath.Abs(pattern)
+			if err == nil {
+				wd, _ := os.Getwd()
+				cleanWD := filepath.Clean(wd)
+				cleanPattern := filepath.Clean(absPattern)
+				rel, _ := filepath.Rel(cleanWD, cleanPattern)
+				if !strings.HasPrefix(rel, "..") && rel != ".." {
+					matches, err := filepath.Glob(pattern)
+					if err != nil {
+						return "", err
+					}
+					if len(matches) == 0 {
+						return "(no matches)", nil
+					}
+					return strings.Join(matches, "\n"), nil
+				}
 			}
-			if len(matches) == 0 {
-				return "(no matches)", nil
-			}
-			return strings.Join(matches, "\n"), nil
+			return "", fmt.Errorf("pattern must be within workspace")
 		},
 	})
 
@@ -300,10 +330,11 @@ func RegisterDefaultTools(r *Registry) {
 			}
 			cwd := strArg(args, "cwd")
 			if cwd != "" {
-				cwd, err := validateToolPath(cwd)
+				validatedCwd, err := validateToolPath(cwd)
 				if err != nil {
 					return "", fmt.Errorf("invalid cwd: %w", err)
 				}
+				cwd = validatedCwd
 			}
 			timeout := time.Duration(intArg(args, "timeout", 30)) * time.Second
 			if timeout > 300*time.Second {

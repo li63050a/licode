@@ -119,19 +119,17 @@ func (m *Manager) CurrentID() string {
 func (m *Manager) New() *Session {
 	const maxSessions = 100
 	m.mu.Lock()
+	defer m.mu.Unlock()
 	if len(m.sessions) >= maxSessions {
-		m.mu.Unlock()
-		return m.Current()
+		return m.sessions[m.current]
 	}
 	s := NewSession(0)
 	s.SetOnChange(func() { m.SaveSession(s.ID()) })
-	m.mu.Lock()
 	m.seq++
 	s.title = "新对话"
 	m.sessions[s.ID()] = s
 	m.order = append(m.order, s.ID())
 	m.current = s.ID()
-	m.mu.Unlock()
 	return s
 }
 

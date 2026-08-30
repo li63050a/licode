@@ -80,6 +80,7 @@ type Tool struct {
 	Name        string
 	Description string
 	Schema      map[string]any
+	schemaBytes []byte
 	Run         func(ctx context.Context, args map[string]any) (string, error)
 }
 
@@ -99,6 +100,7 @@ func (r *Registry) Register(t Tool) error {
 	if t.Name == "" {
 		return errors.New("tool name required")
 	}
+	t.schemaBytes, _ = json.Marshal(t.Schema)
 	r.tools[t.Name] = t
 	return nil
 }
@@ -126,13 +128,12 @@ func (r *Registry) List() []ai.Tool {
 	defer r.mu.RUnlock()
 	out := make([]ai.Tool, 0, len(r.tools))
 	for _, t := range r.tools {
-		schema, _ := json.Marshal(t.Schema)
 		out = append(out, ai.Tool{
 			Type: "function",
 			Function: ai.FunctionSpec{
 				Name:        t.Name,
 				Description: t.Description,
-				Parameters:  schema,
+				Parameters:  t.schemaBytes,
 			},
 		})
 	}

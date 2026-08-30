@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"os"
 	"sync"
-	"time"
 	"unicode/utf8"
 
 	"licode/internal/ai"

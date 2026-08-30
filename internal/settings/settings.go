@@ -5,7 +5,6 @@ package settings
 import (
 	"context"
 	"encoding/json"
-	"os"
 	"strings"
 
 	"licode/internal/agent"

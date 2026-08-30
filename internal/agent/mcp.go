@@ -64,6 +64,8 @@ func newMCPClient(s MCPServer) (*mcpClient, error) {
 	if err != nil {
 		return nil, err
 	}
+	cmdCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("mcp %s 启动失败: %w", s.Name, err)
 	}
@@ -73,7 +75,7 @@ func newMCPClient(s MCPServer) (*mcpClient, error) {
 		stdin:   bufio.NewWriter(stdin),
 		pending: map[int]chan json.RawMessage{},
 	}
-	go c.readLoop(stdout)
+	go c.readLoop(cmdCtx, stdout)
 	mcpMu.Lock()
 	mcpClients = append(mcpClients, c)
 	mcpMu.Unlock()
@@ -90,10 +92,18 @@ func newMCPClient(s MCPServer) (*mcpClient, error) {
 	return c, nil
 }
 
-func (c *mcpClient) readLoop(stdout interface{ Read([]byte) (int, error) }) {
+func (c *mcpClient) readLoop(ctx context.Context, stdout interface{ Read([]byte) (int, error) }) {
 	sc := bufio.NewScanner(stdout)
 	sc.Buffer(make([]byte, 1<<20), 1<<20)
-	for sc.Scan() {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+		if !sc.Scan() {
+			return
+		}
 		line := strings.TrimSpace(sc.Text())
 		if line == "" {
 			continue

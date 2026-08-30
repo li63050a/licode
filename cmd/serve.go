@@ -15,6 +15,7 @@ import (
 	"sync/atomic"
 	"syscall"
 	"time"
+	"unicode/utf8"
 
 	"github.com/spf13/cobra"
 
@@ -102,12 +103,13 @@ type serverState struct {
 
 // connState 保存每个连接独立的会话（多对话）与待确认的工具调用。
 type connState struct {
-	mu       sync.Mutex
-	sessions *session.Manager
-	pending  map[string]chan bool
-	askTool  map[string]string // askID -> 工具名
-	askSeq   atomic.Int64
-	busy     bool
+	mu              sync.Mutex
+	sessions        *session.Manager
+	pending         map[string]chan bool
+	askTool         map[string]string // askID -> 工具名
+	askSeq          atomic.Int64
+	busy            bool
+	interruptCancel context.CancelFunc
 }
 
 func newConnState(sessionsDir string) *connState {
@@ -232,14 +234,27 @@ func runServe(opts *ServeOptions) error {
 					return
 				}
 				cs.busy = true
+				msgCtx, msgCancel := context.WithCancel(ctx)
+				cs.interruptCancel = msgCancel
 				cs.mu.Unlock()
 				defer func() {
 					cs.mu.Lock()
 					cs.busy = false
+					cs.interruptCancel = nil
 					cs.mu.Unlock()
+					msgCancel()
 				}()
-				runServerAgent(ctx, st, cs, c, msg.Content)
+				runServerAgent(msgCtx, st, cs, c, msg.Content)
 				_ = cs.sessions.SaveAll()
+
+			case websocket.TypeInterrupt:
+				cs.mu.Lock()
+				cancel := cs.interruptCancel
+				cs.mu.Unlock()
+				if cancel != nil {
+					cancel()
+					c.SendEvent(websocket.ServerEvent{Type: websocket.EvtDone})
+				}
 			}
 		})
 	})
@@ -286,6 +301,12 @@ func runServe(opts *ServeOptions) error {
 			return
 		}
 		handleDeleteFile(w, r, wsState)
+	})
+	mux.HandleFunc("/api/upload", func(w http.ResponseWriter, r *http.Request) {
+		if !auth.require(w, r) {
+			return
+		}
+		handleUpload(w, r, wsState)
 	})
 	mux.HandleFunc("/api/workspace", func(w http.ResponseWriter, r *http.Request) {
 		if !auth.require(w, r) {
@@ -529,11 +550,12 @@ func sessionStats(s *session.Session) map[string]any {
 
 // autoTitle 从第一条用户消息生成对话标题。
 func autoTitle(content string) string {
-	runes := []rune(strings.TrimSpace(content))
-	if len(runes) > 18 {
+	trimmed := strings.TrimSpace(content)
+	if utf8.RuneCountInString(trimmed) > 18 {
+		runes := []rune(trimmed)
 		return string(runes[:18])
 	}
-	return string(runes)
+	return trimmed
 }
 
 func mapEventType(t agent.EventType) string {

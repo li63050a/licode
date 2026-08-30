@@ -274,7 +274,7 @@
     <script>
         // ===== 主题切换（仅保留暗色/亮色） =====
         function getTheme() {
-            return localStorage.getItem('licode_theme') || 'light';
+            try { return localStorage.getItem('licode_theme') || 'light'; } catch(e) { return 'light'; }
         }
 
         function applyTheme() {
@@ -318,7 +318,7 @@
                 themeBtn.addEventListener('click', function() {
                     const cur = document.documentElement.getAttribute('data-theme');
                     const next = cur === 'dark' ? 'light' : 'dark';
-                    localStorage.setItem('licode_theme', next);
+                    try { localStorage.setItem('licode_theme', next); } catch(e){}
                     applyTheme();
                 });
             }
