@@ -276,15 +276,39 @@
   #cmdPick .cmditm b{font-family:var(--font-mono)}
   #cmdPick .cmditm .d { color:var(--muted); flex:1; }
 
-  /* 右侧栏 */
-  #right { width:268px; min-width:0; background:var(--bg-card); border-left:1px solid var(--border);
-    display:flex; flex-direction:column; transition:width .25s cubic-bezier(.4,0,.2,1), border-color .25s; overflow:hidden; }
-  #right.collapsed { width:0; border-left-color:transparent; }
-  #right .tabs { display:flex; padding:10px 8px; gap:4px; }
-  #right .tabs .tab { flex:1; text-align:center; padding:7px 0; border-radius:10px; font-size:12.5px; cursor:pointer; color:var(--muted); transition:background .15s, color .15s; }
-  #right .tabs .tab.active { background:var(--primary-light); color:var(--primary); font-weight:600; }
-  #right .tabs .tab:not(.active):hover { background:var(--bg-panel); }
-  #rightBody { flex:1; overflow-y:auto; min-height:0; padding:10px; }
+  /* 左侧固定侧边栏（不折叠，页签切换） */
+  #sidebar { width:280px; }
+  #sidebar .top { gap:8px; justify-content:space-between; padding:12px; }
+  .brand { display:flex; align-items:center; gap:7px; font-family:var(--font-display); font-weight:800; font-size:16px; color:var(--fg); letter-spacing:.3px; }
+  .brand .mark { display:flex; align-items:center; justify-content:center; width:28px; height:28px; border-radius:8px; background:var(--primary-grad); color:#fff; font-weight:800; font-size:14px; box-shadow:0 4px 12px rgba(15,168,164,.35); }
+  .brand + .btn { flex:0 0 auto; font-size:11.5px; padding:6px 10px; }
+  .navtabs { display:flex; gap:4px; padding:8px 12px; border-bottom:1px solid var(--border); }
+  .navtab { flex:1; text-align:center; padding:7px 0; border-radius:10px; font-size:12.5px; cursor:pointer; color:var(--muted); transition:background .15s,color .15s; }
+  .navtab:hover { background:var(--bg-panel); }
+  .navtab.active { background:var(--primary-light); color:var(--primary); font-weight:600; }
+  .sview { padding:4px; }
+  #viewStats, #viewFiles { padding:10px; }
+  #sideFoot { flex-direction:column; align-items:stretch; gap:7px; }
+  #sideFoot .sf-actions { display:flex; gap:6px; }
+  #sideFoot .sf-actions .btn { flex:1; padding:6px 4px; font-size:11.5px; text-align:center; white-space:nowrap; }
+  #sideFoot > .btn { width:100%; justify-content:center; }
+  #sideFoot .ver { text-align:center; opacity:.8; }
+
+  /* 文件编辑器弹层（主区右侧） */
+  #fileEditor { display:none; width:44%; min-width:340px; max-width:660px; flex-direction:column; overflow:hidden;
+    background:var(--bg-card); border-left:1px solid var(--border); }
+  #fileEditor.open { display:flex; }
+  #fileEditor .fe-head { display:flex; gap:6px; align-items:center; padding:10px 12px; border-bottom:1px solid var(--border); flex-wrap:wrap; }
+  #fileEditor .fe-head .path { flex:1; color:var(--muted); font-size:11.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-family:var(--font-mono); }
+  #fileEditor .fe-head .btn { padding:5px 10px; font-size:11.5px; }
+  #fileEditor .fe-body { flex:1; display:flex; gap:0; min-height:0; padding:10px; }
+  #fileEditor .fe-body pre#lineNumbers { min-width:40px; padding:12px 8px; margin:0; text-align:right; color:var(--muted);
+    font:13px/1.7 var(--font-mono); user-select:none; border-right:1px solid var(--border); background:var(--bg-panel);
+    border-radius:14px 0 0 14px; overflow:hidden; }
+  #fileEditor .fe-body textarea { flex:1; background:var(--bg-panel); color:var(--fg); border:1px solid var(--border);
+    border-radius:0 14px 14px 0; font:13px/1.7 var(--font-mono); padding:12px; resize:none; outline:none; }
+
+  /* 通用：统计卡片 / 目录树 / 目录输入行（左侧栏共用） */
   .stat { background:var(--bg-panel); border:1px solid var(--border); border-radius:14px; padding:11px 14px; margin-bottom:9px; font-size:13px; transition:border-color .15s; }
   .stat:hover { border-color:var(--primary); }
   .stat .k { color:var(--muted); font-size:11.5px; margin-bottom:3px; } .stat .v { font-size:15px; font-weight:700; color:var(--fg); }
@@ -296,10 +320,6 @@
   .fnode:hover { background:var(--primary-light); } .fnode.sel { background:var(--primary-light); color:var(--primary); }
   .fnode.dir .ico { color:var(--primary); } .fnode .ico { color:var(--muted); width:14px; }
   .fnode .nm { overflow:hidden; text-overflow:ellipsis; }
-  #fileEdit textarea { flex:1; background:var(--bg-panel); color:var(--fg); border:1px solid var(--border);
-    border-radius:0 14px 14px 0; font:13px/1.7 var(--font-mono); padding:12px; resize:none; }
-  #fileEdit .bar { display:flex; gap:6px; align-items:center; margin-bottom:8px; flex-wrap:wrap; }
-  #fileEdit .path { flex:1; color:var(--muted); font-size:11.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-family:var(--font-mono); }
   .dirrow { display:flex; gap:6px; margin-bottom:8px; }
   .dirrow input { flex:1; padding:7px 11px; border:1px solid var(--border); border-radius:10px; background:var(--bg-panel); color:var(--fg); font:12px var(--font-mono); outline:none; }
   .dirrow input:focus { border-color:var(--primary); }
@@ -404,41 +424,65 @@
   <button id="authBannerClose">✕</button>
 </div>
 <header>
-  <button class="icon-btn" id="sideToggle" title="折叠/展开侧边栏" aria-label="折叠/展开侧边栏">
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
-  </button>
   <span class="logo" id="brandLogo"></span>
   <span class="spacer"></span>
   <span class="badge" id="meta"></span>
   <span class="badge" id="modelBadge" title="点击选择模型">-</span>
   <button class="icon-btn" id="themeToggle" title="切换主题"></button>
-  <button class="icon-btn" id="rightToggle" title="信息/文件" aria-label="信息/文件">
-    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/></svg>
-  </button>
 </header>
 
 <div id="layout">
   <aside id="sidebar">
     <div class="top">
-      <button class="btn" id="btnViewProvider" title="查看提供商">查看提供商</button>
+      <span class="brand" id="sideBrand"><span class="mark">l</span>licode</span>
       <button class="btn primary" id="newSession">+ 新对话</button>
-      <div class="rail-icons">
-        <div class="rail-brand">li</div>
-        <button class="rail-btn" id="railNew" title="新对话">＋</button>
-        <button class="rail-btn" id="railProv" title="查看提供商">＠</button>
-        <button class="rail-btn" id="railFiles" title="信息/文件">≡</button>
-        <button class="rail-btn" id="railSettings" title="设置">⚙</button>
-      </div>
+    </div>
+    <div class="navtabs" id="navtabs">
+      <div class="navtab active" data-side="sessions">对话</div>
+      <div class="navtab" data-side="stats">统计</div>
+      <div class="navtab" data-side="files">文件</div>
     </div>
     <div id="sideBody">
-      <input type="text" id="sessSearch" placeholder="搜索对话…" />
-      <div class="group">对话</div>
-      <div id="sessionList"></div>
+      <div class="sview" id="viewSessions">
+        <input type="text" id="sessSearch" placeholder="搜索对话…" />
+        <div class="group">对话</div>
+        <div id="sessionList"></div>
+      </div>
+      <div class="sview" id="viewStats" style="display:none">
+        <div class="stat"><div class="k">提供商</div><div class="v" id="stProvider">-</div></div>
+        <div class="stat"><div class="k">模型</div><div class="v" id="stModel">-</div></div>
+        <div class="stat"><div class="k">上下文使用量</div>
+          <div class="ctxbar"><span id="ctxFill" style="width:0%"></span></div>
+          <div class="ctxmeta"><span id="ctxPct">0%</span><span id="ctxTok">0 / 0</span></div>
+        </div>
+        <div class="stat"><div class="k">已用上下文</div><div class="v" id="stCtxUsed">0</div></div>
+        <div class="stat"><div class="k">缓存命中率</div><div class="v" id="stHitRate">0%</div></div>
+        <div class="stat"><div class="k">缓存</div><div class="v" id="stCache">-</div></div>
+        <div class="stat"><div class="k">已缓存的 token</div><div class="v" id="stCachedTok">0</div></div>
+        <div class="stat"><div class="k">此对话已使用的 token</div><div class="v" id="stConvTok">0</div></div>
+        <div class="stat"><div class="k">消息数</div><div class="v" id="stMessages">0</div></div>
+        <div class="stat"><div class="k">工作目录（可自行输入）</div>
+          <div class="v wsinput"><input id="stWorkspaceVal" placeholder="输入目录路径，回车生效"></div>
+        </div>
+        <div class="stat"><div class="k">始终允许的工具</div><div class="v" id="stAlways">-</div></div>
+      </div>
+      <div class="sview" id="viewFiles" style="display:none">
+        <div class="dirrow">
+          <input id="fileDir" placeholder="输入目录路径，回车打开">
+          <button class="btn" id="fileDirGo">打开</button>
+        </div>
+        <input type="text" id="fileSearch" placeholder="搜索文件…" />
+        <div id="fileTree"></div>
+      </div>
     </div>
     <div id="sideFoot">
-      <span class="ver" id="ver"></span>
-      <span class="side-label">设置</span>
+      <div class="sf-actions">
+        <button class="btn" id="btnViewProvider" title="查看提供商">厂商</button>
+        <button class="btn" id="btnCheck" title="一键检查漏洞">🔍 检查</button>
+        <button class="btn" id="btnFix" title="一键修复漏洞">🛠 修复</button>
+      </div>
       <button class="btn primary" id="btnSettings">⚙ 设置</button>
+      <span class="ver" id="ver"></span>
     </div>
   </aside>
 
@@ -513,49 +557,17 @@
     <div id="cmdPick" style="display:none"></div>
   </main>
 
-  <aside id="right">
-    <div class="tabs">
-      <div class="tab active" id="tabInfo">信息</div>
-      <div class="tab" id="tabFiles">文件</div>
+  <!-- 文件编辑器弹层（在文件视图点击文件后，于主区右侧展开） -->
+  <aside id="fileEditor">
+    <div class="fe-head">
+      <span class="path" id="filePath"></span>
+      <button class="btn" id="fileSetWs">设为工作目录</button>
+      <button class="btn" id="fileClose">关闭</button>
+      <button class="btn primary" id="fileSave">保存</button>
     </div>
-    <div id="rightBody">
-      <div id="infoPanel">
-        <div class="stat"><div class="k">提供商</div><div class="v" id="stProvider">-</div></div>
-        <div class="stat"><div class="k">模型</div><div class="v" id="stModel">-</div></div>
-        <div class="stat"><div class="k">上下文使用量</div>
-          <div class="ctxbar"><span id="ctxFill" style="width:0%"></span></div>
-          <div class="ctxmeta"><span id="ctxPct">0%</span><span id="ctxTok">0 / 0</span></div>
-        </div>
-        <div class="stat"><div class="k">已用上下文</div><div class="v" id="stCtxUsed">0</div></div>
-        <div class="stat"><div class="k">缓存</div><div class="v" id="stCache">-</div></div>
-        <div class="stat"><div class="k">命中率</div><div class="v" id="stHitRate">0%</div></div>
-        <div class="stat"><div class="k">已缓存的 token</div><div class="v" id="stCachedTok">0</div></div>
-        <div class="stat"><div class="k">此对话已使用的 token</div><div class="v" id="stConvTok">0</div></div>
-        <div class="stat"><div class="k">消息数</div><div class="v" id="stMessages">0</div></div>
-        <div class="stat"><div class="k">工作目录（可自行输入）</div>
-          <div class="v wsinput"><input id="stWorkspaceVal" placeholder="输入目录路径，回车生效"></div>
-        </div>
-        <div class="stat"><div class="k">始终允许的工具</div><div class="v" id="stAlways">-</div></div>
-      </div>
-      <div id="filePanel" style="display:none">
-        <div class="dirrow">
-          <input id="fileDir" placeholder="输入目录路径，回车打开">
-          <button class="btn" id="fileDirGo">打开</button>
-        </div>
-        <input type="text" id="fileSearch" placeholder="搜索文件…" />
-        <div id="fileTree"></div>
-        <div id="fileEdit">
-          <div class="bar">
-            <span class="path" id="filePath"></span>
-            <button class="btn" id="fileSetWs">设为工作目录</button>
-            <button class="btn primary" id="fileSave">保存</button>
-          </div>
-          <div style="display:flex; gap:0;">
-            <pre id="lineNumbers" style="min-width:36px; text-align:right; padding:10px 6px; color:var(--muted); font:12.5px/1.6 ui-monospace,monospace; user-select:none; border-right:1px solid var(--border); background:var(--bg-panel); border-radius:12px 0 0 12px; overflow:hidden;"></pre>
-            <textarea id="fileContent" placeholder="…" style="flex:1; border-radius:0 12px 12px 0;"></textarea>
-          </div>
-        </div>
-      </div>
+    <div class="fe-body">
+      <pre id="lineNumbers"></pre>
+      <textarea id="fileContent" placeholder="选择文件后在此编辑…"></textarea>
     </div>
   </aside>
 </div>
@@ -647,7 +659,7 @@
 const $ = id => document.getElementById(id);
 const chatInner = $('chatInner'), input = $('input'), sendBtn = $('send');
 let ws = null, busy = false, lastAssistant = null, tools = [], curAsk = null;
-let sessions = [], curSession = '', rightTab = 'info';
+let sessions = [], curSession = '';
 function safeLS(key, val) { try { if (val === undefined) return localStorage.getItem(key); localStorage.setItem(key, val); } catch(e){} }
 let theme = safeLS('licode_theme') || 'light';
 let anim = safeLS('licode_anim') === 'on';
@@ -823,7 +835,7 @@ async function openFile(path) {
     $('fileContent').value = data.content;
     $('fileContent').dataset.path = path;
     updateLineNums();
-    switchRight('files');
+    openEditor();
   } catch (e) { $('filePath').textContent = e.message; }
 }
 $('fileSave').addEventListener('click', async () => {
@@ -1052,24 +1064,17 @@ $('btnSettings').addEventListener('click', (e) => { e.stopPropagation(); openSet
 $('modelBadge').addEventListener('click', () => togglePop($('modelPick')));
 
 /* ---------- 右侧栏 ---------- */
-function switchRight(tab) {
-  rightTab = tab;
-  $('tabInfo').classList.toggle('active', tab === 'info');
-  $('tabFiles').classList.toggle('active', tab === 'files');
-  $('infoPanel').style.display = tab === 'info' ? '' : 'none';
-  $('filePanel').style.display = tab === 'files' ? '' : 'none';
+function switchSide(tab) {
+  document.querySelectorAll('.navtab').forEach(t => t.classList.toggle('active', t.dataset.side === tab));
+  $('viewSessions').style.display = tab === 'sessions' ? '' : 'none';
+  $('viewStats').style.display = tab === 'stats' ? '' : 'none';
+  $('viewFiles').style.display = tab === 'files' ? '' : 'none';
   if (tab === 'files') loadFiles();
 }
-$('tabInfo').addEventListener('click', () => switchRight('info'));
-$('tabFiles').addEventListener('click', () => switchRight('files'));
-$('sideToggle').addEventListener('click', () => $('sidebar').classList.toggle('collapsed'));
-$('rightToggle').addEventListener('click', () => $('right').classList.toggle('collapsed'));
-
-/* 迷你栏 rail 按钮 */
-$('railNew').addEventListener('click', () => ws.send(JSON.stringify({ type:'session_new' })));
-$('railProv').addEventListener('click', () => { if ($('sidebar').classList.contains('collapsed')) $('sidebar').classList.remove('collapsed'); togglePop($('modelPick')); });
-$('railFiles').addEventListener('click', () => { $('right').classList.remove('collapsed'); switchRight('info'); });
-$('railSettings').addEventListener('click', () => { if ($('sidebar').classList.contains('collapsed')) $('sidebar').classList.remove('collapsed'); togglePop($('modelPick')); openSettings(); });
+document.querySelectorAll('.navtab').forEach(t => t.addEventListener('click', () => switchSide(t.dataset.side)));
+function openEditor() { $('fileEditor').classList.add('open'); }
+function closeEditor() { $('fileEditor').classList.remove('open'); }
+$('fileClose').addEventListener('click', closeEditor);
 
 /* ---------- 背景：粒子（无鲸鱼） ---------- */
 const bgc = $('bgCanvas'), bctx = bgc.getContext('2d');
@@ -1169,7 +1174,7 @@ function insertIntoInput(text) {
   input.focus();
   showCmdPick();
 }
-$('btnAt').addEventListener('click', () => { $('plusMenu').style.display = 'none'; atMode = true; $('right').classList.remove('collapsed'); switchRight('files'); });
+$('btnAt').addEventListener('click', () => { $('plusMenu').style.display = 'none'; atMode = true; switchSide('files'); });
 
 /* 一键检查 / 修复漏洞 */
 $('btnCheck').addEventListener('click', () => { $('plusMenu').style.display='none'; sendText('请对我当前工作目录里的代码做一次全面的安全检查：找出潜在 bug、安全漏洞（如 SQL 注入、XSS、命令注入、硬编码密钥）、并发/资源泄漏等问题，逐条列出问题所在文件、行号、风险等级和修改建议。没有问题时也请明确说明。'); });
@@ -1375,8 +1380,6 @@ updateThemeIcon();
 setIsland('think', '连接中…');
 startBg();
 renderEmpty();
-$('right').classList.add('collapsed');
-if (window.innerWidth < 960) { $('sidebar').classList.add('collapsed'); }
 $('authBannerClose').addEventListener('click', () => $('authBanner').classList.remove('show'));
 fetch('/api/auth').then(r => r.json()).then(d => { if (d && !d.enabled) { $('authBannerText').textContent = '未启用登录：当前无需密码即可访问。启用方法：licode serve --password 你的密码（默认用户名 licode）。'; $('authBanner').classList.add('show'); } }).catch(() => {});
 $('btnModels').addEventListener('click', async () => {
