@@ -659,7 +659,7 @@
 const $ = id => document.getElementById(id);
 const chatInner = $('chatInner'), input = $('input'), sendBtn = $('send');
 let ws = null, busy = false, lastAssistant = null, tools = [], curAsk = null;
-let sessions = [], curSession = '';
+let sessions = [], curSession = '', chatSession = '';
 function safeLS(key, val) { try { if (val === undefined) return localStorage.getItem(key); localStorage.setItem(key, val); } catch(e){} }
 let theme = safeLS('licode_theme') || 'light';
 let anim = safeLS('licode_anim') === 'on';
@@ -1231,7 +1231,15 @@ function connect() {
       case 'tool_done': if (tools.length) { const done = tools.pop(); setToolDone(done, evt); addCopyBtns(done.out); } break;
       case 'status': { const s = evt.content || ''; $('meta').textContent = s; $('meta2').textContent = s; if (busy) setIsland('think', s || '正在思考…'); break; }
       case 'settings': { curSettings = evt.settings || {}; if (evt.settings && $('settings').classList.contains('on')) fillSettings(evt.settings); else { curSettings = evt.settings||{}; fillSettings(curSettings); } setConn(true); break; }
-      case 'sessions': sessions = evt.sessions || []; curSession = evt.sessionId || ''; renderSessions(); break;
+      case 'sessions': {
+        sessions = evt.sessions || [];
+        const sid = evt.sessionId || '';
+        // 会话切换/新建：清空聊天区并回到空状态，避免残留上一对话内容
+        if (sid !== chatSession) { curSession = sid; chatSession = sid; chatInner.innerHTML = ''; renderEmpty(); }
+        else curSession = sid;
+        renderSessions();
+        break;
+      }
       case 'stats': renderStats(evt.stats || {}); break;
       case 'ask': showAsk(evt); break;
       case 'done':
