@@ -66,8 +66,9 @@ Windows 双击 `install.bat`。安装后直接运行 `licode` 启动服务器。
 | `--tls-cert` / `--tls-key` | 指定 TLS 证书/私钥文件（配合 HTTPS） | `--tls-cert cert.pem --tls-key key.pem` |
 | `--no-subagents` | 禁用子代理编排 | `--no-subagents` |
 
-> 说明：`licode` 不带子命令直接带参数运行，等价于 `licode web <参数>`（`serve` 是别名）。例如
-> `licode --host 0.0.0.0 --port 8080 --password 123` 即可启动并启用登录。
+> 说明：`licode` 无子命令，直接运行即可，参数直接跟在命令后。例如
+> `./licode --host 0.0.0.0 --port 8080 --password 123` 即可启动并启用登录。
+> `-h` 或 `--help` 均显示简体中文帮助。
 
 ### 环境变量说明（与参数等价，参数优先级更高）
 
@@ -126,7 +127,7 @@ Windows 双击 `install.bat`。安装后直接运行 `licode` 启动服务器。
 ```
 ├── main.go                # 入口（无参数默认启动服务器）
 ├── cmd/
-│   ├── serve.go           # web 命令：Web 服务器 + WebSocket + 路由（serve 为别名）
+│   ├── serve.go           # 根命令：Web 服务器 + WebSocket + 路由
 │   ├── auth.go            # 登录认证（Cookie 会话）
 │   └── files.go           # 文件浏览/编辑 + 工作目录 API
 ├── internal/
