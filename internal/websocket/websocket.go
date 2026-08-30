@@ -71,10 +71,19 @@ type ClientMessage struct {
 }
 
 var upgrader = websocket.Upgrader{
-	ReadBufferSize:  4096,
-	WriteBufferSize: 4096,
+	ReadBufferSize:   4096,
+	WriteBufferSize:  4096,
+	MaxMessageSize:   1 << 20,
 	CheckOrigin: func(r *http.Request) bool {
-		return true // accept both web page and TUI thin-client origins
+		origin := r.Header.Get("Origin")
+		if origin == "" {
+			return true
+		}
+		host := r.Host
+		if host == "" {
+			host = "localhost:8080"
+		}
+		return origin == "http://"+host || origin == "https://"+host
 	},
 }
 

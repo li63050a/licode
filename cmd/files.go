@@ -61,14 +61,19 @@ func (w *workspaceState) resolve(p string) (string, error) {
 		abs = filepath.Join(root, p)
 	}
 	abs = filepath.Clean(abs)
-	rel, err := filepath.Rel(root, abs)
+	resolved, err := filepath.EvalSymlinks(abs)
 	if err != nil {
-		return "", err
+		return "", errors.New("路径无效")
+	}
+	resolved = filepath.Clean(resolved)
+	rel, err := filepath.Rel(root, resolved)
+	if err != nil {
+		return "", errors.New("路径无效")
 	}
 	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
 		return "", errors.New("不允许访问工作目录之外")
 	}
-	return abs, nil
+	return resolved, nil
 }
 
 type fileEntry struct {
@@ -83,12 +88,12 @@ func handleFiles(w http.ResponseWriter, r *http.Request, ws *workspaceState) {
 	p := r.URL.Query().Get("path")
 	abs, err := ws.resolve(p)
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "路径无效"})
 		return
 	}
 	entries, err := os.ReadDir(abs)
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "无法读取目录"})
 		return
 	}
 	var out []fileEntry
@@ -122,12 +127,12 @@ func handleFiles(w http.ResponseWriter, r *http.Request, ws *workspaceState) {
 func handleFile(w http.ResponseWriter, r *http.Request, ws *workspaceState) {
 	abs, err := ws.resolve(r.URL.Query().Get("path"))
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "路径无效"})
 		return
 	}
 	data, err := os.ReadFile(abs)
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "无法读取文件"})
 		return
 	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
@@ -136,6 +141,7 @@ func handleFile(w http.ResponseWriter, r *http.Request, ws *workspaceState) {
 
 // handleSaveFile 写文件。POST /api/file {path, content}
 func handleSaveFile(w http.ResponseWriter, r *http.Request, ws *workspaceState) {
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1MB limit
 	var body struct {
 		Path    string `json:"path"`
 		Content string `json:"content"`
@@ -146,15 +152,15 @@ func handleSaveFile(w http.ResponseWriter, r *http.Request, ws *workspaceState) 
 	}
 	abs, err := ws.resolve(body.Path)
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "路径无效"})
 		return
 	}
 	if err := os.MkdirAll(filepath.Dir(abs), 0o755); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "无法创建目录"})
 		return
 	}
 	if err := os.WriteFile(abs, []byte(body.Content), 0o644); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "无法写入文件"})
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "path": abs})
@@ -162,17 +168,18 @@ func handleSaveFile(w http.ResponseWriter, r *http.Request, ws *workspaceState) 
 
 // handleMkdir 创建目录。POST /api/mkdir {path}
 func handleMkdir(w http.ResponseWriter, r *http.Request, ws *workspaceState) {
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 	var body struct {
 		Path string `json:"path"`
 	}
 	_ = json.NewDecoder(r.Body).Decode(&body)
 	abs, err := ws.resolve(body.Path)
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "路径无效"})
 		return
 	}
 	if err := os.MkdirAll(abs, 0o755); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "无法创建目录"})
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "path": abs})
@@ -180,17 +187,18 @@ func handleMkdir(w http.ResponseWriter, r *http.Request, ws *workspaceState) {
 
 // handleDeleteFile 删除文件/目录。POST /api/delete {path}
 func handleDeleteFile(w http.ResponseWriter, r *http.Request, ws *workspaceState) {
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 	var body struct {
 		Path string `json:"path"`
 	}
 	_ = json.NewDecoder(r.Body).Decode(&body)
 	abs, err := ws.resolve(body.Path)
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "路径无效"})
 		return
 	}
 	if err := os.RemoveAll(abs); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "无法删除"})
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
@@ -202,6 +210,7 @@ func handleWorkspace(w http.ResponseWriter, r *http.Request, ws *workspaceState)
 	case http.MethodGet:
 		writeJSON(w, http.StatusOK, map[string]any{"root": ws.Root()})
 	case http.MethodPost:
+		r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 		var body struct {
 			Path string `json:"path"`
 		}
@@ -210,7 +219,7 @@ func handleWorkspace(w http.ResponseWriter, r *http.Request, ws *workspaceState)
 			return
 		}
 		if err := ws.Set(body.Path); err != nil {
-			writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "路径无效"})
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "root": ws.Root()})

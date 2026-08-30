@@ -41,6 +41,26 @@ curl -sSL https://gitee.com/li63050a/licode/raw/main/install.sh | bash
 
 Windows 双击 `install.bat`。安装后直接运行 `licode` 启动服务器。
 
+## 工具与权限
+
+| 工具 | 说明 | 默认权限 |
+| --- | --- | --- |
+| `read_file` | 读取文件（支持 offset/limit） | 允许 |
+| `write_file` | 写入/替换文件 | **需审批** |
+| `list_dir` | 列出目录 | 允许 |
+| `grep` | 正则搜索代码 | 允许 |
+| `glob` | 按通配符查找文件 | 允许 |
+| `run_shell` | 执行 shell 命令（构建/测试/git） | **需审批** |
+| `skill_*` | Skills 技能 | 允许 |
+| `mcp__*` | MCP 服务器工具 | 允许 |
+| `plugin_*` | WASM 插件 | 允许 |
+
+**权限配置**（设置 → 工具规则，如 `read_file:allow, write_file:ask, run_shell:deny`）：
+
+- `allow` 允许 · `ask` 需审批 · `deny` 禁用
+- 需审批时前端弹出「拒绝 / 允许 / **始终允许**」——始终允许**仅当前对话生效**，且可在右侧「信息」栏查看本对话已始终允许的工具列表
+- 「自动允许」开启后不再询问风险工具
+
 ## 设置
 
 无需重启，网页端「设置」里实时修改并自动写回 `~/.licode/config.json`：提供商、模型、API 地址/密钥、温度、tokens、迭代次数、子代理、上下文压缩、自动标题、需确认/禁用工具、MCP 服务器、主题、语言、工作目录。

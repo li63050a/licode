@@ -2,21 +2,22 @@
 //
 // 两种插件形态：
 //
-//  1) reactor 持久模式（allocate/execute 导出）：
+//  1. reactor 持久模式（allocate/execute 导出）：
 //     插件导出 allocate(size i32) i32 与 execute(argsPtr, argsSize i32) i64，
 //     宿主调用前先调用导出的 _initialize 初始化运行时。适合 TinyGo /
 //     WASI reactor 编译的插件（低延迟，进程内常驻）。
 //
-//  2) CLI 每调用模式（标准 Go）：
+//  2. CLI 每调用模式（标准 Go）：
 //     插件是一个普通 Go 程序（GOOS=wasip1 GOARCH=wasm），main 里用
 //     os.Args[1] 读取 JSON 参数，把 JSON 结果写到 stdout。宿主每次调用
 //     都以 argv=[插件名, 参数JSON]、stdout 收集器实例化并运行 _start。
 //     对标准 Go 最可靠（无需 TinyGo）。
 //
 // 宿主注入模块 "env"（供 reactor 插件使用）：
-//     log(ptr, size i32)
-//     http_get(urlPtr, urlSize, bufPtr i32) i32
-//     file_read(pathPtr, pathSize, bufPtr i32) i32
+//
+//	log(ptr, size i32)
+//	http_get(urlPtr, urlSize, bufPtr i32) i32
+//	file_read(pathPtr, pathSize, bufPtr i32) i32
 //
 // 插件同目录可放 plugin.json：{name, description, schema}
 package plugin
@@ -62,7 +63,7 @@ type Plugin struct {
 	path string
 
 	rt       wazero.Runtime
-	mod      api.Module           // reactor 模式常驻实例
+	mod      api.Module            // reactor 模式常驻实例
 	compiled wazero.CompiledModule // cli 模式复用编译产物
 	host     *HostAPI
 
@@ -265,19 +266,35 @@ func newHostModule(rt wazero.Runtime, host *HostAPI) (api.Module, error) {
 		if !ok {
 			return 0
 		}
-		data, err := os.ReadFile(string(path))
+		pathStr := string(path)
+		if strings.Contains(pathStr, "..") {
+			return 0
+		}
+		abs, err := filepath.Abs(pathStr)
 		if err != nil {
-			logf("[plugin] file_read: %v", err)
 			return 0
 		}
-		n := uint32(len(data))
-		if n > maxBuffer {
-			n = maxBuffer
+		clean := filepath.Clean(abs)
+		wd, err := os.Getwd()
+		if err == nil {
+			cleanWD := filepath.Clean(wd)
+			rel, err := filepath.Rel(cleanWD, clean)
+			if err == nil && !strings.HasPrefix(rel, "..") && rel != ".." {
+				data, err := os.ReadFile(clean)
+				if err != nil {
+					return 0
+				}
+				n := uint32(len(data))
+				if n > maxBuffer {
+					n = maxBuffer
+				}
+				if !mod.Memory().Write(bufPtr, data[:n]) {
+					return 0
+				}
+				return n
+			}
 		}
-		if !mod.Memory().Write(bufPtr, data[:n]) {
-			return 0
-		}
-		return n
+		return 0
 	}).Export("file_read")
 	return b.Instantiate(context.Background())
 }

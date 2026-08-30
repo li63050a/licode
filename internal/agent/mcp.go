@@ -47,6 +47,14 @@ type jsonrpcMsg struct {
 }
 
 func newMCPClient(s MCPServer) (*mcpClient, error) {
+	if s.Command == "" {
+		return nil, fmt.Errorf("mcp %s: command is empty", s.Name)
+	}
+	for _, arg := range s.Args {
+		if strings.Contains(arg, ";") || strings.Contains(arg, "|") || strings.Contains(arg, "&") {
+			return nil, fmt.Errorf("mcp %s: args contain disallowed characters", s.Name)
+		}
+	}
 	cmd := exec.Command(s.Command, s.Args...)
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
@@ -117,12 +125,15 @@ func (c *mcpClient) request(id int, method string, params any, notify bool) erro
 	}
 	b, _ := json.Marshal(req)
 	c.mu.Lock()
-	_, err := c.stdin.Write(append(b, '\n'))
+	_, err := c.stdin.Write(b)
 	if err == nil {
 		err = c.stdin.Flush()
 	}
 	c.mu.Unlock()
-	return err
+	if err != nil {
+		return fmt.Errorf("mcp %s.%s write: %w", c.server.Name, method, err)
+	}
+	return nil
 }
 
 func (c *mcpClient) call(method string, params any) (json.RawMessage, error) {

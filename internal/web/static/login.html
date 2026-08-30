@@ -244,6 +244,7 @@
         <div class="error-msg" id="errorMsg">用户名或密码错误</div>
 
         <form method="post" action="/login" id="loginForm">
+            <input type="hidden" name="csrf_token" id="csrfToken" value="" />
             <div class="form-group">
                 <label for="username">用户名</label>
                 <input
@@ -308,6 +309,10 @@
         }
 
         document.addEventListener('DOMContentLoaded', function() {
+            const csrfToken = getCookie('licode_csrf');
+            if (csrfToken) {
+                document.getElementById('csrfToken').value = csrfToken;
+            }
             const themeBtn = document.getElementById('themeToggle');
             if (themeBtn) {
                 themeBtn.addEventListener('click', function() {
@@ -317,10 +322,14 @@
                     applyTheme();
                 });
             }
-
             applyTheme();
             checkError();
         });
+
+        function getCookie(name) {
+            const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
+            return match ? match[2] : null;
+        }
     </script>
 </body>
 </html>

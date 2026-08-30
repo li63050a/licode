@@ -78,6 +78,7 @@ type Settings struct {
 	Compaction    bool              `json:"compaction"`  // 上下文超限时用 LLM 压缩
 	TitleGen      bool              `json:"title_gen"`   // 自动生成对话标题
 	AutoAllow     bool              `json:"auto_allow"`  // 风险工具自动允许
+	Streaming     *bool             `json:"streaming"`   // 流式输出（nil=默认开）
 	ToolRules     map[string]string `json:"tool_rules"`  // 工具名 -> allow/ask/deny
 	MCPServers    []MCPServer       `json:"mcp_servers"` // MCP 服务器列表
 }
@@ -264,19 +265,6 @@ func (s *Settings) BuildAgent(client ai.LLMClient) *agent.Agent {
 	return ag
 }
 
-// providerEnvKey 返回各提供商标准的 API Key 环境变量名。
-func providerEnvKey(provider string) string {
-	switch provider {
-	case "openai":
-		return os.Getenv("OPENAI_API_KEY")
-	case "claude":
-		return os.Getenv("ANTHROPIC_API_KEY")
-	case "gemini":
-		return os.Getenv("GEMINI_API_KEY")
-	}
-	return ""
-}
-
 // Snapshot 返回设置的深拷贝，避免并发读写。
 func (s *Settings) Snapshot() Settings {
 	out := Settings{
@@ -294,6 +282,7 @@ func (s *Settings) Snapshot() Settings {
 		Compaction:    s.Compaction,
 		TitleGen:      s.TitleGen,
 		AutoAllow:     s.AutoAllow,
+		Streaming:     s.Streaming,
 		MCPServers:    append([]MCPServer{}, s.MCPServers...),
 		ToolRules:     map[string]string{},
 	}

@@ -309,16 +309,12 @@ func runServe(opts *ServeOptions) error {
 		st.mu.RLock()
 		cfg := st.settings.AIConfig()
 		st.mu.RUnlock()
-		// 支持参数覆盖（用于新增厂商前预览模型列表）
 		q := r.URL.Query()
 		if t := q.Get("type"); t != "" {
 			cfg.Type = t
 		}
 		if b := q.Get("base"); b != "" {
 			cfg.BaseURL = b
-		}
-		if k := q.Get("key"); k != "" {
-			cfg.APIKey = k
 		}
 		if p := q.Get("provider"); p != "" {
 			cfg.Provider = p
@@ -378,7 +374,7 @@ func runServe(opts *ServeOptions) error {
 	log.Printf("licode serve 已启动: %s", url)
 	log.Printf("provider=%s model=%s", st.settings.Provider, st.settings.Model)
 	if authEnabled {
-		log.Printf("登录已启用：用户名 %s（浏览器打开后需登录）", authUser)
+		log.Printf("登录已启用（浏览器打开后需登录）")
 	} else {
 		log.Printf("登录未启用（可用 --password 或环境变量 %s 开启）", EnvPassword)
 	}
@@ -481,7 +477,20 @@ func runServerAgent(ctx context.Context, st *serverState, cs *connState, c *webs
 		}
 	}
 
+	stream := true
+	if s.Streaming != nil {
+		stream = *s.Streaming
+	}
+	var textBuf strings.Builder
 	err := ag.Run(ctx, content, func(e agent.Event) {
+		if e.Type == agent.EventText && !stream {
+			textBuf.WriteString(e.Content)
+			return
+		}
+		if e.Type == agent.EventDone && !stream && textBuf.Len() > 0 {
+			c.SendEvent(websocket.ServerEvent{Type: websocket.EvtDelta, Content: textBuf.String()})
+			textBuf.Reset()
+		}
 		c.SendEvent(websocket.ServerEvent{
 			Type:     mapEventType(e.Type),
 			Content:  e.Content,
@@ -501,7 +510,7 @@ func runServerAgent(ctx context.Context, st *serverState, cs *connState, c *webs
 	}
 }
 
-// sessionStats 估算会话 token 用量。
+// sessionStats 估算会话 token 用量并附带"始终允许"的工具。
 func sessionStats(s *session.Session) map[string]any {
 	messages := s.Messages()
 	tokens := 0
@@ -512,8 +521,9 @@ func sessionStats(s *session.Session) map[string]any {
 		}
 	}
 	return map[string]any{
-		"messages": len(messages),
-		"tokens":   tokens,
+		"messages":     len(messages),
+		"tokens":       tokens,
+		"always_allow": s.AlwaysAllowedList(),
 	}
 }
 

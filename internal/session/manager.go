@@ -117,6 +117,12 @@ func (m *Manager) CurrentID() string {
 
 // New 新建一个会话并切换到它。
 func (m *Manager) New() *Session {
+	const maxSessions = 100
+	m.mu.Lock()
+	if len(m.sessions) >= maxSessions {
+		m.mu.Unlock()
+		return m.Current()
+	}
 	s := NewSession(0)
 	s.SetOnChange(func() { m.SaveSession(s.ID()) })
 	m.mu.Lock()

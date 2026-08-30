@@ -22,6 +22,8 @@ const (
 	EnvPassword     = "LICODE_PASSWORD"
 	SessionCookie   = "licode_auth"
 	sessionLifetime = 7 * 24 * time.Hour
+	csrfCookie      = "licode_csrf"
+	csrfHeader      = "X-CSRF-Token"
 )
 
 // authState 是登录认证状态（基于会话 Cookie + HMAC 签名）。
@@ -160,10 +162,15 @@ func (a *authState) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if r.Method == http.MethodPost {
+		if !validateCSRF(r) {
+			http.Redirect(w, r, "/login?error=1", http.StatusFound)
+			return
+		}
 		user := r.FormValue("username")
 		pass := r.FormValue("password")
 		if user == a.user && pass == a.pass {
 			a.setSession(w, user)
+			clearCSRF(w)
 			http.Redirect(w, r, "/", http.StatusFound)
 			return
 		}
@@ -176,9 +183,49 @@ func (a *authState) handleLogin(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
+	token := generateCSRFToken()
+	setCSRFCookie(w, token)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	_, _ = w.Write(login)
+}
+
+func generateCSRFToken() string {
+	b := make([]byte, 32)
+	_, _ = rand.Read(b)
+	return base64.RawURLEncoding.EncodeToString(b)
+}
+
+func setCSRFCookie(w http.ResponseWriter, token string) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     csrfCookie,
+		Value:    token,
+		Path:     "/",
+		HttpOnly: false,
+		SameSite: http.SameSiteStrictMode,
+		MaxAge:   int(sessionLifetime.Seconds()),
+	})
+}
+
+func validateCSRF(r *http.Request) bool {
+	c, err := r.Cookie(csrfCookie)
+	if err != nil {
+		return false
+	}
+	token := r.Header.Get(csrfHeader)
+	if token == "" {
+		token = r.FormValue("csrf_token")
+	}
+	return token != "" && token == c.Value
+}
+
+func clearCSRF(w http.ResponseWriter) {
+	http.SetCookie(w, &http.Cookie{
+		Name:   csrfCookie,
+		Value:  "",
+		Path:   "/",
+		MaxAge: -1,
+	})
 }
 
 // basicAuthValue 生成 Authorization: Basic 头值（供远程脚本等使用）。

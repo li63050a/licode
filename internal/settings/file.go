@@ -83,6 +83,9 @@ func (s *Settings) mergeFrom(o *Settings) {
 	s.Compaction = o.Compaction
 	s.TitleGen = o.TitleGen
 	s.AutoAllow = o.AutoAllow
+	if o.Streaming != nil {
+		s.Streaming = o.Streaming
+	}
 	if len(o.MCPServers) > 0 {
 		s.MCPServers = append([]MCPServer{}, o.MCPServers...)
 	}
@@ -105,12 +108,12 @@ func (s *Settings) Save(path string) error {
 	}
 	dir := filepath.Dir(path)
 	if dir != "" && dir != "." {
-		if err := os.MkdirAll(dir, 0o755); err != nil {
+		if err := os.MkdirAll(dir, 0o700); err != nil {
 			return err
 		}
 	}
 	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, data, 0o644); err != nil {
+	if err := os.WriteFile(tmp, data, 0o600); err != nil {
 		return err
 	}
 	return os.Rename(tmp, path)
@@ -139,6 +142,10 @@ func (s *Settings) finalize() error {
 			"write_file": "ask",
 			"run_shell":  "ask",
 		}
+	}
+	if s.Streaming == nil {
+		t := true
+		s.Streaming = &t
 	}
 	s.UpsertActive()
 	s.syncTopLevel()

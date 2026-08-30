@@ -6,6 +6,7 @@ set -e
 
 VERSION="${VERSION:-v0.2.0}"
 SOURCE="${1:-github}"
+INTEGRITY_FILE="${INTEGRITY_FILE:-}"
 
 case "$(uname -s)-$(uname -m)" in
   Linux-x86_64|Linux-amd64)  FILE="api-gateway-linux-amd64" ;;
@@ -35,6 +36,22 @@ elif command -v wget >/dev/null 2>&1; then
 else
   echo "需要 curl 或 wget"; exit 1
 fi
+
+if [ -n "$INTEGRITY_FILE" ]; then
+  echo "==> 校验文件完整性"
+  if command -v sha256sum >/dev/null 2>&1; then
+    if ! echo "$INTEGRITY_FILE  $DEST/licode" | sha256sum -c -; then
+      echo "完整性校验失败"; rm -f "$DEST/licode"; exit 1
+    fi
+  elif command -v shasum >/dev/null 2>&1; then
+    if ! echo "$INTEGRITY_FILE  $DEST/licode" | shasum -a 256 -c -; then
+      echo "完整性校验失败"; rm -f "$DEST/licode"; exit 1
+    fi
+  else
+    echo "警告: 未找到 sha256sum 或 shasum，跳过完整性校验"
+  fi
+fi
+
 chmod +x "$DEST/licode"
 
 echo "==> 已安装到 $DEST/licode"

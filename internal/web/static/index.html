@@ -298,6 +298,7 @@
         <div class="stat"><div class="k" data-i18n="st_tokens">上下文 tokens（估算）</div><div class="v" id="stTokens">0</div></div>
         <div class="stat"><div class="k" data-i18n="st_model">模型</div><div class="v" id="stModel">-</div></div>
         <div class="stat"><div class="k" data-i18n="st_workspace">工作目录</div><div class="v" id="stWorkspace">-</div></div>
+        <div class="stat"><div class="k" data-i18n="st_always">始终允许的工具（仅当前对话）</div><div class="v" id="stAlways">-</div></div>
       </div>
       <div id="filePanel" style="display:none">
         <div id="fileTree"></div>
@@ -349,6 +350,8 @@
       <select id="st_titlegen"><option data-i18n-opt="on">开启</option><option data-i18n-opt="off">关闭</option></select></div>
     <div class="row"><label data-i18n="l_auto">自动允许</label>
       <select id="st_auto"><option data-i18n-opt="off">关闭</option><option data-i18n-opt="on">开启</option></select></div>
+    <div class="row"><label data-i18n="l_stream">输出方式</label>
+      <select id="st_stream"><option data-i18n-opt="stream">流式</option><option data-i18n-opt="full">非流式</option></select></div>
     <div class="row"><label data-i18n="l_rules">工具规则</label>
       <input id="st_rules" placeholder="read_file:allow, write_file:ask, run_shell:deny"></div>
     <div class="row"><label data-i18n="l_mcp">MCP 服务器</label><textarea id="st_mcp" rows="3"></textarea></div>
@@ -395,11 +398,12 @@ const I18N = {
     input_ph:'问点什么…（Enter 发送，Shift+Enter 换行）', send:'发送', hint:'licode · Enter 发送 · 工具调用 · 多对话 · 文件编辑',
     think_off:'思考：关闭', think_low:'思考：低', think_mid:'思考：中', think_high:'思考：高', think_max:'思考：max',
     tab_info:'信息', tab_files:'文件', st_messages:'消息数', st_tokens:'上下文 tokens（估算）', st_model:'模型', st_workspace:'工作目录',
+    st_always:'始终允许的工具（仅当前对话）',
     ask_prefix:'是否允许执行工具', ask_no:'拒绝', ask_yes:'允许', ask_always:'始终允许',
     set_workspace:'设为工作目录', save:'保存', empty_dir:'（空目录）', no_session:'暂无对话',
     settings_title:'设置', l_provider:'提供商', l_model:'模型', l_base:'API 地址', l_key:'API 密钥', l_temp:'温度',
     l_maxtok:'最大输出 tokens', l_maxiter:'最大迭代次数', l_sub:'子代理', l_compact:'上下文压缩', l_title:'自动标题',
-    l_auto:'自动允许', l_rules:'工具规则', l_mcp:'MCP 服务器', l_theme:'主题', l_lang:'语言', l_anim:'动画', l_ws:'工作目录', l_version:'版本',
+    l_auto:'自动允许', l_stream:'输出方式', stream:'流式', full:'非流式', l_rules:'工具规则', l_mcp:'MCP 服务器', l_theme:'主题', l_lang:'语言', l_anim:'动画', l_ws:'工作目录', l_version:'版本',
     l_providers:'厂商列表', l_toolsopen:'工具详情默认',
     l_newprov:'新增厂商', l_ptype:'类型', l_pname:'名称', l_pbase:'API 地址', l_pkey:'API 密钥', l_pmodel:'模型', add_prov:'添加厂商',
     fetch_models:'获取模型', no_models:'该厂商暂无模型列表接口', expand:'展开', fold:'折叠',
@@ -412,11 +416,12 @@ const I18N = {
     input_ph:'Ask anything… (Enter to send, Shift+Enter for newline)', send:'Send', hint:'licode · Enter to send · Tools · Sessions · File editor',
     think_off:'Thinking: Off', think_low:'Thinking: Low', think_mid:'Thinking: Medium', think_high:'Thinking: High', think_max:'Thinking: Max',
     tab_info:'Info', tab_files:'Files', st_messages:'Messages', st_tokens:'Context tokens (est.)', st_model:'Model', st_workspace:'Workspace',
+    st_always:'Always allowed tools (this session only)',
     ask_prefix:'Allow tool', ask_no:'Deny', ask_yes:'Allow', ask_always:'Always allow',
     set_workspace:'Set as workspace', save:'Save', empty_dir:'(empty)', no_session:'No sessions',
     settings_title:'Settings', l_provider:'Provider', l_model:'Model', l_base:'API URL', l_key:'API Key', l_temp:'Temperature',
     l_maxtok:'Max tokens', l_maxiter:'Max iterations', l_sub:'Subagents', l_compact:'Compaction', l_title:'Auto title',
-    l_auto:'Auto allow', l_rules:'Tool rules', l_mcp:'MCP servers', l_theme:'Theme', l_lang:'Language', l_anim:'Animations', l_ws:'Workspace', l_version:'Version',
+    l_auto:'Auto allow', l_stream:'Output mode', stream:'Streaming', full:'Full (no stream)', l_rules:'Tool rules', l_mcp:'MCP servers', l_theme:'Theme', l_lang:'Language', l_anim:'Animations', l_ws:'Workspace', l_version:'Version',
     l_providers:'Providers', l_toolsopen:'Tool details default',
     fetch_models:'Fetch models', no_models:'This provider has no model list API', expand:'Expand', fold:'Collapse',
     banner_off:'Login disabled: no password needed. Enable: licode serve --password YOUR_PASSWORD (default username licode), or set env LICODE_PASSWORD.',
@@ -639,6 +644,7 @@ function fillSettings(s) {
   $('st_compaction').value = s.compaction ? t('on') : t('off');
   $('st_titlegen').value = s.title_gen ? t('on') : t('off');
   $('st_auto').value = s.auto_allow ? t('on') : t('off');
+  $('st_stream').value = s.streaming === false ? t('full') : t('stream');
   const rules = (s.tool_rules || {});
   $('st_rules').value = Object.keys(rules).map(k => k + ':' + rules[k]).join(', ');
   $('st_mcp').value = JSON.stringify(s.mcp_servers || [], null, 1);
@@ -658,6 +664,7 @@ function readSettings() {
     max_iterations: parseInt($('st_max_iterations').value) || 16,
     subagents: $('st_subagents').value === t('on'), compaction: $('st_compaction').value === t('on'), title_gen: $('st_titlegen').value === t('on'),
     auto_allow: $('st_auto').value === t('on'),
+    streaming: $('st_stream').value === t('stream'),
     tool_rules: rules, mcp_servers: mcp,
     providers: providers,
   };
@@ -861,6 +868,8 @@ function connect() {
       case 'stats':
         $('stMessages').textContent = (evt.stats && evt.stats.messages) || 0;
         $('stTokens').textContent = (evt.stats && evt.stats.tokens) || 0;
+        const al = (evt.stats && evt.stats.always_allow) || [];
+        $('stAlways').textContent = al.length ? al.join(', ') : '-';
         break;
       case 'ask': showAsk(evt); break;
       case 'done':

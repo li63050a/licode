@@ -4,6 +4,7 @@
 package session
 
 import (
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -75,6 +76,19 @@ func (s *Session) SetAlwaysAllowed(name string) {
 	}
 }
 
+// AlwaysAllowedList 返回本对话"始终允许"的工具列表。
+func (s *Session) AlwaysAllowedList() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var out []string
+	for name := range s.alwaysAllow {
+		if s.alwaysAllow[name] {
+			out = append(out, name)
+		}
+	}
+	return out
+}
+
 // ID returns the session identifier.
 func (s *Session) ID() string {
 	s.mu.Lock()
@@ -126,7 +140,9 @@ func (s *Session) SetSummary(v string) {
 }
 
 func genID() string {
-	return fmt.Sprintf("%d", time.Now().UnixNano())
+	b := make([]byte, 16)
+	_, _ = rand.Read(b)
+	return fmt.Sprintf("%x", b)
 }
 
 // SetID 覆盖会话 ID（加载存档时使用）。
@@ -158,7 +174,7 @@ func (s *Session) SaveToFile(path string) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, data, 0o644)
+	return os.WriteFile(path, data, 0o600)
 }
 
 // LoadSessionFile 从磁盘加载会话存档。

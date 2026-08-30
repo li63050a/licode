@@ -7,9 +7,59 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 )
+
+var allowedCommandPattern = regexp.MustCompile(`^[a-zA-Z0-9_./-]+$`)
+
+func validateToolPath(path string) (string, error) {
+	if path == "" {
+		return "", fmt.Errorf("path required")
+	}
+	if strings.Contains(path, "..") {
+		return "", fmt.Errorf("path contains ..")
+	}
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return "", err
+	}
+	clean := filepath.Clean(abs)
+	wd, err := os.Getwd()
+	if err == nil {
+		cleanWD := filepath.Clean(wd)
+		rel, err := filepath.Rel(cleanWD, clean)
+		if err == nil && !strings.HasPrefix(rel, "..") && rel != ".." {
+			resolved, err := filepath.EvalSymlinks(clean)
+			if err != nil {
+				return "", err
+			}
+			cleanResolved := filepath.Clean(resolved)
+			rel2, err := filepath.Rel(cleanWD, cleanResolved)
+			if err == nil && !strings.HasPrefix(rel2, "..") && rel2 != ".." {
+				return cleanResolved, nil
+			}
+		}
+	}
+	home, err := os.UserHomeDir()
+	if err == nil {
+		cleanHome := filepath.Clean(home)
+		rel, err := filepath.Rel(cleanHome, clean)
+		if err == nil && !strings.HasPrefix(rel, "..") && rel != ".." {
+			resolved, err := filepath.EvalSymlinks(clean)
+			if err != nil {
+				return "", err
+			}
+			cleanResolved := filepath.Clean(resolved)
+			rel2, err := filepath.Rel(cleanHome, cleanResolved)
+			if err == nil && !strings.HasPrefix(rel2, "..") && rel2 != ".." {
+				return cleanResolved, nil
+			}
+		}
+	}
+	return "", fmt.Errorf("path outside allowed directories")
+}
 
 func strArg(args map[string]any, key string) string {
 	if v, ok := args[key]; ok {
@@ -48,8 +98,9 @@ func RegisterDefaultTools(r *Registry) {
 		},
 		Run: func(ctx context.Context, args map[string]any) (string, error) {
 			path := strArg(args, "path")
-			if path == "" {
-				return "", fmt.Errorf("path required")
+			path, err := validateToolPath(path)
+			if err != nil {
+				return "", err
 			}
 			f, err := os.Open(path)
 			if err != nil {
@@ -103,6 +154,10 @@ func RegisterDefaultTools(r *Registry) {
 		},
 		Run: func(ctx context.Context, args map[string]any) (string, error) {
 			path := strArg(args, "path")
+			path, err := validateToolPath(path)
+			if err != nil {
+				return "", err
+			}
 			content := strArg(args, "content")
 			if path == "" {
 				return "", fmt.Errorf("path required")
@@ -129,6 +184,10 @@ func RegisterDefaultTools(r *Registry) {
 		},
 		Run: func(ctx context.Context, args map[string]any) (string, error) {
 			path := strArg(args, "path")
+			path, err := validateToolPath(path)
+			if err != nil {
+				return "", err
+			}
 			if path == "" {
 				path = "."
 			}
@@ -236,8 +295,20 @@ func RegisterDefaultTools(r *Registry) {
 			if command == "" {
 				return "", fmt.Errorf("command required")
 			}
+			if !safeCommand(command) {
+				return "", fmt.Errorf("command contains disallowed characters or patterns")
+			}
 			cwd := strArg(args, "cwd")
+			if cwd != "" {
+				cwd, err := validateToolPath(cwd)
+				if err != nil {
+					return "", fmt.Errorf("invalid cwd: %w", err)
+				}
+			}
 			timeout := time.Duration(intArg(args, "timeout", 30)) * time.Second
+			if timeout > 300*time.Second {
+				timeout = 300 * time.Second
+			}
 			cmdCtx, cancel := context.WithTimeout(ctx, timeout)
 			defer cancel()
 			cmd := exec.CommandContext(cmdCtx, "sh", "-c", command)
@@ -255,4 +326,23 @@ func RegisterDefaultTools(r *Registry) {
 			return s, nil
 		},
 	})
+}
+
+var dangerousPatterns = []*regexp.Regexp{
+	regexp.MustCompile(`rm\s+-rf\s+/`),
+	regexp.MustCompile(`rm\s+-rf\s+~\s*`),
+	regexp.MustCompile(`:\(\)\{\s*:\|:\&\}\s*;`),
+	regexp.MustCompile(`>\s*/dev/sd`),
+	regexp.MustCompile(`mkfs\s+`),
+	regexp.MustCompile(`dd\s+.*of=`),
+}
+
+func safeCommand(command string) bool {
+	lower := strings.ToLower(command)
+	for _, pattern := range dangerousPatterns {
+		if pattern.MatchString(lower) {
+			return false
+		}
+	}
+	return true
 }
