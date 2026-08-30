@@ -3,11 +3,14 @@
 package settings
 
 import (
+	"context"
+	"encoding/json"
 	"os"
 	"strings"
 
 	"licode/internal/agent"
 	"licode/internal/ai"
+	"licode/internal/plugin"
 )
 
 // ProviderChoices 是可选厂商。
@@ -241,6 +244,23 @@ func (s *Settings) BuildAgent(client ai.LLMClient) *agent.Agent {
 	}
 	agent.RegisterSkills(ag.Tools, agent.LoadSkills(agent.SkillDirs()...))
 	_ = agent.RegisterMCPServers(ag.Tools, s.MCPServers)
+	// WASM 插件（wazero 沙箱，运行时热加载）
+	for _, p := range plugin.Default.Plugins() {
+		pp := p
+		schema := pp.Schema
+		if len(schema) == 0 {
+			schema = map[string]any{"type": "object"}
+		}
+		_ = ag.Tools.Register(agent.Tool{
+			Name:        "plugin_" + pp.Name,
+			Description: "WASM 插件 " + pp.Name + "：" + pp.Description,
+			Schema:      schema,
+			Run: func(ctx context.Context, args map[string]any) (string, error) {
+				b, _ := json.Marshal(args)
+				return pp.Call(ctx, string(b))
+			},
+		})
+	}
 	return ag
 }
 

@@ -20,6 +20,7 @@ import (
 
 	"licode/internal/agent"
 	"licode/internal/ai"
+	"licode/internal/plugin"
 	"licode/internal/session"
 	"licode/internal/settings"
 	"licode/internal/version"
@@ -128,6 +129,12 @@ func runServe(opts *ServeOptions) error {
 	// 版本计数递增（0.0.0.0 → … → 0.0.0.100 → 0.0.1.0）
 	runVersion := version.Bump()
 	log.Printf("licode 版本 %s", runVersion)
+
+	// WASM 插件热加载
+	plugin.Default.SetDirs(plugin.Dirs()...)
+	pluginCtx, pluginCancel := context.WithCancel(context.Background())
+	defer pluginCancel()
+	plugin.Default.Start(pluginCtx)
 
 	st := &serverState{}
 	st.settings = settings.Defaults()
