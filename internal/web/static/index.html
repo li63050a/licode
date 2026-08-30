@@ -26,6 +26,11 @@
     --green:#34d399; --red:#fb7185; --yellow:#fbbf24; --purple:#a78bfa;
     --shadow:0 12px 40px rgba(0,0,0,.35);
   }
+  /* 不支持 backdrop-filter 时回退为近纯色面板，避免界面发虚 */
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    :root { --glass:#f3f5ff; --glass-strong:#ffffff; --glass-border:#dfe4f4; --panel:#f3f5ff; }
+    html[data-theme="dark"] { --glass:#121828; --glass-strong:#0d1322; --glass-border:#202a44; --panel:#121828; }
+  }
   * { box-sizing:border-box; }
   body { margin:0; height:100vh; display:flex; flex-direction:column; background:var(--base); color:var(--fg);
     font:14px/1.6 'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',sans-serif;
@@ -86,13 +91,13 @@
   .icon-btn:hover { background:var(--accent-soft); color:var(--accent); }
   .icon-btn svg { display:block; }
 
-  #layout { flex:1; display:flex; min-height:0; position:relative; }
+  #layout { flex:1; display:flex; min-height:0; position:relative; overflow:hidden; }
 
   /* ---------- 左侧会话栏（毛玻璃） ---------- */
   #sidebar { width:230px; min-width:0; background:var(--glass); border-right:1px solid var(--glass-border);
     backdrop-filter:blur(26px) saturate(170%); -webkit-backdrop-filter:blur(26px) saturate(170%);
-    display:flex; flex-direction:column; transition:margin .2s ease; overflow:hidden; }
-  #sidebar.collapsed { margin-left:-230px; }
+    display:flex; flex-direction:column; transition:width .22s ease, border-color .22s ease; overflow:hidden; }
+  #sidebar.collapsed { width:0; border-right-color:transparent; }
   #sidebar .top { display:flex; align-items:center; padding:10px; gap:6px; }
   #sidebar .top .btn { flex:1; }
   #sideBody { flex:1; overflow-y:auto; min-height:0; padding:4px 0 10px; }
@@ -179,8 +184,8 @@
   /* ---------- 右侧栏（毛玻璃） ---------- */
   #right { width:260px; min-width:0; background:var(--glass); border-left:1px solid var(--glass-border);
     backdrop-filter:blur(26px) saturate(170%); -webkit-backdrop-filter:blur(26px) saturate(170%);
-    display:flex; flex-direction:column; transition:margin .2s ease; overflow:hidden; }
-  #right.collapsed { margin-right:-260px; }
+    display:flex; flex-direction:column; transition:width .22s ease, border-color .22s ease; overflow:hidden; }
+  #right.collapsed { width:0; border-left-color:transparent; }
   #right .tabs { display:flex; padding:8px; gap:4px; }
   #right .tabs .tab { flex:1; text-align:center; padding:6px 0; border-radius:10px; font-size:12.5px;
     cursor:pointer; color:var(--muted); transition:background .15s, color .15s; }
