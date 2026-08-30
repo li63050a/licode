@@ -51,9 +51,8 @@ Windows 双击 `install.bat`。安装后直接运行 `licode` 启动服务器。
 | `grep` | 正则搜索代码 | 允许 |
 | `glob` | 按通配符查找文件 | 允许 |
 | `run_shell` | 执行 shell 命令（构建/测试/git） | **需审批** |
-| `skill_*` | Skills 技能 | 允许 |
-| `mcp__*` | MCP 服务器工具 | 允许 |
-| `plugin_*` | WASM 插件 | 允许 |
+
+> **Skills / MCP / WASM 插件不是"需要手动加载"的东西**：把它们放进对应目录就自动加载、运行中热更新，无需手动加载，也不占用上面的权限设置。插件开发见 [docs/plugins.md](docs/plugins.md)。
 
 **权限配置**（设置 → 工具规则，如 `read_file:allow, write_file:ask, run_shell:deny`）：
 
