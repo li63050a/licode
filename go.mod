@@ -11,6 +11,7 @@ require (
 )
 
 require (
+	github.com/BurntSushi/toml v1.4.0 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/charmbracelet/x/ansi v0.8.0 // indirect
 	github.com/charmbracelet/x/term v0.2.0 // indirect

@@ -89,37 +89,7 @@ func Defaults() Settings {
 }
 
 // ApplyFlags 用命令行参数覆盖初始设置。
-func (s *Settings) ApplyFlags(provider, baseURL, apiKey, model string, noSubAgents bool) {
-	if provider != "" {
-		provider = strings.ToLower(provider)
-		// 若尚未配置该厂商，先创建默认条目（正确的默认 base_url/model）
-		found := false
-		for _, p := range s.Providers {
-			if p.Provider == provider {
-				found = true
-				break
-			}
-		}
-		if !found {
-			pc := ProviderConfig{Provider: provider}
-			if d, ok := ai.Defaults[provider]; ok {
-				pc.BaseURL = d.BaseURL
-				pc.Model = d.Model
-			}
-			s.Providers = append(s.Providers, pc)
-		}
-		s.Provider = provider
-		s.syncTopLevel()
-	}
-	if baseURL != "" {
-		s.BaseURL = baseURL
-	}
-	if apiKey != "" {
-		s.APIKey = apiKey
-	}
-	if model != "" {
-		s.Model = model
-	}
+func (s *Settings) ApplyFlags(noSubAgents bool) {
 	if noSubAgents {
 		s.SubAgents = false
 	}

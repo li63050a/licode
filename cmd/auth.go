@@ -8,10 +8,12 @@ import (
 	"encoding/hex"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 
+	"licode/internal/settings"
 	"licode/internal/web"
 )
 
@@ -49,11 +51,23 @@ func ResolveAuth(username, password string) (string, string, bool) {
 	return username, password, password != ""
 }
 
-// newAuthState 构造认证状态。
+// newAuthState 构造认证状态。HMAC 密钥持久化在 ~/.licode/session.key，
+// 保证会话 cookie 在服务器重启后仍然有效（自动登录）。
 func newAuthState(user, pass string, enabled bool) *authState {
+	return &authState{user: user, pass: pass, enabled: enabled, secret: loadSecret()}
+}
+
+// loadSecret 读取或生成持久化会话密钥。
+func loadSecret() []byte {
+	path := filepath.Join(settings.BaseDir(), "session.key")
+	if data, err := os.ReadFile(path); err == nil && len(data) >= 32 {
+		return data
+	}
 	secret := make([]byte, 32)
 	_, _ = rand.Read(secret)
-	return &authState{user: user, pass: pass, enabled: enabled, secret: secret}
+	_ = os.MkdirAll(filepath.Dir(path), 0o700)
+	_ = os.WriteFile(path, secret, 0o600)
+	return secret
 }
 
 // issueToken 签发签名会话令牌：base64url(用户名.过期时间戳.签名)。
@@ -162,15 +176,10 @@ func (a *authState) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if r.Method == http.MethodPost {
-		if !validateCSRF(r) {
-			http.Redirect(w, r, "/login?error=1", http.StatusFound)
-			return
-		}
 		user := r.FormValue("username")
 		pass := r.FormValue("password")
 		if user == a.user && pass == a.pass {
 			a.setSession(w, user)
-			clearCSRF(w)
 			http.Redirect(w, r, "/", http.StatusFound)
 			return
 		}

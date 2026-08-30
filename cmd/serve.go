@@ -31,19 +31,15 @@ import (
 
 // ServeOptions holds resolved configuration for the serve command.
 type ServeOptions struct {
-	Addr        string
 	Host        string
 	Port        int
-	Provider    string
-	BaseURL     string
-	APIKey      string
-	Model       string
 	NoSubAgents bool
 	Username    string
 	Password    string
 	HTTPS       bool
 	TLSCert     string
 	TLSKey      string
+	ConfigPath  string
 }
 
 // NewServeCommand 返回根命令（licode 直接运行即启动服务器）。
@@ -59,38 +55,66 @@ func newServeCmd() *cobra.Command {
 直接运行 ./licode 即启动 Web 服务器，参数直接跟在其后，例如：
     ./licode --host 0.0.0.0 --port 8080
     ./licode --password 你的密码            （设置后启用登录，默认用户名 licode）
-    ./licode --provider ollama
 
 浏览器访问 http://<host>:<port> 即可使用，支持手机/电脑。
 所有 AI 推理都在本服务器执行。设置可在网页端实时修改并写回
 ~/.licode/config.json，无需重启。`,
 		Args: cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// 加载 config.toml（缺失时自动生成），优先级：命令行参数 > 配置文件 > 环境变量
+			cfgPath := opts.ConfigPath
+			if cfgPath == "" {
+				cfgPath = "config.toml"
+			}
+			cfg, err := settings.LoadTOML(cfgPath)
+			if os.IsNotExist(err) {
+				cfg = settings.DefaultTOML()
+				if gerr := settings.GenerateTOML(cfgPath, cfg); gerr != nil {
+					return gerr
+				}
+				log.Printf("已生成配置文件 %s", cfgPath)
+			} else if err != nil {
+				return fmt.Errorf("加载配置文件 %s: %w", cfgPath, err)
+			}
+			if !cmd.Flags().Changed("host") && cfg.Server.Host != "" {
+				opts.Host = cfg.Server.Host
+			}
+			if !cmd.Flags().Changed("port") && cfg.Server.Port != 0 {
+				opts.Port = cfg.Server.Port
+			}
+			if !cmd.Flags().Changed("username") && cfg.Server.Username != "" {
+				opts.Username = cfg.Server.Username
+			}
+			if !cmd.Flags().Changed("password") && cfg.Server.Password != "" {
+				opts.Password = cfg.Server.Password
+			}
+			if !cmd.Flags().Changed("https") && cfg.Server.HTTPS {
+				opts.HTTPS = true
+			}
+			if !cmd.Flags().Changed("tls-cert") && cfg.Server.TLSCert != "" {
+				opts.TLSCert = cfg.Server.TLSCert
+			}
+			if !cmd.Flags().Changed("tls-key") && cfg.Server.TLSKey != "" {
+				opts.TLSKey = cfg.Server.TLSKey
+			}
 			return runServe(opts)
 		},
 	}
 	f := c.Flags()
-	f.StringVar(&opts.Addr, "addr", "", "监听地址（如 0.0.0.0:8080）；不填则用 --host/--port")
 	f.StringVar(&opts.Host, "host", "127.0.0.1", "监听主机（默认 127.0.0.1，局域网/手机访问用 0.0.0.0）")
 	f.IntVar(&opts.Port, "port", 8080, "监听端口")
-	f.StringVar(&opts.Provider, "provider", "", "AI 提供商: openai | claude | ollama | gemini")
-	f.StringVar(&opts.BaseURL, "base-url", "", "提供商 API 地址")
-	f.StringVar(&opts.APIKey, "api-key", "", "API 密钥")
-	f.StringVar(&opts.Model, "model", "", "模型名")
 	f.BoolVar(&opts.NoSubAgents, "no-subagents", false, "禁用子代理编排")
 	f.StringVar(&opts.Username, "username", "", "登录用户名（默认 licode；环境变量 LICODE_USERNAME）")
 	f.StringVar(&opts.Password, "password", "", "登录密码（环境变量 LICODE_PASSWORD）；未设置则不启用登录")
 	f.BoolVar(&opts.HTTPS, "https", false, "启用 HTTPS（未指定证书时自动生成自签名证书）")
 	f.StringVar(&opts.TLSCert, "tls-cert", "", "TLS 证书文件路径（cert.pem）")
 	f.StringVar(&opts.TLSKey, "tls-key", "", "TLS 私钥文件路径（key.pem）")
+	f.StringVarP(&opts.ConfigPath, "config", "c", "config.toml", "配置文件路径（默认 ./config.toml）")
 	return c
 }
 
-// listenAddr 计算实际监听地址：--addr 优先，否则 host:port。
+// listenAddr 计算监听地址 host:port。
 func listenAddr(opts *ServeOptions) string {
-	if opts.Addr != "" {
-		return opts.Addr
-	}
 	return fmt.Sprintf("%s:%d", opts.Host, opts.Port)
 }
 
@@ -140,7 +164,8 @@ func runServe(opts *ServeOptions) error {
 
 	st := &serverState{}
 	st.settings = settings.Defaults()
-	st.settings.ApplyFlags(opts.Provider, opts.BaseURL, opts.APIKey, opts.Model, opts.NoSubAgents)
+	st.settings.ApplyFlags(opts.NoSubAgents)
+
 	client, err := st.settings.NewClient()
 	if err != nil {
 		return err
@@ -386,14 +411,10 @@ func runServe(opts *ServeOptions) error {
 	if useTLS {
 		scheme = "https"
 	}
-	// 显示地址：0.0.0.0 时给出本机可访问地址
-	dispHost := host
-	if strings.HasPrefix(dispHost, "0.0.0.0:") {
-		dispHost = "127.0.0.1:" + strings.TrimPrefix(dispHost, "0.0.0.0:")
+	log.Printf("licode serve 已启动: %s://%s/", scheme, host)
+	if strings.HasPrefix(host, "0.0.0.0:") || strings.HasPrefix(host, "0.0.0.0") {
+		log.Printf("可用链接: %s://%s:%d/  （局域网/手机访问）", scheme, opts.Host, opts.Port)
 	}
-	url := scheme + "://" + dispHost + "/"
-	log.Printf("licode serve 已启动: %s", url)
-	log.Printf("provider=%s model=%s", st.settings.Provider, st.settings.Model)
 	if authEnabled {
 		log.Printf("登录已启用（浏览器打开后需登录）")
 	} else {
