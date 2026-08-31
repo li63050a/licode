@@ -3,6 +3,7 @@
 /build/
 *.exe
 *.out
+/licode
 
 # 配置与密钥
 .licode.json

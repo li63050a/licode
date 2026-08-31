@@ -3,55 +3,78 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="theme-color" content="#0E8B8A">
+<meta name="theme-color" content="#E4530A">
 <title>licode</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'%3E%3Crect x='22' y='26' width='60' height='68' rx='14' fill='%230FA8A4'/%3E%3Cpath d='M20 52h80' stroke='%23fff' stroke-width='9' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'%3E%3Crect x='22' y='26' width='60' height='68' rx='14' fill='%23E4530A'/%3E%3Cpath d='M20 52h80' stroke='%23fff' stroke-width='9' stroke-linecap='round'/%3E%3C/svg%3E">
 <style>
+  @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
   :root {
-    --accent:#0FA8A4;
-    --primary:#0E8B8A; --primary-hover:#0B7070; --primary-light:rgba(15,168,164,.12);
-    --primary-grad:linear-gradient(135deg,#1FC6B8,#0E8B8A);
-    --bg:#F2F7F9; --bg-card:#FFFFFF; --bg-panel:#EAF1F5;
-    --fg:#0E1B2A; --text2:#3E5A72; --muted:#7D94AA;
-    --border:#DDE7F0;
-    --green:#0EA472; --red:#E5484D; --yellow:#D97706; --purple:#8B5CF6;
-    --shadow-sm:0 1px 2px rgba(10,30,50,.05),0 1px 4px rgba(10,30,50,.04);
-    --shadow-md:0 8px 26px -8px rgba(10,45,60,.14);
-    --shadow-lg:0 20px 52px -14px rgba(8,42,58,.28);
-    --radius:14px;
-    --font-display:'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',sans-serif;
-    --font-body:'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',sans-serif;
-    --font-mono:ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',Menlo,Consolas,monospace;
+    --accent:#E4530A;
+    --primary:#E4530A; --primary-hover:#C74707; --primary-light:rgba(228,83,10,.10);
+    --primary-grad:linear-gradient(135deg,#F46A15,#D84A06);
+    --bg:#F4F1E8; --bg-card:#FDFCF7; --bg-panel:#ECE8DD;
+    --fg:#221D12; --text2:#5A5342; --muted:#8A8270;
+    --border:#D9D2C0;
+    --green:#2E7D32; --red:#C62828; --yellow:#C77700; --purple:#6D28D9;
+    --shadow-sm:0 1px 1px rgba(40,32,10,.06),0 1px 3px rgba(40,32,10,.05);
+    --shadow-md:0 12px 28px -14px rgba(60,45,10,.28);
+    --shadow-lg:0 26px 60px -22px rgba(50,40,15,.4);
+    --radius:3px;
+    --font-display:'Barlow Condensed','Barlow',-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',sans-serif;
+    --font-body:'Barlow',-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',sans-serif;
+    --font-mono:'IBM Plex Mono',ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',Menlo,Consolas,monospace;
   }
   html[data-theme="dark"] {
-    --accent:#38CEC0;
-    --primary:#3ECFC0; --primary-hover:#5ED8CC; --primary-light:rgba(62,207,192,.16);
-    --primary-grad:linear-gradient(135deg,#54D8CB,#2BB4A8);
-    --bg:#07121C; --bg-card:#0C1B28; --bg-panel:#091520;
-    --fg:#E7F5F4; --text2:#93B6CB; --muted:#5E819B;
-    --border:#1B3346;
-    --green:#2FBF8F; --red:#F0656A; --yellow:#F0B429; --purple:#A78BFA;
-    --shadow-sm:0 1px 2px rgba(0,0,0,.3),0 1px 3px rgba(0,0,0,.25);
-    --shadow-md:0 10px 30px -10px rgba(0,0,0,.55);
-    --shadow-lg:0 24px 64px -16px rgba(0,0,0,.7);
+    --accent:#FF8A3C;
+    --primary:#FF7A1F; --primary-hover:#FFA05C; --primary-light:rgba(255,122,31,.16);
+    --primary-grad:linear-gradient(135deg,#FF9A3D,#F05A00);
+    --bg:#16181F; --bg-card:#1B1E28; --bg-panel:#101218;
+    --fg:#EFEDE2; --text2:#A7A296; --muted:#6B675C;
+    --border:#2B2E3A;
+    --green:#5EC279; --red:#F0656A; --yellow:#F0B429; --purple:#A78BFA;
+    --shadow-sm:0 1px 1px rgba(0,0,0,.35),0 1px 3px rgba(0,0,0,.3);
+    --shadow-md:0 14px 32px -14px rgba(0,0,0,.65);
+    --shadow-lg:0 28px 66px -20px rgba(0,0,0,.78);
+    --radius:3px;
   }
   * { box-sizing:border-box; }
   html,body { margin:0; height:100%; }
   body { background:var(--bg); color:var(--fg); overflow:hidden;
     font:14px/1.6 var(--font-body);
     -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility; }
-  body::before { content:''; position:fixed; inset:0; z-index:-1; pointer-events:none; opacity:.5;
+  body::before { content:''; position:fixed; inset:0; z-index:-1; pointer-events:none; opacity:.55;
     background:
-      radial-gradient(52% 44% at 12% 8%, rgba(20,200,180,.14), transparent 62%),
-      radial-gradient(46% 40% at 96% 4%, rgba(56,189,248,.12), transparent 60%),
-      radial-gradient(60% 55% at 82% 100%, rgba(79,70,229,.10), transparent 60%),
-      linear-gradient(180deg, transparent, rgba(8,24,40,.04));
+      radial-gradient(46% 40% at 12% 8%, rgba(228,83,10,.10), transparent 60%),
+      radial-gradient(40% 36% at 96% 4%, rgba(214,40,40,.05), transparent 58%),
+      linear-gradient(180deg, transparent, rgba(50,40,15,.05));
     transition:opacity .3s; }
-  html[data-theme="dark"] body::before { opacity:.55;
+  html[data-theme="dark"] body::before { opacity:.45;
     background:
-      radial-gradient(52% 44% at 12% 8%, rgba(20,200,180,.16), transparent 62%),
-      radial-gradient(46% 40% at 96% 4%, rgba(56,189,248,.12), transparent 60%),
-      radial-gradient(60% 55% at 82% 100%, rgba(99,102,241,.15), transparent 60%); }
+      radial-gradient(50% 42% at 12% 8%, rgba(255,122,31,.13), transparent 62%),
+      radial-gradient(42% 38% at 96% 4%, rgba(240,90,0,.08), transparent 58%); }
+  html[data-glow="off"] body::before { opacity:0 !important; }
+  html[data-glow="off"] #bgCanvas { display:none; }
+  /* 背景预设：切换 body::before 的合成方式 */
+  html[data-bg="flat"] body::before { background:none; }
+  html[data-bg="grid"] body::before { opacity:.45;
+    background-image:
+      radial-gradient(46% 40% at 12% 8%, rgba(228,83,10,.08), transparent 60%),
+      linear-gradient(rgba(120,110,80,.16) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(120,110,80,.16) 1px, transparent 1px);
+    background-size:auto, 26px 26px, 26px 26px; }
+  html[data-bg="gradient"] body::before { opacity:.7;
+    background:linear-gradient(150deg, rgba(228,83,10,.20), rgba(220,40,40,.10) 45%, rgba(200,120,0,.16)); }
+  html[data-bg="stars"] body::before { opacity:.75;
+    background-image:
+      radial-gradient(1.6px 1.6px at 18% 22%, rgba(255,255,255,.7) 50%, transparent 52%),
+      radial-gradient(1.4px 1.4px at 68% 12%, rgba(255,255,255,.6) 50%, transparent 52%),
+      radial-gradient(1.8px 1.8px at 42% 64%, rgba(255,255,255,.55) 50%, transparent 52%),
+      radial-gradient(1.3px 1.3px at 84% 48%, rgba(255,255,255,.6) 50%, transparent 52%),
+      radial-gradient(1.5px 1.5px at 30% 84%, rgba(255,255,255,.5) 50%, transparent 52%),
+      radial-gradient(56% 50% at 20% 10%, rgba(228,83,10,.12), transparent 62%),
+      radial-gradient(60% 55% at 82% 100%, rgba(214,40,40,.10), transparent 60%);
+    background-repeat:repeat; }
+  html[data-theme="light"][data-bg="stars"] body::before { filter:invert(1) brightness(1.05); opacity:.4; }
   #bgCanvas { position:fixed; inset:0; width:100%; height:100%; z-index:-1; pointer-events:none; }
   * { scrollbar-width:thin; scrollbar-color:rgba(120,150,180,.4) transparent; }
   *::-webkit-scrollbar { width:10px; height:10px; }
@@ -107,6 +130,12 @@
     display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:18px; transition:background .15s,color .15s,transform .15s; box-shadow:var(--shadow-sm); }
   .rail-btn:hover { background:var(--primary-light); color:var(--primary); transform:translateY(-1px); }
   .rail-brand { font-weight:800; color:var(--primary); font-size:14px; letter-spacing:.5px; margin-bottom:6px; font-family:var(--font-display); }
+  .topbtns { display:flex; gap:6px; flex:0 0 auto; align-items:center; }
+  .topbtns .btn { flex:0 0 auto !important; font-size:11.5px; padding:6px 10px; }
+  #sidebar .rail-icons { padding-top:14px; }
+  #sidebar.collapsed .topbtns { display:none; }
+  #sidebar.collapsed .brand { display:none; }
+  #sidebar.collapsed .navtabs { display:none; }
   #sideBody { flex:1; overflow-y:auto; min-height:0; padding:4px 0 10px; }
   #sidebar.collapsed #sideBody { display:none; }
   #sideBody .group { padding:14px 18px 6px; font-size:11px; color:var(--muted); letter-spacing:.08em; text-transform:uppercase; font-weight:600; }
@@ -153,6 +182,11 @@
   .empty .title { font-family:var(--font-display); font-size:34px; font-weight:800; letter-spacing:-.6px; color:var(--fg);
     background:linear-gradient(120deg,var(--fg),var(--primary)); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
   .empty .sub { color:var(--text2); margin-top:10px; font-size:14px; }
+  .mchips { display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin-top:16px; }
+  .mchip { display:inline-flex; align-items:center; gap:6px; padding:5px 13px; border-radius:999px;
+    border:1px solid var(--border); background:color-mix(in srgb, var(--bg-card) 78%, transparent);
+    font-size:12px; box-shadow:var(--shadow-sm); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); }
+  .mchip .k { color:var(--muted); } .mchip .v { color:var(--primary); font-weight:600; max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .quick { display:flex; gap:12px; justify-content:center; flex-wrap:wrap; margin-top:28px; }
   .quick .qbtn { display:flex; align-items:center; gap:8px; border:1px solid var(--border); background:var(--bg-card); border-radius:14px;
     padding:11px 16px; font-size:13px; cursor:pointer; color:var(--text2); box-shadow:var(--shadow-sm);
@@ -325,7 +359,7 @@
   .dirrow input:focus { border-color:var(--primary); }
 
   /* 弹窗 */
-  .modal { display:none; position:fixed; inset:0; background:rgba(7,18,28,.46); z-index:40; align-items:center; justify-content:center; backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); }
+  .modal { display:none; position:fixed; inset:0; background:rgba(7,18,28,.46); z-index:1000; align-items:center; justify-content:center; backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); }
   .modal.on { display:flex; }
   .modal .panel { width:min(620px,94vw); max-height:90vh; overflow-y:auto; background:var(--bg-card); border:1px solid var(--border);
     border-radius:20px; padding:24px 28px; box-shadow:var(--shadow-lg); }
@@ -333,6 +367,74 @@
   .modal .mtabs { display:flex; gap:6px; margin-bottom:16px; border-bottom:1px solid var(--border); padding-bottom:10px; }
   .modal .mtab { padding:6px 14px; border-radius:999px; font-size:12.5px; cursor:pointer; color:var(--muted); transition:background .15s,color .15s; }
   .modal .mtab.active { background:var(--primary-light); color:var(--primary); font-weight:600; }
+  /* ---------- 设置工作区（保留左侧边栏，在其右侧展开） ---------- */
+  #settingsPage { display:none; position:fixed; top:0; bottom:0; right:0; left:0; z-index:400; background:var(--bg); }
+  #settingsPage.on { display:flex; }
+  .sv-panel { flex:1; min-width:0; display:flex; flex-direction:column; }
+  .sv-top { flex:0 0 auto; display:flex; align-items:center; gap:12px; padding:12px 20px; border-bottom:1px solid var(--border);
+    background:var(--bg-card); }
+  .cvbtn { border:1px solid var(--border); background:var(--bg-panel); color:var(--fg); width:34px; height:34px; border-radius:10px;
+    font-size:18px; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:border-color .15s,background .15s; }
+  .cvbtn:hover { border-color:var(--primary); color:var(--primary); }
+  .sv-title { font-weight:800; font-size:16px; color:var(--fg); }
+  .sv-fill { flex:1; }
+  .sv-ver { font-size:12px; color:var(--muted); font-family:var(--font-mono); }
+  .sv-body { flex:1; min-height:0; overflow:auto; padding:20px 24px; }
+  .sv-home { display:flex; gap:20px; align-items:flex-start; }
+  .sv-col { flex:1; min-width:0; display:flex; flex-direction:column; gap:16px; }
+  .sv-col.sv-right { flex:0 0 42%; max-width:520px; }
+  .sv-card { background:var(--bg-card); border:1px solid var(--border); border-radius:14px; padding:16px 18px; min-width:0; }
+  .sv-card-h { font-size:14px; font-weight:700; color:var(--fg); margin-bottom:12px; display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; }
+  .sv-card-h small { font-weight:400; color:var(--muted); font-size:11.5px; }
+  .sv-assistant { max-width:860px; }
+  .sv-bottom { flex:0 0 auto; display:flex; align-items:center; gap:10px; padding:12px 20px; border-top:1px solid var(--border);
+    background:var(--bg-card); }
+  .sv-bottom .b-hint { font-size:12px; color:var(--muted); }
+  .s-nav, .s-brand, .s-tab, .s-foot { display:none; }
+  .s-main { flex:1; overflow:auto; padding:0; }
+  .s-sec { max-width:none; }
+  .s-h { font-size:17px; font-weight:700; color:var(--fg); margin-bottom:16px; display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; }
+  .s-h small { font-weight:400; color:var(--muted); font-size:12px; }
+  .s-h2 { font-size:14px; font-weight:600; color:var(--fg); margin:14px 0 10px; padding-top:12px; border-top:1px solid var(--border); }
+  .sg { font-size:12px; color:var(--muted); font-weight:600; letter-spacing:.3px; margin:18px 0 8px; text-transform:uppercase; }
+  .s-sec .row { display:flex; align-items:center; gap:10px; margin-bottom:10px; }
+  .s-sec label { width:150px; color:var(--text2); font-size:12.5px; flex-shrink:0; font-weight:500; }
+  .s-sec input,.s-sec select,.s-sec textarea { flex:1; min-width:0; background:var(--bg-panel); color:var(--fg); border:1px solid var(--border); border-radius:10px; padding:8px 10px; font-size:13px; outline:none; }
+  .s-sec input:focus,.s-sec select:focus,.s-sec textarea:focus { border-color:var(--primary); }
+  .s-sec textarea { resize:vertical; font-family:var(--font-mono); }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:0 16px; }
+  .role-list { display:flex; flex-direction:column; gap:8px; }
+  .role-item { display:flex; align-items:center; gap:10px; padding:10px 12px; border:1px solid var(--border); border-radius:12px; cursor:pointer; transition:border-color .15s,background .15s; }
+  .role-item:hover { background:var(--bg-card); }
+  .role-item.sel { border-color:var(--primary); background:var(--primary-light); }
+  .role-item .rav { width:30px; height:30px; border-radius:8px; background:var(--primary-grad); color:#fff; display:flex; align-items:center; justify-content:center; font-size:15px; flex-shrink:0; }
+  .role-item .rname { font-weight:600; font-size:13px; color:var(--fg); }
+  .role-item .rsub { font-size:11.5px; color:var(--muted); }
+  .mline { display:flex; gap:6px; flex:1; }
+  .mpick { margin-top:8px; display:flex; flex-direction:column; gap:6px; }
+  .mpick label { width:auto !important; display:flex; align-items:center; gap:6px; color:var(--fg); font-size:12.5px; }
+  .mpick input[type=checkbox] { flex:0 0 auto; width:15px; }
+  .tool-item { display:flex; align-items:center; gap:10px; padding:9px 12px; border:1px solid var(--border); border-radius:11px; margin-bottom:8px; background:var(--bg-card); }
+  .tool-item .tn { font-weight:600; font-size:13px; min-width:110px; color:var(--fg); }
+  .tool-item .td { flex:1; font-size:11.5px; color:var(--muted); }
+  .tool-item select { flex:0 0 120px; width:120px; padding:6px 8px; border-radius:8px; border:1px solid var(--border); background:var(--bg-panel); color:var(--fg); }
+  .tool-item .tgl { flex:0 0 auto; }
+  .mcp-item { display:flex; align-items:center; gap:10px; padding:9px 12px; border:1px solid var(--border); border-radius:11px; margin-bottom:8px; background:var(--bg-card); font-size:13px; color:var(--fg); }
+  .mcp-item .mn { font-weight:600; }
+  .mcp-item .mc { flex:1; color:var(--muted); font-family:var(--font-mono); font-size:11.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .model-grp { border:1px solid var(--border); border-radius:11px; margin-bottom:10px; background:var(--bg); overflow:hidden; }
+  .model-grp-h { display:flex; align-items:center; gap:8px; padding:9px 12px; font-size:12.5px; font-weight:600; color:var(--fg); cursor:pointer; background:var(--bg-card); }
+  .model-grp-h .carat { margin-left:auto; color:var(--muted); }
+  .model-grp-list { display:none; }
+  .model-grp.open .model-grp-list { display:block; }
+  .model-item { display:flex; align-items:center; gap:10px; padding:8px 12px; border-top:1px solid var(--border); cursor:pointer; font-size:12px; }
+  .model-item:hover { background:var(--primary-light); }
+  .model-item .mi-n { color:var(--fg); font-weight:600; font-family:var(--font-mono); font-size:12px; min-width:0; }
+  .model-item .mi-m { flex:1; color:var(--muted); font-size:11px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:right; }
+  .warn { background:color-mix(in srgb, #ff7a45 14%, var(--bg-card)); border:1px solid #ff7a45; color:#ff8b5e; border-radius:10px; padding:8px 12px; font-size:12px; margin-top:8px; }
+  .warn.ok { color:var(--muted); border-color:var(--border); background:var(--bg-panel); }
+  @media (max-width:820px){ .sv-home{flex-direction:column;} .sv-col.sv-right{flex-basis:auto; max-width:none;} }
+  @media (max-width:640px){ .grid2{grid-template-columns:1fr;} .sv-body{padding:14px;} }
   .modal .row { display:flex; align-items:center; gap:10px; margin-bottom:10px; }
   .modal label { width:130px; color:var(--text2); font-size:12.5px; flex-shrink:0; font-weight:500; }
   .modal input,.modal select,.modal textarea { flex:1; background:var(--bg-panel); color:var(--fg); border:1px solid var(--border);
@@ -368,7 +470,7 @@
   @keyframes slideIn { from{opacity:0;transform:translateX(-6px)} to{opacity:1;transform:none} }
   @keyframes blink { 50%{opacity:0} }
 
-  #toasts { position:fixed; bottom:20px; right:20px; z-index:20; display:flex; flex-direction:column; gap:8px; }
+  #toasts { position:fixed; bottom:20px; right:20px; z-index:1100; display:flex; flex-direction:column; gap:8px; }
   .toast { background:var(--bg-card); border:1px solid var(--border); border-radius:12px; padding:10px 16px; font-size:13px; box-shadow:var(--shadow-lg); animation:toastIn .25s ease; max-width:320px; }
   html[data-anim="on"] .toast { animation:toastIn .3s cubic-bezier(.34,1.56,.64,1); }
   .toast.error { border-color:var(--red); color:var(--red); }
@@ -391,7 +493,7 @@
   #fileSearch:focus, #sessSearch:focus { border-color:var(--primary); box-shadow:0 0 0 3px var(--primary-light); }
   #sessSearch { margin:0 8px 8px; width:auto; }
 
-  .confirm-overlay { display:none; position:fixed; inset:0; background:rgba(7,18,28,.46); z-index:45; align-items:center; justify-content:center; backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); }
+  .confirm-overlay { display:none; position:fixed; inset:0; background:rgba(7,18,28,.46); z-index:1000; align-items:center; justify-content:center; backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); }
   .confirm-overlay.on { display:flex; }
   .confirm-box { background:var(--bg-card); border:1px solid var(--border); border-radius:16px; padding:18px 22px; box-shadow:var(--shadow-lg); max-width:360px; }
   .confirm-box p { margin:0 0 14px; font-size:14px; }
@@ -405,6 +507,167 @@
     .empty { padding:8vh 0 1vh; }
   }
   @media (orientation: landscape) and (max-height: 520px) { #chat { padding:12px; } }
+
+  /* =====================================================================
+     【蓝图 · 工程技术图纸】整体标识化覆盖层
+     浅色 = 蓝图拷贝纸 | 深色 = 暗夜蓝水稻 | 强调 = 工程橙墨色
+     ===================================================================== */
+ 
+   html,body { font-family:var(--font-body); }
+  /* 蓝图纸网格底纹（可在外观→背景里换成纯色等） */
+  html:not([data-bg="flat"]) body {
+    background:
+      linear-gradient(rgba(112,102,72,.07) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(112,102,72,.07) 1px, transparent 1px),
+      var(--bg);
+    background-size:26px 26px, 26px 26px, auto; }
+  html[data-theme="dark"] body {
+    background:
+      linear-gradient(rgba(190,190,215,.045) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(190,190,215,.045) 1px, transparent 1px),
+      var(--bg);
+    background-size:26px 26px, 26px 26px, auto; }
+
+  /* —— 顶栏：技术规格条 —— */
+  header { background:color-mix(in srgb, var(--bg-card) 88%, transparent);
+    border-bottom:2px solid var(--border); backdrop-filter:none; -webkit-backdrop-filter:none; }
+  .logo { font-family:var(--font-mono); font-weight:600; text-transform:uppercase; letter-spacing:2px;
+    font-size:15px; color:var(--fg); }
+  .logo .mark { width:auto; padding:2px 9px; background:var(--primary-grad); color:#fff; border-radius:2px;
+    font-size:13px; box-shadow:none; box-shadow:0 2px 0 color-mix(in srgb, var(--primary) 30%, transparent); }
+  #modelBadge { font-family:var(--font-mono); text-transform:uppercase; letter-spacing:.5px;
+    padding:3px 10px; border:1px solid var(--primary); border-radius:2px; background:var(--bg-card); }
+  .badge#meta, .badge { font-family:var(--font-mono); letter-spacing:.3px; }
+
+  /* —— 侧栏：图纸目录边栏 —— */
+  #sidebar { background:color-mix(in srgb, var(--bg-card) 92%, var(--bg));
+    border-right:1px solid var(--border);
+    box-shadow:inset -14px 0 24px -24px rgba(40,32,10,.5); }
+  html[data-theme="dark"] #sidebar { box-shadow:inset -14px 0 24px -24px rgba(0,0,0,.6); }
+  .brand { font-family:var(--font-mono); text-transform:uppercase; letter-spacing:1.6px; font-size:13px; }
+  .brand .mark { width:26px; height:26px; border-radius:2px; background:var(--primary-grad);
+    font-family:var(--font-mono); font-size:14px; box-shadow:0 2px 0 color-mix(in srgb, var(--primary) 28%, transparent); }
+  .navtabs { border-bottom:1px solid var(--border); gap:2px; }
+  .navtab { font-family:var(--font-mono); text-transform:uppercase; letter-spacing:.8px; font-size:11px; border-radius:2px; }
+  .navtab.active { background:var(--primary); color:#fff; font-weight:600; }
+  #sideBody .group, .s-h2, .sg { font-family:var(--font-mono); text-transform:uppercase; letter-spacing:1.5px; }
+  .sess { border:1px solid transparent; border-radius:2px; }
+  .sess.active { background:var(--primary); color:#fff; box-shadow:none; font-family:var(--font-mono); font-size:12px; }
+  .sess.active .t { color:#fff; }
+  .sess.active .del, .sess.active .del:hover { color:rgba(255,255,255,.85); }
+  #sideFoot { border-top:1px solid var(--border); }
+  .btn { border-radius:2px; font-family:var(--font-mono); letter-spacing:.3px; text-transform:uppercase; font-size:11px;
+    border-color:var(--border); box-shadow:none; }
+  .btn.primary { border-radius:2px; text-transform:uppercase; letter-spacing:.6px;
+    box-shadow:0 2px 0 color-mix(in srgb, var(--primary-hover) 60%, transparent); }
+  .btn.danger { border-radius:2px; }
+
+  /* —— 状态岛：实验标签 —— */
+  #island { border-radius:2px; font-family:var(--font-mono); letter-spacing:.3px;
+    border:1px solid var(--border); text-transform:uppercase; font-size:11px; color:var(--fg); }
+
+  /* —— 输入区：数据录入栏 —— */
+  #composer { padding:10px 16px 16px; }
+  .inputrow { border-radius:2px; border:1px solid var(--border); box-shadow:none;
+    background:var(--bg-card); }
+  .inputrow:focus-within { border-color:var(--primary); box-shadow:0 0 0 1px var(--primary); }
+  textarea#input { font-family:var(--font-body); }
+  .plus-btn { border-radius:2px; }
+  .send-btn { border-radius:50%; }
+  .hint { font-family:var(--font-mono); color:var(--muted); letter-spacing:.3px; text-transform:uppercase; font-size:10px; }
+
+  /* —— 起始空页面：图纸标题块 —— */
+  .empty .empty-logo { border-radius:3px; box-shadow:0 2px 0 color-mix(in srgb, var(--primary) 30%, transparent);
+    font-family:var(--font-mono); }
+  .empty .title { font-family:var(--font-mono); text-transform:uppercase; letter-spacing:3px; font-size:30px;
+    background:linear-gradient(120deg,var(--fg),var(--primary)); -webkit-background-clip:text; background-clip:text;
+    -webkit-text-fill-color:transparent; }
+  .empty .sub { font-family:var(--font-mono); letter-spacing:.3px; color:var(--text2); }
+  .mchip { border-radius:2px; font-family:var(--font-mono); font-size:11px; }
+  .quick .qbtn { border-radius:2px; font-family:var(--font-mono); font-size:12px;
+    background:var(--bg-card); }
+  .quick .qbtn:hover { box-shadow:0 2px 0 color-mix(in srgb, var(--primary) 40%, transparent); }
+  .quick .qbtn .qi { border-radius:2px; }
+
+  /* —— 对话：纸上文字 / 橙色标注 —— */
+  .msg .role { font-family:var(--font-mono); text-transform:uppercase; letter-spacing:1.2px; font-size:10px; }
+  .msg.user .body { border-radius:3px 3px 1px 3px; box-shadow:0 2px 0 color-mix(in srgb, var(--primary-hover) 45%, transparent); }
+  .msg.assistant .body { font-family:var(--font-body); }
+  .msg.assistant .body pre { border-radius:2px; background:var(--bg-panel); }
+  .tool { border-radius:2px; } .tool .detail { border-radius:0; }
+  .cursor { border-radius:1px; }
+
+  /* —— 统计卡片 / 弹窗 / 设置页 —— */
+  .stat { border-radius:2px; }
+  .ctxbar span { border-radius:0; }
+  .modal .panel { border-radius:4px; }
+  .modal .mtab { border-radius:2px; font-family:var(--font-mono); text-transform:uppercase; letter-spacing:.6px; font-size:11px; }
+  #settingsPage { background:var(--bg); }
+  .s-nav { border-right:1px solid var(--border); background:color-mix(in srgb, var(--bg-card) 94%, var(--bg)); }
+  .s-brand { font-family:var(--font-mono); text-transform:uppercase; letter-spacing:1.5px; }
+  .s-tab { border-radius:2px; font-family:var(--font-mono); font-size:12px; letter-spacing:.3px; }
+  .s-tab.active { background:var(--primary); color:#fff; font-weight:600; }
+  .s-h { font-family:var(--font-display); font-weight:600; letter-spacing:.4px; font-size:22px; text-transform:uppercase; }
+  .s-h small { font-family:var(--font-mono); text-transform:none; letter-spacing:0; }
+  .role-item, .tool-item, .mcp-item { border-radius:2px; }
+  .role-item .rav { border-radius:2px; }
+  .tool-item select, .s-sec select { border-radius:2px; }
+
+  /* —— 弹层细节 —— */
+  #fileEditor { border-left:1px solid var(--border); }
+  #fileEditor .fe-head .path { font-family:var(--font-mono); }
+  .fnode { border-radius:2px; }
+  .dirrow input, #fileSearch, #sessSearch { border-radius:2px; font-family:var(--font-mono); }
+  .modal input,.modal select,.modal textarea,.s-sec input,.s-sec textarea { border-radius:2px; }
+  .toast { border-radius:2px; }
+  .confirm-box { border-radius:3px; }
+  .banner { border-bottom:2px solid var(--yellow); }
+
+  /* —— 圆角增强：在蓝图硬朗骨架之上统一增加柔和圆角 —— */
+  :root { --radius:14px; }
+  .logo .mark, .brand .mark, .btn, .btn.primary, .btn.danger, #modelBadge,
+  .mchip, .qbtn, .tool, .fnode, .sess .del, .quick .qbtn .qi, .s-h2, .sg { border-radius:10px; }
+  .sess, .navtab, .modal .mtab, .s-tab, .role-item .rav { border-radius:9px; }
+  .inputrow { border-radius:16px; box-shadow:none; }
+  .inputrow:focus-within { box-shadow:0 0 0 1px var(--primary); }
+  .plus-btn { border-radius:10px; }
+  #island { border-radius:999px; }
+  .navtab.active, .s-tab.active { border-radius:9px; }
+  .empty .empty-logo { border-radius:20px; }
+  .empty .title { font-size:30px; }
+  .msg.user .body { border-radius:16px 16px 4px 16px; }
+  .msg.assistant .body pre { border-radius:10px; }
+  .tool .detail { border-radius:8px; }
+  .stat { border-radius:12px; }
+  .ctxbar span { border-radius:6px; }
+  .modal .panel, .confirm-box, #fileEditor .fe-head, #fileEditor .fe-body { border-radius:14px; }
+  .role-item, .tool-item, .mcp-item, .mline, .prov-item, .pf-item { border-radius:11px; }
+  .tool-item select, .s-sec select, .modal select, .modal input, .modal textarea,
+  .s-sec input, .s-sec textarea, .dirrow input, #fileSearch, #sessSearch, #cmdPick .cmditm, #wsPick .fnode { border-radius:8px; }
+  .toast { border-radius:12px; }
+  .cursor { border-radius:3px; }
+  #meta.badge, .badge { border-radius:999px; }
+  .s-nav .s-brand { border-radius:10px; }
+  .s-nav .sfoot .btn { border-radius:9px; }
+
+  /* —— 厂商卡片 —— */
+  #provList { display:flex; flex-direction:column; gap:8px; margin-bottom:6px; }
+  .prov-item { background:var(--bg-card); border:1px solid var(--border); border-radius:10px; padding:10px 12px; cursor:pointer; transition:border-color .15s, transform .1s; }
+  .prov-item:hover { border-color:var(--primary); }
+  .prov-item:active { transform:scale(.995); }
+  .prov-item.cur { border-color:var(--primary); box-shadow:0 0 0 1px var(--primary); }
+  .prov-hd { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+  .prov-name { display:flex; align-items:center; gap:8px; font-family:var(--font-mono); color:var(--fg); font-size:13px; }
+  .pdot { width:7px; height:7px; border-radius:50%; background:var(--primary); display:inline-block; }
+  .curtag { font-size:10px; padding:1px 7px; border-radius:999px; background:var(--primary); color:#fff; font-family:var(--font-mono); text-transform:uppercase; letter-spacing:.5px; }
+  .ptag { font-size:10px; padding:1px 7px; border-radius:999px; background:var(--bg-panel); color:var(--muted); font-family:var(--font-mono); border:1px solid var(--border); }
+  .prov-acts { display:flex; gap:6px; }
+  .prov-acts button { border-radius:7px; }
+  .prov-models { margin-top:7px; font-size:11px; color:var(--muted); font-family:var(--font-mono); overflow-wrap:anywhere; }
+  .model-chip { display:inline-block; background:var(--bg-panel); border:1px solid var(--border); color:var(--fg); border-radius:8px; padding:2px 9px; font-family:var(--font-mono); font-size:11px; margin:2px 5px 2px 0; cursor:pointer; }
+  .model-chip:hover { border-color:var(--primary); color:var(--primary); background:var(--primary-light); }
+  .mline { display:flex; gap:8px; }
+  .mline input { flex:1; min-width:0; }
 </style>
 </head>
 <body>
@@ -435,7 +698,16 @@
   <aside id="sidebar">
     <div class="top">
       <span class="brand" id="sideBrand"><span class="mark">l</span>licode</span>
-      <button class="btn primary" id="newSession">+ 新对话</button>
+      <div class="topbtns">
+        <button class="btn" id="sidebarToggle" title="收起侧边栏">≪</button>
+        <button class="btn primary" id="newSession">+ 新对话</button>
+      </div>
+    </div>
+    <div class="rail-icons">
+      <button class="rail-btn" id="sidebarOpen" title="展开侧边栏">≫</button>
+      <button class="rail-btn side-rail" data-side="sessions" title="对话">💬</button>
+      <button class="rail-btn side-rail" data-side="stats" title="统计">📊</button>
+      <button class="rail-btn side-rail" data-side="files" title="文件">📁</button>
     </div>
     <div class="navtabs" id="navtabs">
       <div class="navtab active" data-side="sessions">对话</div>
@@ -476,11 +748,6 @@
       </div>
     </div>
     <div id="sideFoot">
-      <div class="sf-actions">
-        <button class="btn" id="btnViewProvider" title="查看提供商">厂商</button>
-        <button class="btn" id="btnCheck" title="一键检查漏洞">🔍 检查</button>
-        <button class="btn" id="btnFix" title="一键修复漏洞">🛠 修复</button>
-      </div>
       <button class="btn primary" id="btnSettings">⚙ 设置</button>
       <span class="ver" id="ver"></span>
     </div>
@@ -504,10 +771,10 @@
     <div id="composer">
       <div class="box">
         <div class="selrow">
-          <button class="btn" id="modelPickBtn" title="选择模型">
-            <span id="modelPickLabel">选择模型</span> ▾
-          </button>
-          <span class="badge" id="wsBadge" title="工作目录">📁 <span id="wsPath">工作目录</span></span>
+        <button class="btn" id="modelPickBtn" title="选择模型">
+          <span id="modelPickLabel">选择模型</span> ▾
+        </button>
+        <span class="badge" id="wsBadge" title="工作目录">📁 <span id="wsPath">工作目录</span></span>
           <span class="spacer"></span>
           <span class="badge" id="meta2"></span>
         </div>
@@ -543,10 +810,7 @@
     <div id="plusMenu">
       <div class="pmitem" id="btnUpload"><span class="pi">⬆</span> 上传文件<span class="pd">上传到工作目录</span></div>
       <div class="pmitem" id="btnAt"><span class="pi">＠</span> 引用文件<span class="pd">在文件中定位</span></div>
-      <div class="sep"></div>
-      <div class="pmitem" id="btnCheck"><span class="pi">🔍</span> 一键检查漏洞<span class="pd">检查代码里的 bug / 漏洞</span></div>
-      <div class="pmitem" id="btnFix"><span class="pi">🛠</span> 一键修复漏洞<span class="pd">自动检查并修复</span></div>
-    </div>
+      </div>
 
     <input type="file" id="fileUpload" style="display:none" multiple>
     <div id="wsPick" style="display:none">
@@ -572,88 +836,171 @@
   </aside>
 </div>
 
-<div class="modal" id="settings">
-  <div class="panel">
-    <h3>设置</h3>
-    <div class="mtabs">
-      <div class="mtab active" data-mtab="general">通用</div>
-      <div class="mtab" data-mtab="providers">API 厂商</div>
-      <div class="mtab" data-mtab="about">关于</div>
-    </div>
-    <div id="mtab-general">
-      <div class="row"><label>当前提供商</label>
-        <input id="st_provider" list="providerList">
-        <datalist id="providerList"></datalist></div>
-      <div class="row"><label>当前模型</label>
-        <input id="st_model" list="modelList">
-        <button class="btn" id="btnModels">获取模型</button></div>
-      <datalist id="modelList"></datalist>
-      <div class="row"><label>API 地址</label><input id="st_base_url"></div>
-      <div class="row"><label>API 密钥</label><input id="st_api_key" type="password"></div>
-      <div class="sect">运行参数</div>
-      <div class="row"><label>温度</label><input id="st_temperature"></div>
-      <div class="row"><label>最大输出 tokens</label><input id="st_max_tokens"></div>
-      <div class="row"><label>最大迭代次数</label><input id="st_max_iterations"></div>
-      <div class="row"><label>子代理</label>
-        <select id="st_subagents"><option>开启</option><option>关闭</option></select></div>
-      <div class="row"><label>上下文压缩</label>
-        <select id="st_compaction"><option>开启</option><option>关闭</option></select></div>
-      <div class="row"><label>自动标题</label>
-        <select id="st_titlegen"><option>开启</option><option>关闭</option></select></div>
-      <div class="row"><label>自动允许</label>
-        <select id="st_auto"><option>关闭</option><option>开启</option></select></div>
-      <div class="row"><label>输出方式</label>
-        <select id="st_stream"><option>流式</option><option>非流式</option></select></div>
-      <div class="row"><label>工具规则</label>
-        <input id="st_rules" placeholder="read_file:allow, write_file:ask, run_shell:deny"></div>
-      <div class="row"><label>MCP 服务器</label><textarea id="st_mcp" rows="3"></textarea></div>
-      <div class="sect">外观</div>
-      <div class="row"><label>主题</label>
-        <select id="st_theme"><option>浅色</option><option>深色</option></select></div>
-      <div class="row"><label>动画</label>
-        <select id="st_anim"><option>关闭</option><option>开启</option></select></div>
-      <div class="row"><label>工具详情默认</label>
-        <select id="st_toolsopen"><option>展开</option><option>折叠</option></select></div>
-      <div class="row"><label>工作目录</label><input id="st_workspace" placeholder="/path"></div>
-      <div class="row"><label>版本</label><input id="st_version" readonly></div>
-    </div>
-    <div id="mtab-providers" style="display:none">
-      <div class="sect">已配置厂商（可添加多个 API，支持多种接口）</div>
-      <div id="provList"></div>
-      <div class="sect">新增厂商</div>
-      <div class="row"><label>类型</label>
-        <select id="st_ptype"><option value="openai">openai</option><option value="claude">claude</option><option value="google">google</option><option value="ollama">ollama</option></select></div>
-      <div class="row"><label>名称</label><input id="st_pname" placeholder="自定义显示名"></div>
-      <div class="row"><label>API 地址</label><input id="st_pbase" placeholder="https://api.example.com/v1"></div>
-      <div class="row"><label>API 密钥</label><input id="st_pkey" type="password"></div>
-      <div class="row"><label>模型</label>
-        <input id="st_pmodel" list="newModelList">
-        <button class="btn" id="btnNewModels">获取模型</button></div>
-      <datalist id="newModelList"></datalist>
-      <div class="btns"><button class="btn primary" id="btnAddProv">添加厂商</button></div>
-      <div class="row"><label>厂商列表</label><textarea id="st_providers" rows="4"></textarea></div>
-    </div>
-    <div id="mtab-about" style="display:none">
-      <div class="about">
-        <p>licode —— AI 编程助手（Web 版）。支持多 AI 提供商、工具调用、子代理、多对话、文件编辑、MCP/Skills。</p>
-        <p>
-          <b>开发者：</b>小帅5656<br>
-          <b>QQ 交流群：</b>1026939741<br>
-          <b>开发者邮箱：</b>li63050@qq.com<br>
-          <b>GitHub：</b><a href="https://github.com/li63050a/licode" target="_blank" rel="noopener">github.com/li63050a/licode</a><br>
-          <b>Gitee：</b><a href="https://gitee.com/li63050a/licode" target="_blank" rel="noopener">gitee.com/li63050a/licode</a><br>
-          <b>B 站：</b>小帅5656<br>
-          <b>当前版本：</b><span id="aboutVer">-</span>
-        </p>
+<div id="settingsPage">
+  <div class="sv-panel">
+    <!-- 顶栏：左上返回键（在侧边栏右侧）+ 标题 -->
+    <header class="sv-top">
+      <button class="cvbtn" id="svBack" title="返回">←</button>
+      <span class="sv-title" id="svTitle">设置</span>
+      <span class="sv-fill"></span>
+      <span class="sv-ver" id="ver2"></span>
+    </header>
+
+    <!-- 内容区 -->
+    <div class="sv-body">
+      <!-- 设置主页：左 = API 设置（含助手），右 = 模型 -->
+      <div class="sv-home" id="svHome">
+        <section class="sv-col">
+          <div class="sv-card">
+            <div class="sv-card-h">助手 <small>点名称直接编辑；会自动生成默认助手，之后随时改</small></div>
+            <div id="roleList" class="role-list"></div>
+            <button class="btn primary" id="btnAddRole" style="width:100%;margin-top:12px">+ 新建助手</button>
+          </div>
+
+          <div class="sv-card">
+            <div class="sv-card-h">API 设置 <small>点厂商卡片编辑，点模型详细配置；用哪个在聊天顶部选</small></div>
+            <div id="provList"></div>
+            <button class="btn primary" id="btnAddProv" style="width:100%;margin-top:12px">+ 添加 API / 厂商</button>
+            <div class="row" style="display:none"><textarea id="st_providers" rows="3"></textarea></div>
+          </div>
+
+          <div class="sv-card">
+            <div class="sv-card-h">关于</div>
+            <div class="about">
+              <p>licode —— AI 编程助手（Web 版）。支持多 AI 提供商、工具调用、子代理、多对话、文件编辑、MCP/Skills。</p>
+              <p><b>开发者：</b>小帅5656<br>
+                <b>QQ 交流群：</b>1026939741<br>
+                <b>开发者邮箱：</b>li63050@qq.com<br>
+                <b>GitHub：</b><a href="https://github.com/li63050a/licode" target="_blank" rel="noopener">github.com/li63050a/licode</a><br>
+                <b>Gitee：</b><a href="https://gitee.com/li63050a/licode" target="_blank" rel="noopener">gitee.com/li63050a/licode</a><br>
+                <b>B 站：</b>小帅5656<br>
+                <b>当前版本：</b><span id="aboutVer">-</span></p>
+            </div>
+          </div>
+        </section>
+
+        <section class="sv-col sv-right">
+          <div class="sv-card">
+            <div class="sv-card-h">模型 <small>按厂商分组；点模型配置温度 / 输出上限 / Top-P 等</small></div>
+            <div id="modelPanel"></div>
+          </div>
+        </section>
+      </div>
+
+      <!-- 助手编辑界面（保留左侧边栏，顶栏返回键可回到设置主页） -->
+      <div class="sv-assistant" id="svAssistant" style="display:none">
+        <section class="s-sec" id="roleEditor">
+          <div class="s-h2">编辑助手</div>
+          <div class="grid2">
+            <div class="row"><label>名称</label><input id="r_name"></div>
+            <div class="row"><label>头像</label><input id="r_avatar" placeholder="如 🧑‍💻"></div>
+          </div>
+          <div class="row"><label>系统提示词 / 描述</label><textarea id="r_prompt" rows="4" placeholder="定义这个助手的身份与行为…"></textarea></div>
+          <div class="row"><label>记忆（随助手保存，始终注入）</label><textarea id="r_memory" rows="2" placeholder="对这个助手的固定背景/记忆…"></textarea></div>
+          <div class="grid2">
+            <div class="row"><label>温度</label><input id="r_temp" type="number" step="0.1" min="0" max="2"></div>
+            <div class="row"><label>Top-P</label><input id="r_topp" type="number" step="0.05" min="0" max="1"></div>
+            <div class="row"><label>最大输出 tokens</label><input id="r_maxtok" type="number" min="1"></div>
+            <div class="row"><label>Top-K</label><input id="r_topk" type="number" min="1"></div>
+          </div>
+
+          <div class="s-h2 rg">该助手的工具</div>
+          <div class="row"><label>工具规则 <small>逐一设置每个工具的 允许/需审批/拒绝</small></label><input id="st_rules" placeholder="read_file:allow, write_file:ask, run_shell:deny"></div>
+          <div id="toolsTable"></div>
+
+          <div class="s-h2 rg">该助手的 MCP 服务器</div>
+          <div id="mcpPick" class="mcp-list"></div>
+          <div class="row"><label>类型</label><select id="m_type">
+            <option value="stdio">stdio（本地命令，如 npx）</option>
+            <option value="http">HTTP（远程地址）</option>
+          </select></div>
+          <div class="grid2">
+            <div class="row"><label>名称</label><input id="m_name" placeholder="my-server"></div>
+            <div class="row"><label>命令 (stdio)</label><input id="m_cmd" placeholder="npx -y @modelcontextprotocol/server-xxx"></div>
+          </div>
+          <div class="row" id="rowMUrl" style="display:none"><label>地址 (HTTP)</label><input id="m_url" placeholder="https://example.com/mcp"></div>
+          <div id="nodeWarn" class="warn" style="display:none"></div>
+          <div class="btns"><button class="btn primary" id="m_add">添加 MCP</button></div>
+          <textarea id="st_mcp" style="display:none"></textarea>
+
+          <div class="s-h2 rg">该助手的外观</div>
+          <div class="grid2">
+            <div class="row"><label>主题</label><select id="st_theme"><option>浅色</option><option>深色</option></select></div>
+            <div class="row"><label>主色</label><input id="st_accent" type="color" title="自定义整体主色调"></div>
+            <div class="row"><label>背景发光</label><select id="st_glow"><option>开启</option><option>关闭</option></select></div>
+            <div class="row"><label>背景</label><select id="st_bg">
+              <option value="glow">柔和光晕</option>
+              <option value="flat">极简纯色</option>
+              <option value="grid">柔和网格</option>
+              <option value="gradient">渐变天空</option>
+              <option value="stars">粒子星空</option>
+            </select></div>
+            <div class="row"><label>动画</label><select id="st_anim"><option>关闭</option><option>开启</option></select></div>
+            <div class="row"><label>工具详情默认</label><select id="st_toolsopen"><option>展开</option><option>折叠</option></select></div>
+          </div>
+          <div class="btns"><button class="btn" id="btnResetAppearance">恢复默认外观</button></div>
+
+          <div class="btns">
+            <button class="btn" id="btnRoleDel">删除助手</button>
+            <button class="btn primary" id="btnRoleSave">保存助手</button>
+          </div>
+        </section>
       </div>
     </div>
+
+    <!-- 底边栏 -->
+    <footer class="sv-bottom">
+      <span class="b-hint">修改后点「保存设置」生效</span>
+      <span class="sv-fill"></span>
+      <button class="btn" id="settingsCancel">返回聊天</button>
+      <button class="btn primary" id="settingsSave">保存设置</button>
+    </footer>
+  </div>
+</div>
+
+<!-- 添加 / 编辑厂商弹窗 -->
+<div class="modal" id="provModal">
+  <div class="panel">
+    <h3 id="provModalTitle">添加厂商</h3>
+    <div class="row"><label>兼容接口</label><select id="m_ptype">
+      <option value="openai">OpenAI 兼容</option>
+      <option value="claude">Anthropic Claude</option>
+      <option value="google">Google Gemini</option>
+      <option value="ollama">Ollama 本地</option>
+    </select></div>
+    <div class="row"><label>显示名称</label><input id="m_pname" placeholder="例如：DeepSeek / 通义"></div>
+    <div class="row"><label>API 地址</label><input id="m_pbase" placeholder="https://api.example.com/v1"></div>
+    <div class="row"><label>API 密钥</label><input id="m_pkey" type="password" placeholder="sk-..."></div>
+    <div class="sect">模型（可获取列表，也可直接手填）</div>
+    <div class="row"><label>模型</label><input id="m_pmodel" list="newModelList" placeholder="选择或填写一个或多个模型名…"></div>
+    <div class="row"><label>&nbsp;</label>
+      <span class="mline">
+        <button class="btn" id="btnNewModels">获取模型</button>
+        <button class="btn" id="btnSelAll">全选</button>
+      </span>
+    </div>
+    <datalist id="newModelList"></datalist>
+    <div id="modelPickAdd" class="mpick" style="margin:4px 0 0 140px;"></div>
     <div class="btns">
-      <button class="btn" id="settingsCancel">关闭</button>
-      <button class="btn primary" id="settingsSave">保存</button>
+      <button class="btn" id="provModalCancel">取消</button>
+      <button class="btn primary" id="provModalSave">保存</button>
     </div>
   </div>
 </div>
 
+<!-- 模型详细配置弹窗 -->
+<div class="modal" id="modelCfgModal">
+  <div class="panel">
+    <h3 id="modelCfgTitle">模型详细配置</h3>
+    <div class="row"><label>温度</label><input id="mc_temp" type="number" step="0.1" min="0" max="2"></div>
+    <div class="row"><label>最大输出 tokens</label><input id="mc_maxtok" type="number" min="1"></div>
+    <div class="row"><label>Top-P</label><input id="mc_topp" type="number" step="0.05" min="0" max="1"></div>
+    <div class="btns">
+      <button class="btn" id="mcCancel">取消</button>
+      <button class="btn primary" id="mcSave">保存</button>
+    </div>
+  </div>
+</div>
 <script>
 'use strict';
 const $ = id => document.getElementById(id);
@@ -664,6 +1011,7 @@ function safeLS(key, val) { try { if (val === undefined) return localStorage.get
 let theme = safeLS('licode_theme') || 'light';
 let anim = safeLS('licode_anim') === 'on';
 let toolOpen = safeLS('licode_tool_open') !== 'off';
+let bg = safeLS('licode_bg') || 'glow';
 let curSettings = {};
 
 function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }
@@ -865,33 +1213,253 @@ $('askYes').addEventListener('click', () => replyAsk(true, false));
 $('askNo').addEventListener('click', () => replyAsk(false, false));
 $('askAlways').addEventListener('click', () => replyAsk(true, true));
 
-/* ---------- 设置 ---------- */
-function openSettings(tab) {
+/* ---------- 设置工作区（保留左侧边栏，在其右侧展开） ---------- */
+function settingsLeft() { const sb = document.getElementById('sidebar'); return sb ? sb.offsetWidth : 252; }
+function showHomeView() {
+  $('svHome').style.display = 'flex';
+  $('svAssistant').style.display = 'none';
+  $('svTitle').textContent = '设置';
+}
+function showAssistantView() {
+  $('svHome').style.display = 'none';
+  $('svAssistant').style.display = 'block';
+  $('roleEditor').style.display = 'block';
+  $('svTitle').textContent = '编辑助手';
+  detectNode();
+}
+function openSettings(sec) {
   ws.send(JSON.stringify({ type:'settings_get' }));
-  $('settings').classList.add('on');
-  if (tab) switchMTab(tab);
+  $('settingsPage').style.left = settingsLeft() + 'px';
+  $('settingsPage').classList.add('on');
+  showHomeView();
+  renderRoles();
+  renderProvList(); renderModelPanel();
 }
-function switchMTab(name) {
-  document.querySelectorAll('.mtab').forEach(x => x.classList.toggle('active', x.getAttribute('data-mtab') === name));
-  $('mtab-general').style.display = name === 'general' ? '' : 'none';
-  $('mtab-providers').style.display = name === 'providers' ? '' : 'none';
-  $('mtab-about').style.display = name === 'about' ? '' : 'none';
+$('svBack').addEventListener('click', () => {
+  if ($('svAssistant').style.display !== 'none') showHomeView();
+  else closeSettings();
+});
+function closeSettings() { $('settingsPage').classList.remove('on'); }
+
+/* ---- 角色 ---- */
+const ROLES_KEY = 'licode_roles', ACTIVE_KEY = 'licode_active_role';
+let editingRole = null;
+function getRoles(){ try { return JSON.parse(safeLS(ROLES_KEY) || '[]'); } catch (e) { return []; } }
+function activeRole(){ return getRoles().find(r => r.id === safeLS(ACTIVE_KEY)) || null; }
+function roleSystem(){ const r = activeRole(); if (!r) return ''; return ((r.prompt||'') + '\n' + (r.memory||'')).trim(); }
+let _roleSeeded = false;
+// 首次进入自动生成一个默认助手并设为当前，方便直接用、之后再改
+function ensureDefaultRole(){
+  if (_roleSeeded) return;
+  _roleSeeded = true;
+  if (getRoles().length) return;
+  const def = { id: 'default', name: '默认助手', avatar: '✦', prompt: '你是一个 AI 编程助手，负责解答编程相关问题并协助编写、修改代码。', memory: '', temp: 0.7, topp: 1, maxtok: 4096, topk: 0 };
+  safeLS(ROLES_KEY, JSON.stringify([def]));
+  if (!safeLS(ACTIVE_KEY)) safeLS(ACTIVE_KEY, 'default');
 }
-document.querySelectorAll('.mtab').forEach(x => x.addEventListener('click', () => switchMTab(x.getAttribute('data-mtab'))));
+function renderRoles() {
+  ensureDefaultRole();
+  const box = $('roleList'); box.innerHTML = '';
+  const roles = getRoles();
+  const active = safeLS(ACTIVE_KEY);
+  roles.forEach(r => {
+    const it = el('div', 'role-item' + (r.id === active ? ' sel' : ''));
+    const av = el('div', 'rav', r.avatar || '✦'); it.appendChild(av);
+    const tx = el('div', '');
+    tx.appendChild(el('div', 'rname', r.name + (r.id === active ? ' (当前)' : '')));
+    tx.appendChild(el('div', 'rsub', (r.prompt||'').split('\n')[0] || '无提示词'));
+    it.appendChild(tx);
+    it.addEventListener('click', () => loadRole(r.id));
+    if (r.id !== active) {
+      const use = document.createElement('button'); use.textContent = '设为当前'; use.className = 'mini';
+      use.addEventListener('click', (e) => { e.stopPropagation(); safeLS(ACTIVE_KEY, r.id); applyRoleParams(r); renderRoles(); toast('已切换助手：' + r.name, 'success'); });
+      it.appendChild(use);
+    }
+    box.appendChild(it);
+  });
+}
+const TMP_ID = 'tmp_role';
+function loadRole(id) {
+  const r = getRoles().find(x => x.id === id) || { id: id === TMP_ID ? TMP_ID : ('r' + Date.now()), name:'', avatar:'', prompt:'', memory:'', temp:0.7, topp:1, maxtok:4096, topk:0 };
+  editingRole = r;
+  $('r_name').value = r.name; $('r_avatar').value = r.avatar||''; $('r_prompt').value = r.prompt||'';
+  $('r_memory').value = r.memory||''; $('r_temp').value = r.temp!=null?r.temp:0.7;
+  $('r_topp').value = r.topp!=null?r.topp:1; $('r_maxtok').value = r.maxtok||4096; $('r_topk').value = r.topk||'';
+  $('btnRoleDel').style.display = id === TMP_ID ? 'none' : '';
+  showAssistantView();
+}
+$('btnAddRole').addEventListener('click', () => loadRole(TMP_ID));
+$('btnRoleSave').addEventListener('click', () => {
+  const roles = getRoles();
+  const name = $('r_name').value.trim();
+  if (!name) { toast('助手名称不能为空', 'error'); return; }
+  const rec = { id: editingRole.id, name, avatar: $('r_avatar').value.trim() || '✦',
+    prompt: $('r_prompt').value, memory: $('r_memory').value,
+    temp: parseFloat($('r_temp').value) || 0.7, topp: parseFloat($('r_topp').value) || 1,
+    maxtok: parseInt($('r_maxtok').value) || 4096, topk: parseInt($('r_topk').value) || 0 };
+  const i = roles.findIndex(x => x.id === rec.id);
+  if (i >= 0) roles[i] = rec; else roles.push(rec);
+  if (!roles.find(x => x.id === safeLS(ACTIVE_KEY)) && (i < 0)) safeLS(ACTIVE_KEY, rec.id);
+  setRoles(roles);
+  showHomeView();
+  toast('助手已保存', 'success');
+});
+$('btnRoleDel').addEventListener('click', () => {
+  const roles = getRoles().filter(x => x.id !== editingRole.id);
+  if (safeLS(ACTIVE_KEY) === editingRole.id) safeLS(ACTIVE_KEY, '');
+  setRoles(roles); showHomeView();
+  toast('助手已删除', 'success');
+});
+function setRoles(r){ safeLS(ROLES_KEY, JSON.stringify(r)); renderRoles(); }
+// 切换角色时把该角色的温度/输出上限同步为当前生效参数。
+function applyRoleParams(r) {
+  if (!r) return;
+  if ($('selThink')) { const o=[...$('selThink').options].find(x=>Math.abs(parseFloat(x.value)-(r.temp||0.7))<0.06); if (o) $('selThink').value=o.value; }
+  try { ws.send(JSON.stringify({ type:'settings_set', settings: Object.assign({}, readSettings(), { temperature: r.temp != null ? r.temp : 0.7, max_tokens: r.maxtok || 4096 }) })); } catch (e) {}
+}
+
+/* ---- 工具（权限） ---- */
+const TOOLS = [
+  { n:'read_file',  d:'读取文件' },
+  { n:'write_file', d:'写入/替换文件' },
+  { n:'list_dir',   d:'列出目录' },
+  { n:'grep',       d:'正则搜索代码' },
+  { n:'glob',       d:'按通配符查找文件' },
+  { n:'run_shell',  d:'执行 shell 命令' },
+  { n:'web_search', d:'联网搜索' },
+];
+function renderTools() {
+  const box = $('toolsTable'); box.innerHTML = '';
+  const rules = {};
+  ($('st_rules').value||'').split(/[,，]/).forEach(p => { const [k,v] = p.split(':').map(x=>x.trim()); if (k && v) rules[k]=v; });
+  TOOLS.forEach(t => {
+    const cur = rules[t.n] || 'allow';
+    const it = el('div', 'tool-item');
+    it.appendChild(el('span', 'tn', t.n));
+    it.appendChild(el('span', 'td', t.d));
+    const sel = document.createElement('select');
+    ['allow','ask','deny'].forEach(v => { const o = document.createElement('option'); o.value=v; o.textContent = ({allow:'允许',ask:'需审批',deny:'拒绝(禁用)'})[v]; if (v===cur) o.selected = true; sel.appendChild(o); });
+    sel.addEventListener('change', () => {
+      const rr = {}; ($('st_rules').value||'').split(/[,，]/).forEach(p => { const [k,v] = p.split(':').map(x=>x.trim()); if (k && v && k!==t.n) rr[k]=v; });
+      rr[t.n] = sel.value;
+      $('st_rules').value = Object.keys(rr).map(k => k+':'+rr[k]).join(', ');
+    });
+    it.appendChild(sel);
+    box.appendChild(it);
+  });
+}
+
+/* ---- MCP ---- */
+let _nodeCheck = null; // Promise 缓存 nodejs 检测结果
+function detectNode() {
+  if (_nodeCheck) return _nodeCheck;
+  _nodeCheck = api('/api/nodejs').then(d => {
+    const nodeOk = !!(d && d.node);
+    const w = $('nodeWarn');
+    // 依赖当前类型：仅 stdio（可能用 npx）时提示
+    if (!nodeOk && w && $('m_type').value === 'stdio') {
+      w.style.display = 'block'; w.classList.remove('ok');
+      w.textContent = '未检测到 Node.js / npx：本地 stdio 类 MCP 通常依赖它来运行。请先安装 Node.js（https://nodejs.org）后重试。';
+    } else if (w) {
+      w.style.display = 'none';
+    }
+    return d;
+  }).catch(() => null);
+  return _nodeCheck;
+}
+function refreshNodeWarn(force) {
+  if (force) _nodeCheck = null;
+  _nodeCheck = detectNode();
+}
+// 类型切换：http 显式地址输入，stdio 显式命令输入
+function applyMcpType() {
+  const http = $('m_type').value === 'http';
+  $('rowMUrl').style.display = http ? 'flex' : 'none';
+  if (http) {
+    // http 时命令不是必填
+    const row = $('m_cmd').closest('.row'); if (row) row.style.display = 'none';
+  } else {
+    const row = $('m_cmd').closest('.row'); if (row) row.style.display = '';
+    const w = $('nodeWarn');
+    if (w && _nodeCheck && _nodeCheck.then) {
+      refreshNodeWarn(true);
+    }
+  }
+}
+$('m_type').addEventListener('change', applyMcpType);
+
+function readMcp(){ try { return JSON.parse($('st_mcp').value || '[]'); } catch(e){ return []; } }
+function renderMcp() {
+  const box = $('mcpPick'); box.innerHTML = '';
+  readMcp().forEach((m,i) => {
+    const it = el('div', 'mcp-item');
+    const isHttp = /^http$/i.test(m.type || '');
+    const shown = m.name || (isHttp ? m.url : m.command) || ('#'+i);
+    it.appendChild(el('span','mn', shown));
+    it.appendChild(el('span','mc', (isHttp ? m.url : m.command) || ''));
+    const del = document.createElement('button'); del.textContent='删'; del.className='del';
+    del.addEventListener('click', () => { const arr = readMcp(); arr.splice(i,1); $('st_mcp').value = JSON.stringify(arr); renderMcp(); });
+    it.appendChild(del); box.appendChild(it);
+  });
+}
+$('m_add').addEventListener('click', () => {
+  const isHttp = $('m_type').value === 'http';
+  const name = $('m_name').value.trim();
+  const cmd = $('m_cmd').value.trim();
+  const url = $('m_url').value.trim();
+  if (isHttp && !url) { toast('HTTP MCP 地址不能为空', 'error'); return; }
+  if (!isHttp && !cmd) { toast('MCP 命令不能为空', 'error'); return; }
+  const arr = readMcp();
+  if (isHttp) {
+    arr.push({ name: name || url, type: 'http', url: url });
+  } else {
+    arr.push({ name: name || cmd.split(' ')[0], type: 'stdio', command: cmd });
+  }
+  $('st_mcp').value = JSON.stringify(arr);
+  $('m_name').value=''; $('m_cmd').value=''; $('m_url').value='';
+  renderMcp(); toast(isHttp ? 'HTTP MCP 已添加（保存后生效）' : 'MCP 已添加（保存后生效）', 'success');
+});
+
+/* ---- 右侧模型面板：按厂商分组，点模型进入详细配置 ---- */
+function renderModelPanel() {
+  const box = $('modelPanel'); if (!box) return;
+  box.innerHTML = '';
+  const provs = (curSettings.providers || []).filter(p => p.model);
+  if (!provs.length) { box.appendChild(el('div', 'badge', '暂无已配置模型，先在左侧「API 设置」添加厂商与模型')); return; }
+  const byName = {};
+  provs.forEach(p => { if (!byName[p.provider]) byName[p.provider] = { name: p.name || p.provider, list: [] }; });
+  provs.forEach(p => { byName[p.provider].list.push(p); });
+  Object.keys(byName).forEach((k, gi) => {
+    const g = byName[k];
+    const grp = el('div', 'model-grp' + (gi === 0 ? ' open' : ''));
+    const hd = el('div', 'model-grp-h');
+    hd.appendChild(el('span', '', g.name + '（' + g.list.length + '）'));
+    hd.appendChild(el('span', 'carat', gi === 0 ? '▾' : '▸'));
+    hd.addEventListener('click', () => { grp.classList.toggle('open'); hd.querySelector('.carat').textContent = grp.classList.contains('open') ? '▾' : '▸'; });
+    grp.appendChild(hd);
+    const list = el('div', 'model-grp-list');
+    g.list.forEach(e => {
+      const cfg = (e.temperature != null || e.max_tokens || e.top_p != null);
+      const item = el('div', 'model-item');
+      item.appendChild(el('span', 'mi-n', e.model + (cfg ? ' ★' : '')));
+      const meta = [e.temperature != null ? ('temp ' + e.temperature) : '', e.max_tokens ? ('max ' + e.max_tokens) : '', e.top_p != null ? ('top-p ' + e.top_p) : ''].filter(Boolean).join(' · ') || '未单独配置';
+      item.appendChild(el('span', 'mi-m', meta));
+      item.title = cfg ? '已单独配置，点击修改 ' + e.model : '点击配置 ' + e.model;
+      item.addEventListener('click', () => openModelCfg(k, e.model));
+      list.appendChild(item);
+    });
+    grp.appendChild(list);
+    box.appendChild(grp);
+  });
+}
+
+/* ---- 模型勾选添加 ---- */
+$('btnSelAll').addEventListener('click', () => { document.querySelectorAll('#modelPickAdd input[type=checkbox]').forEach(c => c.checked = true); toast('已全选', 'success'); });
 
 function fillSettings(s) {
   curSettings = s;
-  $('st_provider').value = s.provider || 'openai';
-  $('st_model').value = s.model || ''; $('st_base_url').value = s.base_url || ''; $('st_api_key').value = s.api_key || '';
   const provs = s.providers || [];
   $('st_providers').value = JSON.stringify(provs, null, 1);
-  $('st_temperature').value = s.temperature != null ? s.temperature : 0.7;
-  $('st_max_tokens').value = s.max_tokens || 4096; $('st_max_iterations').value = s.max_iterations || 16;
-  $('st_subagents').value = s.subagents ? '开启' : '关闭';
-  $('st_compaction').value = s.compaction ? '开启' : '关闭';
-  $('st_titlegen').value = s.title_gen ? '开启' : '关闭';
-  $('st_auto').value = s.auto_allow ? '开启' : '关闭';
-  $('st_stream').value = s.streaming === false ? '非流式' : '流式';
   const rules = (s.tool_rules || {});
   $('st_rules').value = Object.keys(rules).map(k => k + ':' + rules[k]).join(', ');
   $('st_mcp').value = JSON.stringify(s.mcp_servers || [], null, 1);
@@ -900,87 +1468,180 @@ function fillSettings(s) {
   $('st_anim').value = anim ? '开启' : '关闭';
   if (s.temperature != null) { const tv = Number(s.temperature).toFixed(1); const o = [...$('selThink').options].find(x => Number(x.value).toFixed(1) === tv || Math.abs(parseFloat(x.value) - s.temperature) < 0.06); if (o) $('selThink').value = o.value; }
   renderProvList();
-  populateProviders();
   renderModelPick();
+  renderModelPanel();
+  renderMcp();
+  applyMcpType();
   setConn(true);
 }
+let editingProv = null;
+// 厂商页纯管理：只负责增删改厂商，不在这里"设置当前"。
+// 选择使用哪个厂商/模型，一律在聊天顶部的模型下拉里自由选择。
 function renderProvList() {
   const box = $('provList'); box.innerHTML = '';
   const provs = (curSettings.providers || []);
-  if (!provs.length) { box.appendChild(el('div', 'badge', '  暂无已配置厂商')); return; }
-  provs.forEach(p => {
+  if (!provs.length) { box.appendChild(el('div', 'badge', '暂无已配置厂商，请在下方添加，然后在聊天顶部选择使用哪个厂商/模型')); return; }
+  const byName = {};
+  provs.forEach(p => { if (!byName[p.provider]) byName[p.provider] = { name: p.name || p.provider, type: p.type || 'openai', models: [] }; byName[p.provider].models.push(p.model); });
+  Object.keys(byName).forEach(k => {
+    const g = byName[k];
     const it = el('div', 'prov-item');
-    it.appendChild(el('span', 'pn', p.name || p.provider));
-    it.appendChild(el('span', 'pt', p.type || 'openai'));
-    const act = document.createElement('button');
-    act.textContent = p.provider === curSettings.provider ? '使用中' : '启用';
-    act.className = p.provider === curSettings.provider ? 'act' : '';
-    act.addEventListener('click', () => { const s = readSettings(); s.provider = p.provider; s.base_url = p.base_url||''; s.api_key = p.api_key||''; s.model = p.model||''; ws.send(JSON.stringify({ type:'settings_set', settings: s })); });
-    it.appendChild(act);
-    const del = document.createElement('button');
-    del.textContent = '删';
-    del.className = 'del';
-    del.addEventListener('click', async () => {
-      if (!(await showConfirm('删除厂商「' + (p.name || p.provider) + '」？'))) return;
-      let list = (curSettings.providers||[]).filter(x => x.provider !== p.provider);
-      const s = readSettings(); s.providers = list; ws.send(JSON.stringify({ type:'settings_set', settings: s }));
+    // 整张卡片可点击，直接进入编辑弹窗（不再需要专门的"编辑"按钮）
+    it.addEventListener('click', () => loadEditProv(k));
+    const hd = el('div', 'prov-hd');
+    const nm = el('div', 'prov-name');
+    nm.appendChild(el('span', 'pdot', '')).appendChild(el('span', '', g.name + ' · ' + (g.type || 'openai')));
+    const acts = el('div', 'prov-acts');
+    const del = document.createElement('button'); del.textContent = '删除'; del.className = 'del';
+    del.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      if (!(await showConfirm('删除厂商「' + g.name + '」？'))) return;
+      const s = readSettings(); s.providers = (curSettings.providers || []).filter(x => x.provider !== k);
+      curSettings.providers = s.providers;
+      if (curSettings.provider === k) { curSettings.provider = ''; curSettings.model = ''; s.provider = ''; s.model = ''; }
+      ws.send(JSON.stringify({ type: 'settings_set', settings: s }));
+      renderProvList(); renderModelPick();
     });
-    it.appendChild(del);
+    acts.appendChild(del);
+    hd.appendChild(nm); hd.appendChild(acts);
+    it.appendChild(hd);
+    // 模型芯片：点击进入该模型的详细配置（温度等）
+    const mrow = el('div', 'prov-models');
+    const mods = [...new Set((g.models || []).filter(Boolean))];
+    if (!mods.length) mrow.appendChild(el('span', 'badge', '未配置模型'));
+    mods.forEach(mod => {
+      const entry = (curSettings.providers || []).find(p => p.provider === k && p.model === mod);
+      const hasCfg = entry && (entry.temperature != null || entry.max_tokens || entry.top_p != null);
+      const chip = el('span', 'model-chip', mod + (hasCfg ? ' ★' : ''));
+      chip.title = hasCfg ? mod + '（已单独配置，点击修改）' : '点击配置：' + mod;
+      chip.addEventListener('click', (e) => { e.stopPropagation(); openModelCfg(k, mod); });
+      mrow.appendChild(chip);
+    });
+    it.appendChild(mrow);
     box.appendChild(it);
   });
 }
+function loadEditProv(key) { openProvModal(key); }
+
+/* ---- 添加/编辑厂商弹窗 ---- */
+let pendingModels = [];
+function openProvModal(key) {
+  editingProv = key || null;
+  $('provModalTitle').textContent = key ? '编辑厂商：' + key : '添加厂商';
+  if (key) {
+    const first = (curSettings.providers || []).find(p => p.provider === key);
+    $('m_pname').value = first ? (first.name || key) : key;
+    $('m_ptype').value = first && first.type ? first.type : 'openai';
+    $('m_pbase').value = first ? (first.base_url || '') : '';
+    $('m_pkey').value = first ? (first.api_key || '') : '';
+    $('m_pmodel').value = (curSettings.providers || []).filter(p => p.provider === key).map(p => p.model).filter(Boolean).join(', ');
+  } else {
+    $('m_pname').value = ''; $('m_ptype').value = 'openai'; $('m_pbase').value = ''; $('m_pkey').value = ''; $('m_pmodel').value = '';
+  }
+  $('modelPickAdd').innerHTML = ''; pendingModels = [];
+  $('provModal').classList.add('on');
+}
+$('btnAddProv').addEventListener('click', () => openProvModal(null));
+$('provModalCancel').addEventListener('click', () => $('provModal').classList.remove('on'));
 function readSettings() {
   let mcp = []; try { mcp = JSON.parse($('st_mcp').value || '[]'); } catch (e) {}
   let providers = []; try { providers = JSON.parse($('st_providers').value || '[]'); } catch (e) {}
   const rules = {};
   $('st_rules').value.split(/[,，]/).forEach(p => { const [k, v] = p.split(':').map(x => x.trim()); if (k && v) rules[k] = v; });
   return {
-    provider: $('st_provider').value, model: $('st_model').value, base_url: $('st_base_url').value, api_key: $('st_api_key').value,
-    temperature: parseFloat($('st_temperature').value) || 0.7, max_tokens: parseInt($('st_max_tokens').value) || 4096,
-    max_iterations: parseInt($('st_max_iterations').value) || 16,
-    subagents: $('st_subagents').value === '开启', compaction: $('st_compaction').value === '开启', title_gen: $('st_titlegen').value === '开启',
-    auto_allow: $('st_auto').value === '开启',
-    streaming: $('st_stream').value === '流式',
+    provider: curSettings.provider, model: curSettings.model, base_url: curSettings.base_url, api_key: curSettings.api_key,
+    temperature: curSettings.temperature != null ? curSettings.temperature : 0.7,
+    max_tokens: curSettings.max_tokens || 4096,
+    max_iterations: curSettings.max_iterations || 16,
+    subagents: curSettings.subagents !== false,
+    compaction: curSettings.compaction !== false,
+    title_gen: curSettings.title_gen !== false,
+    auto_allow: !!curSettings.auto_allow,
+    streaming: curSettings.streaming !== false,
     tool_rules: rules, mcp_servers: mcp,
     providers: providers,
   };
 }
-function populateProviders() {
-  const dl = $('providerList'); dl.innerHTML = '';
-  let list = [];
-  if (curSettings.providers && curSettings.providers.length) {
-    curSettings.providers.forEach(p => { if (p.provider) list.push({ provider: p.provider, label: (p.name || p.provider) }); });
-  }
-  if (!list.length) ['openai','claude','google'].forEach(p => list.push({ provider: p, label: p }));
-  list.forEach(it => { const d = document.createElement('option'); d.value = it.provider; d.textContent = it.provider; dl.appendChild(d); });
-}
 $('btnNewModels').addEventListener('click', async () => {
-  const q = new URLSearchParams({ type: $('st_ptype').value, base: $('st_pbase').value, key: $('st_pkey').value });
+  const q = new URLSearchParams({ type: $('m_ptype').value, base: $('m_pbase').value, key: $('m_pkey').value });
   try {
     const d = await api('/api/models?' + q.toString());
     const dl = $('newModelList'); dl.innerHTML = '';
-    (d.models || []).forEach(m => { const o = document.createElement('option'); o.value = m; dl.appendChild(o); });
-    if (!d.models || !d.models.length) toast('该厂商暂无模型列表接口', 'error');
+    const box = $('modelPickAdd'); box.innerHTML = '';
+    pendingModels = (d.models || []).filter(Boolean);
+    pendingModels.forEach(m => { const o = document.createElement('option'); o.value = m; dl.appendChild(o); });
+    if (!pendingModels.length) { toast('该厂商暂无模型列表接口', 'error'); return; }
+    pendingModels.forEach((m, i) => {
+      const lb = document.createElement('label');
+      const cb = document.createElement('input'); cb.type = 'checkbox'; cb.value = m; if (!i) cb.checked = true;
+      lb.appendChild(cb); lb.appendChild(document.createTextNode(' ' + m)); box.appendChild(lb);
+    });
+    toast('已获取 ' + pendingModels.length + ' 个模型，可勾选添加', 'success');
   } catch (e) { toast(e.message, 'error'); }
 });
-$('btnAddProv').addEventListener('click', () => {
-  const ptype = $('st_ptype').value;
-  const name = $('st_pname').value.trim() || ptype;
+$('provModalSave').addEventListener('click', () => {
+  const ptype = $('m_ptype').value;
+  const name = $('m_pname').value.trim() || ptype;
   let providers = []; try { providers = JSON.parse($('st_providers').value || '[]'); } catch (e) {}
-  providers = providers.filter(p => p.provider !== name);
-  providers.push({ provider: name, name: name, type: ptype, base_url: $('st_pbase').value.trim(), api_key: $('st_pkey').value.trim(), model: $('st_pmodel').value.trim() });
+  const chosen = [...document.querySelectorAll('#modelPickAdd input:checked')].map(c => c.value);
+  const typed = $('m_pmodel').value.split(/[,，\s]+/).map(x => x.trim()).filter(Boolean);
+  const models = [...new Set(chosen.length ? chosen : typed)];
+  if (!models.length) { toast('请选择或填写模型', 'error'); return; }
+  const base = $('m_pbase').value.trim(), key = $('m_pkey').value.trim();
+  // 新增/编辑厂商时保留同名模型已配置的详细参数（温度等），避免编辑后丢失
+  const keepCfg = {}; (curSettings.providers || []).filter(p => p.provider === name).forEach(p => { keepCfg[p.model] = p; });
+  const keep = models.map(mod => {
+    const c = keepCfg[mod] || {};
+    const o = { provider: name, name: name, type: ptype, base_url: base, api_key: key, model: mod };
+    if (c.temperature != null) o.temperature = c.temperature;
+    if (c.max_tokens != null) o.max_tokens = c.max_tokens;
+    if (c.top_p != null) o.top_p = c.top_p;
+    return o;
+  });
+  providers = providers.filter(p => p.provider !== name).concat(keep);
   $('st_providers').value = JSON.stringify(providers, null, 1);
-  $('st_provider').value = name;
-  $('st_model').value = $('st_pmodel').value.trim();
-  $('st_base_url').value = $('st_pbase').value.trim();
-  $('st_api_key').value = $('st_pkey').value.trim();
-  $('st_pname').value = ''; $('st_pbase').value = ''; $('st_pkey').value = ''; $('st_pmodel').value = '';
+  // 新增/编辑厂商只更新列表，不改动当前使用的选择（由用户在聊天顶部下拉自由选择）。
+  curSettings.providers = providers;
+  editingProv = null;
+  $('provModal').classList.remove('on');
   $('settingsSave').click();
+  renderProvList(); renderModelPick();
+  toast('已保存厂商：' + name + '（' + models.length + ' 个模型）', 'success');
 });
-$('settingsCancel').addEventListener('click', () => $('settings').classList.remove('on'));
+
+/* ---- 模型详细配置弹窗 ---- */
+let editingModel = null;
+function openModelCfg(prov, model) {
+  editingModel = prov + '\u0000' + model;
+  const e = (curSettings.providers || []).find(x => x.provider === prov && x.model === model);
+  $('modelCfgTitle').textContent = '模型配置：' + model;
+  $('mc_temp').value = e && e.temperature != null ? e.temperature : 0.7;
+  $('mc_maxtok').value = e && e.max_tokens ? e.max_tokens : 4096;
+  $('mc_topp').value = e && e.top_p != null ? e.top_p : '0.9';
+  $('modelCfgModal').classList.add('on');
+}
+$('mcCancel').addEventListener('click', () => $('modelCfgModal').classList.remove('on'));
+$('mcSave').addEventListener('click', () => {
+  if (!editingModel) return;
+  const [prov, model] = editingModel.split('\u0000');
+  const s = readSettings();
+  s.providers = (curSettings.providers || []).map(x => x.provider === prov && x.model === model ? Object.assign({}, x, {
+    temperature: parseFloat($('mc_temp').value) || 0.7,
+    max_tokens: parseInt($('mc_maxtok').value) || 4096,
+    top_p: $('mc_topp').value ? parseFloat($('mc_topp').value) : undefined
+  }) : x);
+  curSettings.providers = s.providers;
+  $('st_providers').value = JSON.stringify(s.providers, null, 1);
+  $('modelCfgModal').classList.remove('on');
+  ws.send(JSON.stringify({ type:'settings_set', settings: s }));
+  renderProvList(); renderModelPick();
+  toast('已保存模型配置：' + model, 'success');
+  editingModel = null;
+});
+$('settingsCancel').addEventListener('click', () => closeSettings());
 $('settingsSave').addEventListener('click', () => {
   ws.send(JSON.stringify({ type:'settings_set', settings: readSettings() }));
-  $('settings').classList.remove('on');
+  changeRoleParam();
   safeLS('licode_theme', $('st_theme').value === '深色' ? 'dark' : 'light');
   safeLS('licode_anim', $('st_anim').value === '开启' ? 'on' : 'off');
   safeLS('licode_tool_open', $('st_toolsopen').value === '展开' ? 'on' : 'off');
@@ -991,7 +1652,15 @@ $('settingsSave').addEventListener('click', () => {
   document.documentElement.setAttribute('data-anim', anim ? 'on' : '');
   updateThemeIcon();
   if (anim) startBg(); else stopBg();
+  toast('设置已保存', 'success');
 });
+// 激活角色时，把角色的温度/输出上限同步为当前生效参数。
+function changeRoleParam() {
+  const r = activeRole();
+  if (!r || !$('selThink')) return;
+  const o = [...$('selThink').options].find(x => Math.abs(parseFloat(x.value) - r.temp) < 0.06);
+  if (o && $('selThink').value !== o.value) { $('selThink').value = o.value; }
+}
 
 /* ---------- 主题切换 ---------- */
 const MOON_SVG = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>';
@@ -1005,36 +1674,77 @@ $('themeToggle').addEventListener('click', () => {
   $('st_theme').value = theme === 'dark' ? '深色' : '浅色';
 });
 
+/* ---------- 外观自定义（主色/背景发光/主题/动画 实时套用） ---------- */
+function shade(hex, f) { let h = (hex||'#E4530A').replace('#',''); if (h.length===3) h=h.split('').map(c=>c+c).join(''); const n=parseInt(h,16); const r=Math.round(((n>>16)&255)*f), g=Math.round(((n>>8)&255)*f), b=Math.round((n&255)*f); return 'rgb('+r+','+g+','+b+')'; }
+function accentLight(hex){ return 'color-mix(in srgb, '+hex+' 14%, transparent)'; }
+function applyAppearance() {
+  theme = safeLS('licode_theme') || 'light';
+  anim = safeLS('licode_anim') === 'on';
+  toolOpen = safeLS('licode_tool_open') !== 'off';
+  const root = document.documentElement;
+  root.setAttribute('data-theme', theme);
+  root.setAttribute('data-anim', anim ? 'on' : '');
+  root.setAttribute('data-glow', safeLS('licode_glow') === 'off' ? 'off' : 'on');
+  bg = safeLS('licode_bg') || 'glow';
+  root.setAttribute('data-bg', bg);
+  const accent = safeLS('licode_accent');
+  const st = root.style;
+  if (accent) {
+    st.setProperty('--primary', accent);
+    st.setProperty('--primary-hover', shade(accent, .8));
+    st.setProperty('--primary-grad', 'linear-gradient(135deg,' + accent + ',' + shade(accent, .72) + ')');
+    st.setProperty('--primary-light', accentLight(accent));
+    st.setProperty('--accent', accent);
+  } else {
+    st.removeProperty('--primary'); st.removeProperty('--primary-hover');
+    st.removeProperty('--primary-grad'); st.removeProperty('--primary-light'); st.removeProperty('--accent');
+  }
+  updateThemeIcon();
+  if ($('st_theme')) $('st_theme').value = theme === 'dark' ? '深色' : '浅色';
+  if ($('st_accent')) $('st_accent').value = accent || '#E4530A';
+  if ($('st_glow')) $('st_glow').value = safeLS('licode_glow') === 'off' ? '关闭' : '开启';
+  if ($('st_bg')) $('st_bg').value = bg;
+  if ($('st_anim')) $('st_anim').value = anim ? '开启' : '关闭';
+  if ($('st_toolsopen')) $('st_toolsopen').value = toolOpen ? '展开' : '折叠';
+}
+$('st_accent').addEventListener('input', () => { safeLS('licode_accent', $('st_accent').value); applyAppearance(); });
+$('st_glow').addEventListener('change', () => { safeLS('licode_glow', $('st_glow').value === '开启' ? 'on' : 'off'); applyAppearance(); });
+$('st_bg').addEventListener('change', () => { safeLS('licode_bg', $('st_bg').value); applyAppearance(); });
+$('st_theme').addEventListener('change', () => { theme = $('st_theme').value === '深色' ? 'dark' : 'light'; safeLS('licode_theme', theme); applyAppearance(); });
+$('st_anim').addEventListener('change', () => { safeLS('licode_anim', $('st_anim').value === '开启' ? 'on' : 'off'); applyAppearance(); });
+$('st_toolsopen').addEventListener('change', () => { safeLS('licode_tool_open', $('st_toolsopen').value === '展开' ? 'on' : 'off'); toolOpen = safeLS('licode_tool_open') !== 'off'; });
+$('btnResetAppearance').addEventListener('click', () => {
+  ['licode_theme','licode_anim','licode_tool_open','licode_accent','licode_glow','licode_bg'].forEach(k => { try { localStorage.removeItem(k); } catch(e){} });
+  applyAppearance(); toast('外观已恢复默认', 'success');
+});
+applyAppearance();
+
 /* ---------- 模型选择（按厂商分组折叠） ---------- */
-const COLORS = ['#0FA8A4','#8B5CF6','#3B82F6','#F59E0B','#EF4444','#10B981','#EC4899','#6366F1'];
+const COLORS = ['#E4530A','#C77700','#2E7D32','#C62828','#6D28D9','#0E7490','#B4458C','#5B5F6B'];
 function renderModelPick() {
   const body = $('modelPickBody'); body.innerHTML = '';
   const provs = (curSettings.providers || []).filter(p => p.model);
-  const groups = [];
-  if (!provs.length) {
-    // 无已配置厂商：构造单组示例
-    groups.push({ name: '未配置厂商', color: COLORS[0], list: [{ id: 'openai', model: '' }] });
-  }
-  provs.forEach((p, i) => {
-    groups.push({ name: (p.name || p.provider), color: COLORS[i % COLORS.length], list: [{ id: p.provider, model: p.model }] });
-  });
-  groups.forEach((g, gi) => {
+  const byName = {};
+  if (!provs.length) byName['未配置厂商'] = { name: '未配置厂商', models: [] };
+  provs.forEach(p => { if (!byName[p.provider]) byName[p.provider] = { name: p.name || p.provider, models: [] }; if (p.model) byName[p.provider].models.push(p.model); });
+  Object.keys(byName).forEach((k, gi) => {
+    const g = byName[k];
     const gd = el('div', 'vgroup' + (gi === 0 ? ' open' : ''));
     const hd = el('div', 'vhd');
-    const dot = el('span', 'cdot'); dot.style.background = g.color; hd.appendChild(dot);
+    const dot = el('span', 'cdot'); dot.style.background = COLORS[gi % COLORS.length]; hd.appendChild(dot);
     hd.appendChild(el('span', '', g.name));
-    hd.appendChild(el('span', 'carat', '▸'));
+    hd.appendChild(el('span', 'carat', gi === 0 ? '▾' : '▸'));
     hd.addEventListener('click', () => { gd.classList.toggle('open'); hd.querySelector('.carat').textContent = gd.classList.contains('open') ? '▾' : '▸'; });
     gd.appendChild(hd);
     const md = el('div', 'vmodels');
-    const models = g.list.map(x => x.model).filter(Boolean);
-    if (!models.length) md.appendChild(el('div', 'mopt' + (' 暂无配置模型')));
-    [...new Set(models)].forEach(mod => {
-      const isSel = g.list.some(x => x.model === mod && x.id === curSettings.provider);
+    const models = [...new Set(g.models.filter(Boolean))];
+    if (!models.length) md.appendChild(el('div', 'mopt', '暂无配置模型'));
+    models.forEach(mod => {
+      const isSel = curSettings.provider === k && curSettings.model === mod;
       const o = el('div', 'mopt' + (isSel ? ' sel' : ''));
       o.textContent = mod;
       o.appendChild(el('span', 'tick', isSel ? '✓' : ''));
-      o.addEventListener('click', () => { selectProviderModel(g.list[0].id, mod); });
+      o.addEventListener('click', () => selectProviderModel(k, mod));
       md.appendChild(o);
     });
     gd.appendChild(md);
@@ -1059,7 +1769,6 @@ $('selThink').addEventListener('change', () => {
   ws.send(JSON.stringify({ type:'settings_set', settings: Object.assign({}, readSettings(), { temperature: parseFloat($('selThink').value) }) }));
   const o = $('selThink').selectedOptions[0]; if (o) toast('思考强度：' + o.textContent, 'success');
 });
-$('btnViewProvider').addEventListener('click', () => togglePop($('modelPick')));
 $('btnSettings').addEventListener('click', (e) => { e.stopPropagation(); openSettings(); });
 $('modelBadge').addEventListener('click', () => togglePop($('modelPick')));
 
@@ -1072,6 +1781,16 @@ function switchSide(tab) {
   if (tab === 'files') loadFiles();
 }
 document.querySelectorAll('.navtab').forEach(t => t.addEventListener('click', () => switchSide(t.dataset.side)));
+/* ---------- 侧边栏折叠/展开 ---------- */
+function toggleSidebar() {
+  const sb = document.getElementById('sidebar');
+  sb.classList.toggle('collapsed');
+  const sp = document.getElementById('settingsPage');
+  if (sp && sp.classList.contains('on')) sp.style.left = settingsLeft() + 'px';
+}
+document.getElementById('sidebarToggle').addEventListener('click', toggleSidebar);
+document.getElementById('sidebarOpen').addEventListener('click', toggleSidebar);
+document.querySelectorAll('.side-rail').forEach(b => b.addEventListener('click', () => switchSide(b.dataset.side)));
 function openEditor() { $('fileEditor').classList.add('open'); }
 function closeEditor() { $('fileEditor').classList.remove('open'); }
 $('fileClose').addEventListener('click', closeEditor);
@@ -1079,7 +1798,7 @@ $('fileClose').addEventListener('click', closeEditor);
 /* ---------- 背景：粒子（无鲸鱼） ---------- */
 const bgc = $('bgCanvas'), bctx = bgc.getContext('2d');
 let BW = 0, BH = 0, parts = [], bgRaf = 0;
-function bgAccent() { return getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#0FA8A4'; }
+function bgAccent() { return getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#E4530A'; }
 function bgResize() { BW = bgc.width = window.innerWidth; BH = bgc.height = window.innerHeight; }
 function bgRand(a, b) { return a + Math.random() * (b - a); }
 function initParts() {
@@ -1112,7 +1831,7 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) stopB
 
 /* ---------- 输入区：工作目录 / 上传 / @ 文件 / 斜杠命令 ---------- */
 let wsPath = '';
-function refreshWsUI(root) { wsPath = root; $('wsPath').textContent = root || '工作目录'; $('st_workspace').value = root; $('stWorkspaceVal').value = root || ''; }
+function refreshWsUI(root) { wsPath = root; $('wsPath').textContent = root || '工作目录'; const tmp = $('st_workspace'); if (tmp) tmp.value = root; $('stWorkspaceVal').value = root || ''; }
 fetch('/api/workspace').then(r => r.json()).then(d => { if (d && d.root) refreshWsUI(d.root); }).catch(() => {});
 $('stWorkspaceVal').addEventListener('keydown', async e => {
   if (e.key !== 'Enter') return;
@@ -1153,7 +1872,7 @@ function togglePop(pop) { const open = pop.style.display !== 'none'; $('modelPic
 document.addEventListener('click', (e) => {
   if (!e.target.closest('#wsPick') && !e.target.closest('#wsBadge')) $('wsPick').style.display = 'none';
   if (!e.target.closest('#plusMenu') && !e.target.closest('#btnPlus')) $('plusMenu').style.display = 'none';
-  if (!e.target.closest('#modelPick') && !e.target.closest('#modelPickBtn') && !e.target.closest('#btnViewProvider') && !e.target.closest('#modelBadge')) $('modelPick').style.display = 'none';
+  if (!e.target.closest('#modelPick') && !e.target.closest('#modelPickBtn') && !e.target.closest('#modelBadge')) $('modelPick').style.display = 'none';
 });
 
 $('btnPlus').addEventListener('click', (e) => { e.stopPropagation(); togglePop($('plusMenu')); });
@@ -1176,15 +1895,9 @@ function insertIntoInput(text) {
 }
 $('btnAt').addEventListener('click', () => { $('plusMenu').style.display = 'none'; atMode = true; switchSide('files'); });
 
-/* 一键检查 / 修复漏洞 */
-$('btnCheck').addEventListener('click', () => { $('plusMenu').style.display='none'; sendText('请对我当前工作目录里的代码做一次全面的安全检查：找出潜在 bug、安全漏洞（如 SQL 注入、XSS、命令注入、硬编码密钥）、并发/资源泄漏等问题，逐条列出问题所在文件、行号、风险等级和修改建议。没有问题时也请明确说明。'); });
-$('btnFix').addEventListener('click', () => { $('plusMenu').style.display='none'; sendText('请对我当前工作目录里的代码做一次全面检查，并直接修复发现的 bug 和安全漏洞：使用工具读取、编辑相关文件，修复后简要说明每处改动。'); });
-
 /* 斜杠命令 */
 const cmds = [
   { n: 'clear', d: '清空会话', run: () => { chatInner.innerHTML = ''; renderEmpty(); ws.send(JSON.stringify({ type: 'message', content: '/clear' })); } },
-  { n: 'check', d: '检查漏洞', run: () => $('btnCheck').click() },
-  { n: 'fix', d: '修复漏洞', run: () => $('btnFix').click() },
   { n: 'settings', d: '设置', run: () => openSettings('general') },
   { n: 'about', d: '关于', run: () => openSettings('about') },
 ];
@@ -1230,7 +1943,7 @@ function connect() {
       case 'tool_start': tools.push(addTool(evt)); break;
       case 'tool_done': if (tools.length) { const done = tools.pop(); setToolDone(done, evt); addCopyBtns(done.out); } break;
       case 'status': { const s = evt.content || ''; $('meta').textContent = s; $('meta2').textContent = s; if (busy) setIsland('think', s || '正在思考…'); break; }
-      case 'settings': { curSettings = evt.settings || {}; if (evt.settings && $('settings').classList.contains('on')) fillSettings(evt.settings); else { curSettings = evt.settings||{}; fillSettings(curSettings); } setConn(true); break; }
+      case 'settings': { curSettings = evt.settings || {}; fillSettings(curSettings); setConn(true); break; }
       case 'sessions': {
         sessions = evt.sessions || [];
         const sid = evt.sessionId || '';
@@ -1306,7 +2019,7 @@ function send() {
   if (!text || busy || !ws || ws.readyState !== WebSocket.OPEN) return;
   if (text === '/clear') { chatInner.innerHTML = ''; renderEmpty(); ws.send(JSON.stringify({ type:'message', content:'/clear' })); input.value = ''; return; }
   addMsg('user', text); input.value = ''; busy = true; sendBtn.disabled = true; setSendBusy(true);
-  ws.send(JSON.stringify({ type:'message', content:text }));
+  ws.send(JSON.stringify({ type:'message', content:text, system: roleSystem() }));
 }
 function renderEmpty() {
   chatInner.innerHTML = '';
@@ -1315,21 +2028,12 @@ function renderEmpty() {
   e.appendChild(lw);
   e.appendChild(el('div', 'title', 'licode'));
   e.appendChild(el('div', 'sub', 'AI 编程助手，支持多 API 厂商 · 文件编辑 · 多对话'));
-  const q = el('div', 'quick');
-  const items = [
-    { ic: '🛡', t: '一键检查漏洞', act: () => $('btnCheck').click() },
-    { ic: '⚙', t: '选择模型', act: () => togglePop($('modelPick')) },
-    { ic: '✏', t: '帮我写一段 Go 代码', act: () => { input.value = '帮我写一段 Go 代码'; input.focus(); } },
-    { ic: '🔎', t: '解释这段代码', act: () => { input.value = '解释这段代码'; input.focus(); } },
-  ];
-  items.forEach(x => {
-    const b = el('button', 'qbtn');
-    b.appendChild(el('span', 'qi', x.ic));
-    b.appendChild(el('span', '', x.t));
-    b.addEventListener('click', x.act);
-    q.appendChild(b);
-  });
-  e.appendChild(q);
+  const mc = el('div', 'mchips');
+  const chip = (k, v) => { const c = el('span', 'mchip'); c.appendChild(el('span', 'k', k)); c.appendChild(el('span', 'v', v)); return c; };
+  const provName = (curSettings.providers || []).find(p => p.id === curSettings.provider);
+  mc.appendChild(chip('厂商', provName ? provName.name || provName.id : (curSettings.provider || '-')));
+  mc.appendChild(chip('模型', (curSettings.model || '-').split('/').pop()));
+  e.appendChild(mc);
   chatInner.appendChild(e);
 }
 input.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey && $('cmdPick').style.display === 'none') { e.preventDefault(); send(); } });
@@ -1390,10 +2094,11 @@ startBg();
 renderEmpty();
 $('authBannerClose').addEventListener('click', () => $('authBanner').classList.remove('show'));
 fetch('/api/auth').then(r => r.json()).then(d => { if (d && !d.enabled) { $('authBannerText').textContent = '未启用登录：当前无需密码即可访问。启用方法：licode serve --password 你的密码（默认用户名 licode）。'; $('authBanner').classList.add('show'); } }).catch(() => {});
-$('btnModels').addEventListener('click', async () => {
+const bm = $('btnModels'); if (bm) bm.addEventListener('click', async () => {
   try {
     const d = await api('/api/models');
-    const dl = $('modelList'); dl.innerHTML = '';
+    const dl = $('modelList'); if (!dl) return;
+    dl.innerHTML = '';
     (d.models || []).forEach(m => { const o = document.createElement('option'); o.value = m; dl.appendChild(o); });
     if (!d.models || !d.models.length) toast('该厂商暂无模型列表接口', 'error');
   } catch (e) { toast(e.message, 'error'); }
@@ -1401,8 +2106,8 @@ $('btnModels').addEventListener('click', async () => {
 fetch('/api/version').then(r => r.json()).then(d => {
   const v = d.version || '';
   $('ver').textContent = 'licode ' + v;
-  $('st_version').value = v;
   $('aboutVer').textContent = v;
+  const v2 = $('ver2'); if (v2) v2.textContent = 'licode ' + v;
 }).catch(() => {});
 fetch('/api/workspace').then(r => r.json()).then(d => { if (d && d.root) refreshWsUI(d.root); }).catch(() => {});
 connect();

@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 	"os/signal"
 	"strings"
 	"sync"
@@ -269,7 +270,7 @@ func runServe(opts *ServeOptions) error {
 					cs.mu.Unlock()
 					msgCancel()
 				}()
-				runServerAgent(msgCtx, st, cs, c, msg.Content)
+				runServerAgent(msgCtx, st, cs, c, msg.Content, msg.System)
 				_ = cs.sessions.SaveAll()
 
 			case websocket.TypeInterrupt:
@@ -386,10 +387,30 @@ func runServe(opts *ServeOptions) error {
 			"default_username": DefaultUsername,
 		})
 	})
+	mux.HandleFunc("/api/nodejs", func(w http.ResponseWriter, r *http.Request) {
+		if !auth.require(w, r) {
+			return
+		}
+		out := map[string]any{"node": "", "npx": "", "ok": false}
+		if b, err := exec.Command("node", "--version").Output(); err == nil {
+			out["node"] = strings.TrimSpace(string(b))
+		}
+		// npx 依赖 node；检查时报错面给出的信息更友好。
+		if b, err := exec.Command("npx", "--version").Output(); err == nil {
+			out["npx"] = strings.TrimSpace(string(b))
+		}
+		out["ok"] = out["node"] != ""
+		writeJSON(w, http.StatusOK, out)
+	})
 	mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !auth.require(w, r) {
 			return
 		}
+		// 静态前端每次直接走内存嵌入，禁止浏览器缓存旧界面，
+		// 保证升级/改版后刷新即可看到最新版本。
+		w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+		w.Header().Set("Pragma", "no-cache")
+		w.Header().Set("Expires", "0")
 		fileServer.ServeHTTP(w, r)
 	}))
 	mux.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
@@ -480,7 +501,7 @@ func applyServerSettings(st *serverState, msg websocket.ClientMessage) error {
 }
 
 // runServerAgent 在当前设置下运行一次 Agent，流式回传事件。
-func runServerAgent(ctx context.Context, st *serverState, cs *connState, c *websocket.Client, content string) {
+func runServerAgent(ctx context.Context, st *serverState, cs *connState, c *websocket.Client, content, roleSystem string) {
 	st.mu.RLock()
 	s := st.settings.Snapshot()
 	client := st.client
@@ -492,6 +513,10 @@ func runServerAgent(ctx context.Context, st *serverState, cs *connState, c *webs
 	}
 
 	ag := s.BuildAgent(client)
+	if roleSystem != "" {
+		// 当前激活"角色"的系统提示词前置到默认系统提示词之前。
+		ag.System = roleSystem + "\n" + ag.System
+	}
 	ag.Session = sess
 	ag.Ask = func(ctx context.Context, toolName, args string) (bool, error) {
 		// 自动允许，或本对话已"始终允许"该工具 → 不再询问

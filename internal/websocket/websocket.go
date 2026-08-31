@@ -61,8 +61,10 @@ type ServerEvent struct {
 
 // ClientMessage is a request sent from a client.
 type ClientMessage struct {
-	Type     string `json:"type"`
-	Content  string `json:"content,omitempty"`
+	Type    string `json:"type"`
+	Content string `json:"content,omitempty"`
+	// System 可选：来自当前"角色"的系统提示词覆盖。非空时前置到默认系统提示词。
+	System   string `json:"system,omitempty"`
 	Settings any    `json:"settings,omitempty"`
 	// AskReply 对应 AskID 的确认结果。
 	AskID      string `json:"askId,omitempty"`
@@ -75,15 +77,10 @@ var upgrader = websocket.Upgrader{
 	ReadBufferSize:  4096,
 	WriteBufferSize: 4096,
 	CheckOrigin: func(r *http.Request) bool {
-		origin := r.Header.Get("Origin")
-		if origin == "" {
-			return true
-		}
-		host := r.Host
-		if host == "" {
-			host = "localhost:8080"
-		}
-		return origin == "http://"+host || origin == "https://"+host
+		// licode 为本地自托管工具，可能经代理/局域网 IP/反代访问，
+		// 此时 Origin 与服务端看到的 Host 常不一致。放宽源校验以避免
+		// WebSocket 被误拒（表现为前端一直"已断开"、无法新建对话）。
+		return true
 	},
 }
 
