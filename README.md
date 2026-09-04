@@ -146,10 +146,10 @@ go vet ./...       # 静态检查
 go test ./...      # 单元测试
 ```
 
-## 联系
+## 联系与交流
 
-- GitHub：https://github.com/li63050a/licode
-- Gitee：https://gitee.com/li63050a/licode
-- 开发者 B 站：小帅5656
-- QQ 交流群：1026939741
-- 开发者邮箱：li63050@qq.com
+- **GitHub**：https://github.com/li63050a/licode
+- **Gitee**：https://gitee.com/li63050a/licode
+- **开发者 B 站**：[小帅5656](https://b23.tv/nDqj0DT) — 关注获取最新动态、教程、演示
+- **QQ 技术交流群**：[点击加入](https://qun.qq.com/universal-share/share?ac=1&authKey=zq9BYcTtBQm6GbvWiEWiBvDWNWbqhw2%2F%2BRnGM21c0jcL%2FofGqBFeXLr%2BtYT3SkO6&busi_data=eyJncm91cENvZGUiOiIxMDI2OTM5NzQxIiwidG9rZW4iOiJxNkNWUTUxYXVxSmRHZXRvdWtkZnhaN25INzJrMmNaNFpVTjJ5ZTVLYmRvWTFuOEZTd093UXBtQi8vQWk2T1JyIiwidWluIjoiMzYzNTczNjE4MCJ9&data=073ZrPEFZXFvoEDWatbWTidAitiN4OIbiaVDWoR7hVIwJurEPC7Swm6OREVpn6omzobXLn3SRErNKxKbYDTZQA&svctype=4&tempid=h5_group_info)（群号：1026939741）— 提问、反馈 bug、讨论功能
+- **开发者邮箱**：li63050@qq.com
