@@ -23,6 +23,7 @@ import (
 	"licode/internal/agent"
 	"licode/internal/ai"
 	"licode/internal/plugin"
+	"licode/internal/rag"
 	"licode/internal/session"
 	"licode/internal/settings"
 	"licode/internal/version"
@@ -121,9 +122,11 @@ func listenAddr(opts *ServeOptions) string {
 
 // serverState 持有可变的全局设置与当前客户端。
 type serverState struct {
-	mu       sync.RWMutex
-	settings settings.Settings
-	client   ai.LLMClient
+	mu           sync.RWMutex
+	settings     settings.Settings
+	client       ai.LLMClient
+	shuttingDown bool       // 收到关停信号后置位，拒绝新连接
+	rag          *rag.Index // 特性5：项目源码轻量 RAG 索引（懒构建）
 }
 
 // connState 保存每个连接独立的会话（多对话）与待确认的工具调用。
@@ -157,6 +160,12 @@ func runServe(opts *ServeOptions) error {
 	runVersion := version.Bump()
 	log.Printf("licode 版本 %s", runVersion)
 
+	// 特性6：工具热加载（fsnotify 监视 ~/.licode/tools/，动态注册/卸载外部命令工具）
+	if toolClose, terr := agent.StartExternalToolWatcher(settings.ToolsDir()); terr == nil {
+		defer toolClose()
+		log.Printf("外部工具热加载已启动: %s", settings.ToolsDir())
+	}
+
 	// WASM 插件热加载
 	plugin.Default.SetDirs(plugin.Dirs()...)
 	pluginCtx, pluginCancel := context.WithCancel(context.Background())
@@ -175,6 +184,14 @@ func runServe(opts *ServeOptions) error {
 
 	hub := websocket.NewHub()
 	hub.OnConnect(func(ctx context.Context, c *websocket.Client) {
+		// 关停期间拒绝新连接
+		st.mu.RLock()
+		shuttingDown := st.shuttingDown
+		st.mu.RUnlock()
+		if shuttingDown {
+			c.SendEvent(websocket.ServerEvent{Type: websocket.EvtError, Error: "服务正在关停，请稍后再试"})
+			return
+		}
 		log.Printf("客户端已连接（当前 %d 个）", hub.Count())
 		cs := newConnState(settings.SessionsDir())
 
@@ -225,6 +242,16 @@ func runServe(opts *ServeOptions) error {
 
 			case websocket.TypeSessionDelete:
 				cs.sessions.Delete(msg.SessionID)
+				_ = cs.sessions.SaveAll()
+				c.SendEvent(websocket.ServerEvent{
+					Type: websocket.EvtSessions, Sessions: cs.sessions.List(), SessionID: cs.sessions.CurrentID(),
+				})
+
+			case websocket.TypeSessionBranch:
+				if _, ok := cs.sessions.Branch(msg.SessionID, msg.Index); !ok {
+					c.SendEvent(websocket.ServerEvent{Type: websocket.EvtError, Error: "无法创建分支"})
+					break
+				}
 				_ = cs.sessions.SaveAll()
 				c.SendEvent(websocket.ServerEvent{
 					Type: websocket.EvtSessions, Sessions: cs.sessions.List(), SessionID: cs.sessions.CurrentID(),
@@ -299,6 +326,10 @@ func runServe(opts *ServeOptions) error {
 	mux.HandleFunc("/login", func(w http.ResponseWriter, r *http.Request) {
 		auth.handleLogin(w, r)
 	})
+	// 健康检查 / 就绪探针（供容器编排 / 负载均衡，不要求登录）
+	mux.HandleFunc("/health", handleHealth)
+	mux.HandleFunc("/ready", handleReady(st))
+
 	// 文件浏览/编辑与工作目录 API
 	mux.HandleFunc("/api/files", func(w http.ResponseWriter, r *http.Request) {
 		if !auth.require(w, r) {
@@ -465,15 +496,31 @@ func runServe(opts *ServeOptions) error {
 				log.Printf("SIGHUP 重载失败: %v", err)
 			} else {
 				log.Printf("SIGHUP 已重载配置")
+				// RAGSource 可能变化，重建索引
+				st.mu.Lock()
+				st.rag = nil
+				st.mu.Unlock()
 			}
 		}
 	}()
 	go func() {
 		<-stop
-		log.Printf("正在关闭…")
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		st.mu.Lock()
+		st.shuttingDown = true
+		to := st.settings.Snapshot().ShutdownTimeout
+		st.mu.Unlock()
+		if to <= 0 {
+			to = 30
+		}
+		log.Printf("收到关停信号，优雅退出（等待上限 %ds）…", to)
+		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(to)*time.Second)
 		defer cancel()
+		// 等待当前 HTTP/WebSocket 请求（含正在运行的 DAG 子代理与 Shell 脚本）自然完成或超时
 		_ = srv.Shutdown(ctx)
+		// 关闭 WASM 插件与 MCP 子进程，避免资源泄漏/数据损坏
+		plugin.Default.CloseAll()
+		agent.CloseMCPClients()
+		log.Printf("已停止")
 	}()
 
 	if useTLS {
@@ -589,6 +636,13 @@ func runServerAgent(ctx context.Context, st *serverState, cs *connState, c *webs
 	if s.Streaming != nil {
 		stream = *s.Streaming
 	}
+	// 特性5：轻量 RAG —— 命中时把相关源码片段注入系统提示词
+	if s.RAGEnabled {
+		if snippets := st.ragLookup(content, s.RAGSource, s.RAGTopFiles); snippets != "" {
+			ag.System += "\n\n以下是用户当前项目中的相关源码片段（来自 RAG 检索），" +
+				"请优先据此准确回答，不要编造不存在的内容：\n" + snippets
+		}
+	}
 	var textBuf strings.Builder
 	err := ag.Run(ctx, content, func(e agent.Event) {
 		if e.Type == agent.EventText && !stream {
@@ -649,17 +703,17 @@ func sessionStats(s *session.Session) map[string]any {
 		hitRate = int(float64(hit) / float64(in) * 100)
 	}
 	return map[string]any{
-		"messages":        len(messages),
-		"context_tokens":  tokens,
-		"context_max":     maxTok,
-		"context_pct":     ctxPct,
-		"provider":        "",
-		"model":           "",
-		"conversation_in": u.InputTokens,
+		"messages":         len(messages),
+		"context_tokens":   tokens,
+		"context_max":      maxTok,
+		"context_pct":      ctxPct,
+		"provider":         "",
+		"model":            "",
+		"conversation_in":  u.InputTokens,
 		"conversation_out": u.OutputTokens,
-		"usage_cached":    hit,
-		"cache_hit_rate":  hitRate,
-		"always_allow":    s.AlwaysAllowedList(),
+		"usage_cached":     hit,
+		"cache_hit_rate":   hitRate,
+		"always_allow":     s.AlwaysAllowedList(),
 	}
 }
 

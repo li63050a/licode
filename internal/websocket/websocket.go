@@ -27,6 +27,7 @@ const (
 	TypeSessionSwitch = "session_switch" // {session_id}
 	TypeSessionRename = "session_rename" // {session_id, content}
 	TypeSessionDelete = "session_delete" // {session_id}
+	TypeSessionBranch = "session_branch" // {session_id, index, content}
 )
 
 // Event types (server -> client), mirroring agent.Event.
@@ -71,6 +72,7 @@ type ClientMessage struct {
 	AskApprove bool   `json:"askApprove,omitempty"`
 	AskAlways  bool   `json:"askAlways,omitempty"`
 	SessionID  string `json:"sessionId,omitempty"`
+	Index      int    `json:"index,omitempty"` // {session_branch} 分支点消息序号
 }
 
 var upgrader = websocket.Upgrader{

@@ -112,6 +112,24 @@ func (s *Settings) mergeFrom(o *Settings) {
 	if o.SandboxImage != "" {
 		s.SandboxImage = o.SandboxImage
 	}
+	s.CacheEnabled = o.CacheEnabled
+	if o.CacheTTL != 0 {
+		s.CacheTTL = o.CacheTTL
+	}
+	s.ToolAutoRetry = o.ToolAutoRetry
+	if o.ToolRetryMax != 0 {
+		s.ToolRetryMax = o.ToolRetryMax
+	}
+	if o.ShutdownTimeout != 0 {
+		s.ShutdownTimeout = o.ShutdownTimeout
+	}
+	s.RAGEnabled = o.RAGEnabled
+	if o.RAGSource != "" {
+		s.RAGSource = o.RAGSource
+	}
+	if o.RAGTopFiles != 0 {
+		s.RAGTopFiles = o.RAGTopFiles
+	}
 }
 
 // Save 把设置写入配置文件（默认 SavePath）。
@@ -156,8 +174,8 @@ func (s *Settings) finalize() error {
 	// 默认：写文件/执行 shell 属于风险操作，默认询问
 	if len(s.ToolRules) == 0 && len(s.AskTools) == 0 && len(s.DenyTools) == 0 {
 		s.ToolRules = map[string]string{
-			"Write": "ask",
-			"Shell": "ask",
+			"Write":  "ask",
+			"Shell":  "ask",
 			"Delete": "ask",
 		}
 	}

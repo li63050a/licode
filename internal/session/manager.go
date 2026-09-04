@@ -6,6 +6,8 @@ import (
 	"sort"
 	"strings"
 	"sync"
+
+	"licode/internal/ai"
 )
 
 // Info 是会话列表中的一条。
@@ -149,6 +151,49 @@ func (m *Manager) Get(id string) (*Session, bool) {
 	defer m.mu.Unlock()
 	s, ok := m.sessions[id]
 	return s, ok
+}
+
+// Branch 从 parent 会话复制出直到某个位置的消息，形成新会话（对话分支），并切换
+// 到它。fromIndex 为截断位置：0<=i<=len 复制前 i 条；<0 表示复制整个对话。
+// parent 不存在时返回 ok=false。分支继承父会话的上下文预算。
+func (m *Manager) Branch(parentID string, fromIndex int) (*Session, bool) {
+	const maxSessions = 100
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if len(m.sessions) >= maxSessions {
+		return nil, false
+	}
+	parent, ok := m.sessions[parentID]
+	if !ok {
+		return nil, false
+	}
+	parent.mu.Lock()
+	msgs := parent.messages
+	title := parent.title
+	parent.mu.Unlock()
+	if fromIndex < 0 || fromIndex > len(msgs) {
+		fromIndex = len(msgs)
+	}
+	b := NewSession(parent.maxTok)
+	copied := make([]ai.Message, fromIndex)
+	copy(copied, msgs[:fromIndex])
+	b.title = "分支·" + title
+	b.SetOnChange(func() { m.SaveSession(b.ID()) })
+	b.messages = copied
+	m.sessions[b.ID()] = b
+	m.order = append(m.order, b.ID())
+	m.current = b.ID()
+	return b, true
+}
+
+// ParentIndex 返回指定会话中“可分支”的位置数（即消息条数），供前端展示分支点。
+func (m *Manager) Len(id string) int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if s, ok := m.sessions[id]; ok {
+		return s.Len()
+	}
+	return 0
 }
 
 // SetCurrent 切换到指定会话。

@@ -9,7 +9,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
+	"time"
 
 	"licode/internal/ai"
 	"licode/internal/logx"
@@ -113,6 +115,33 @@ func (r *Registry) Get(name string) (Tool, bool) {
 	return t, ok
 }
 
+// Unregister 动态移除一个工具（fsnotify 热加载时用于卸载被删除/失效的工具）。
+func (r *Registry) Unregister(name string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	delete(r.tools, name)
+}
+
+// MergeFrom 把另一个注册表中的工具复制到当前注册表（用于把外部热加载工具
+// 并入每个新建的 Agent）。
+func (r *Registry) MergeFrom(src *Registry) {
+	if src == nil {
+		return
+	}
+	src.mu.RLock()
+	var tools []Tool
+	for _, t := range src.tools {
+		tools = append(tools, t)
+	}
+	src.mu.RUnlock()
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, t := range tools {
+		t.schemaBytes, _ = json.Marshal(t.Schema)
+		r.tools[t.Name] = t
+	}
+}
+
 func (r *Registry) Names() []string {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -180,6 +209,10 @@ type Agent struct {
 	Compaction bool
 	// RedactSecrets 对工具输出做敏感信息脱敏。
 	RedactSecrets bool
+	// ToolAutoRetry 在工具返回错误或空结果时自动重试。
+	ToolAutoRetry bool
+	// ToolRetryMax 单次工具调用最多重试次数（默认 3）。
+	ToolRetryMax int
 	// Shell 配置 Shell 工具（路径、沙箱等）。
 	Shell ShellConfig
 	// TraceID 本次运行的调用链标识（结构化日志用）。
@@ -272,7 +305,7 @@ func (a *Agent) Run(ctx context.Context, input string, onEvent func(Event)) erro
 				return err
 			}
 			onEvent(Event{Type: EventToolStart, ToolName: tc.Function.Name, ToolArgs: tc.Function.Arguments})
-			out, terr := a.runTool(ctx, tc)
+			out, terr := a.runTool(ctx, tc, onEvent)
 			if terr != nil {
 				out = fmt.Sprintf("TOOL ERROR: %v", terr)
 			}
@@ -301,8 +334,8 @@ func (a *Agent) permissionMode(tool string) string {
 	return "allow"
 }
 
-// runTool 执行单个工具，先做权限检查。
-func (a *Agent) runTool(ctx context.Context, tc ai.ToolCall) (string, error) {
+// runTool 执行单个工具，先做权限检查；支持迭代式自动重试。
+func (a *Agent) runTool(ctx context.Context, tc ai.ToolCall, onEvent func(Event)) (string, error) {
 	switch a.permissionMode(tc.Function.Name) {
 	case "deny":
 		return "已拒绝执行 " + tc.Function.Name + "（权限配置为禁止）", nil
@@ -318,5 +351,33 @@ func (a *Agent) runTool(ctx context.Context, tc ai.ToolCall) (string, error) {
 		}
 		// Ask 未设置时视为允许。
 	}
-	return a.Tools.Execute(ctx, tc.Function.Name, []byte(tc.Function.Arguments))
+	var out string
+	var terr error
+	max := 0
+	if a.ToolAutoRetry {
+		max = a.ToolRetryMax
+		if max <= 0 {
+			max = 3
+		}
+	}
+	exec := func() (string, error) {
+		return a.Tools.Execute(ctx, tc.Function.Name, []byte(tc.Function.Arguments))
+	}
+	for attempt := 0; ; attempt++ {
+		out, terr = exec()
+		// 迭代式自动重试：仅对“错误或空结果”重试
+		shouldRetry := terr != nil || strings.TrimSpace(out) == ""
+		if !shouldRetry || attempt >= max {
+			break
+		}
+		onEvent(Event{Type: EventStatus,
+			Content: fmt.Sprintf("工具 %s 未返回可用结果，自动重试 (%d/%d)…",
+				tc.Function.Name, attempt+1, max)})
+		select {
+		case <-time.After(time.Duration(attempt+1) * 500 * time.Millisecond):
+		case <-ctx.Done():
+			return out, terr
+		}
+	}
+	return out, terr
 }
