@@ -190,7 +190,7 @@ func NewAgent(client ai.LLMClient, system string) *Agent {
 		MaxIterations: 16,
 		MaxTokens:     4096,
 	}
-	RegisterDefaultTools(a.Tools)
+	RegisterDefaultTools(a.Tools, "")
 	return a
 }
 

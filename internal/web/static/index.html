@@ -263,6 +263,7 @@ pre .cp:hover{color:var(--primary)}
       <div class="fg"><label>Max 迭代次数</label><input id="sMaxIter" type="number" /></div>
       <div class="fg"><label>子代理</label><select id="sSub"><option value="on">开启</option><option value="off">关闭</option></select></div>
       <div class="fg"><label>自动允许工具</label><select id="sAuto"><option value="on">开启</option><option value="off">关闭</option></select></div>
+      <div class="fg"><label>Shell 路径</label><input id="sShell" placeholder="/bin/sh" /></div>
       <div class="fg"><label>MCP 服务器 (JSON)</label><textarea id="sMCP"></textarea></div>
       <div class="fg"><label>多提供商 (JSON)</label><textarea id="sProvs"></textarea></div>
     </div>
@@ -370,7 +371,7 @@ function openSettings(){
   $('sModel').value=s.model||'';$('sKey').value=s.api_key||'';$('sBase').value=s.base_url||'';
   $('sTemp').value=s.temperature??0.7;$('sMaxTok').value=s.max_tokens||4096;$('sMaxIter').value=s.max_iterations||16;
   $('sSub').value=s.subagents!==false?'on':'off';$('sAuto').value=s.auto_allow?'on':'off';
-  $('sMCP').value=JSON.stringify(s.mcp_servers||[],null,2);
+  $('sShell').value=s.shell_path||'';$('sMCP').value=JSON.stringify(s.mcp_servers||[],null,2);
   $('sProvs').value=JSON.stringify(s.providers||[],null,2);
   $('settingsModal').classList.add('on');
 }
@@ -383,6 +384,7 @@ function saveSettings(){
     temperature:parseFloat($('sTemp').value)||0.7,max_tokens:parseInt($('sMaxTok').value)||4096,
     max_iterations:parseInt($('sMaxIter').value)||16,subagents:$('sSub').value==='on',
     auto_allow:$('sAuto').value==='on',streaming:true,
+    shell_path:$('sShell').value||'/bin/sh',
     mcp_servers:mcp,providers:provs
   }}));
   closeSettings();toast('设置已保存');

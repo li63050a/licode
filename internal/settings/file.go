@@ -140,7 +140,7 @@ func (s *Settings) finalize() error {
 	if len(s.ToolRules) == 0 && len(s.AskTools) == 0 && len(s.DenyTools) == 0 {
 		s.ToolRules = map[string]string{
 			"Write": "ask",
-			"Bash":  "ask",
+			"Shell": "ask",
 			"Delete": "ask",
 		}
 	}

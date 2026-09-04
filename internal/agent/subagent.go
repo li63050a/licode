@@ -19,6 +19,7 @@ type SubAgentSpec struct {
 	Client        ai.LLMClient
 	MaxIterations int
 	MaxTokens     int
+	ShellPath     string // Shell 路径（默认 /bin/sh）
 }
 
 // buildAgent materializes a full Agent (own session, prompt, tool set).
@@ -27,7 +28,7 @@ func (s SubAgentSpec) buildAgent() *Agent {
 	a.Name = s.Name
 	if len(s.Tools) > 0 {
 		full := NewRegistry()
-		RegisterDefaultTools(full)
+		RegisterDefaultTools(full, s.ShellPath)
 		keep := map[string]bool{}
 		for _, n := range s.Tools {
 			keep[n] = true
@@ -175,7 +176,10 @@ func (s *Scheduler) runTask(ctx context.Context, t Task) SubAgentResult {
 
 // DefaultSubAgentSpecs returns the built-in explorer / builder / planner
 // sub-agent definitions for the given client.
-func DefaultSubAgentSpecs(client ai.LLMClient) []SubAgentSpec {
+func DefaultSubAgentSpecs(client ai.LLMClient, shellPath string) []SubAgentSpec {
+	if shellPath == "" {
+		shellPath = "/bin/sh"
+	}
 	return []SubAgentSpec{
 		{
 			Name: "explorer",

@@ -80,6 +80,7 @@ type Settings struct {
 	Streaming     *bool             `json:"streaming"`   // 流式输出（nil=默认开）
 	ToolRules     map[string]string `json:"tool_rules"`  // 工具名 -> allow/ask/deny
 	MCPServers    []MCPServer       `json:"mcp_servers"` // MCP 服务器列表
+	ShellPath     string            `json:"shell_path"`  // Shell 路径（默认 /bin/sh）
 }
 
 // Defaults 返回合并了配置文件、环境变量与内置默认值的初始设置。
@@ -210,7 +211,7 @@ func (s *Settings) BuildAgent(client ai.LLMClient) *agent.Agent {
 		ag.Permissions[t] = "ask"
 	}
 	if s.SubAgents {
-		ag.RegisterSubAgents(agent.DefaultSubAgentSpecs(client))
+		ag.RegisterSubAgents(agent.DefaultSubAgentSpecs(client, s.ShellPath))
 	}
 	agent.RegisterSkills(ag.Tools, agent.LoadSkills(agent.SkillDirs()...))
 	_ = agent.RegisterMCPServers(ag.Tools, s.MCPServers)

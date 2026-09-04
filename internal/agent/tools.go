@@ -98,7 +98,11 @@ func intArg(args map[string]any, key string, def int) int {
 }
 
 // RegisterDefaultTools installs the built-in coding tools on a registry.
-func RegisterDefaultTools(r *Registry) {
+// shellPath is the shell to use for Shell tool (default "/bin/sh").
+func RegisterDefaultTools(r *Registry, shellPath string) {
+	if shellPath == "" {
+		shellPath = "/bin/sh"
+	}
 	// Read - 读取文件
 	r.Register(Tool{
 		Name:        "Read",
@@ -373,9 +377,9 @@ func RegisterDefaultTools(r *Registry) {
 		},
 	})
 
-	// Bash - 执行 shell 命令
+	// Shell - 执行 shell 命令
 	r.Register(Tool{
-		Name:        "Bash",
+		Name:        "Shell",
 		Description: "Execute a shell command and return its output. Use for building, testing, git, and system operations.",
 		Schema: map[string]any{
 			"type": "object",
@@ -408,7 +412,7 @@ func RegisterDefaultTools(r *Registry) {
 			}
 			cmdCtx, cancel := context.WithTimeout(ctx, timeout)
 			defer cancel()
-			cmd := exec.CommandContext(cmdCtx, "sh", "-c", command)
+			cmd := exec.CommandContext(cmdCtx, shellPath, "-c", command)
 			if cwd != "" {
 				cmd.Dir = cwd
 			}
