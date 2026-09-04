@@ -225,12 +225,26 @@ pre .cp:hover{color:var(--primary)}
       <div class="row"><span>B 站</span><a href="https://b23.tv/nDqj0DT" target="_blank" style="color:var(--primary);text-decoration:none">小帅5656</a></div>
       <div class="row"><span>QQ 群</span><a href="https://qun.qq.com/universal-share/share?ac=1&authKey=zq9BYcTtBQm6GbvWiEWiBvDWNWbqhw2%2F%2BRnGM21c0jcL%2FofGqBFeXLr%2BtYT3SkO6&busi_data=eyJncm91cENvZGUiOiIxMDI2OTM5NzQxIiwidG9rZW4iOiJxNkNWUTUxYXVxSmRHZXRvdWtkZnhaN25INzJrMmNaNFpVTjJ5ZTVLYmRvWTFuOEZTd093UXBtQi8vQWk2T1JyIiwidWluIjoiMzYzNTczNjE4MCJ9&data=073ZrPEFZXFvoEDWatbWTidAitiN4OIbiaVDWoR7hVIwJurEPC7Swm6OREVpn6omzobXLn3SRErNKxKbYDTZQA&svctype=4&tempid=h5_group_info" target="_blank" style="color:var(--primary);text-decoration:none">1026939741</a></div>
     </div>
-    <div class="rpanel" id="tabFiles" style="display:none">
-      <div style="display:flex;gap:6px;margin-bottom:8px">
-        <input id="fPath" style="flex:1" placeholder="路径" />
-        <button class="btn" onclick="loadDir()">浏览</button>
+    <div class="rpanel" id="tabFiles" style="display:none;padding:0">
+      <div style="padding:12px 12px 8px">
+        <div style="display:flex;gap:6px;margin-bottom:8px">
+          <input id="fPath" style="flex:1" placeholder="路径" />
+          <button class="btn" onclick="loadDir()">浏览</button>
+        </div>
+        <div id="fTree" style="font-size:13px"></div>
       </div>
-      <div id="fTree" style="font-size:13px"></div>
+      <!-- code editor -->
+      <div id="editorWrap" style="display:none;border-top:1px solid var(--border)">
+        <div style="display:flex;align-items:center;gap:6px;padding:8px 12px;border-bottom:1px solid var(--border);background:var(--bg-panel)">
+          <span id="editorFile" style="flex:1;font-size:12px;font-family:var(--mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--fg2)"></span>
+          <button class="btn" style="padding:4px 10px;font-size:11px" onclick="saveFile()">保存</button>
+          <button class="ib" style="padding:4px" onclick="closeEditor()">✕</button>
+        </div>
+        <div style="display:flex;overflow:hidden;max-height:50vh">
+          <div id="lineNums" style="padding:8px 0;text-align:right;color:var(--muted);font:12px/1.5 var(--mono);min-width:36px;user-select:none;overflow:hidden;background:var(--bg-panel);border-right:1px solid var(--border)"></div>
+          <textarea id="editor" style="flex:1;padding:8px 12px;border:none;outline:none;resize:none;font:12px/1.5 var(--mono);background:var(--bg-card);color:var(--fg);tab-size:2;overflow:auto;min-height:200px"></textarea>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -390,13 +404,47 @@ async function loadDir(){
     const tree=$('fTree');tree.innerHTML='';
     (d.entries||[]).forEach(e=>{
       const n=document.createElement('div');
-      n.style.cssText='padding:4px 0;cursor:pointer;display:flex;gap:6px';
+      n.style.cssText='padding:4px 0;cursor:pointer;display:flex;gap:6px;border-radius:4px;padding:4px 6px';
       n.innerHTML='<span>'+(e.isDir?'📁':'📄')+'</span><span>'+esc(e.name)+'</span>';
-      n.onclick=()=>{if(e.isDir){$('fPath').value=e.path;loadDir();}};
+      n.onmouseenter=()=>n.style.background='var(--primary-light)';
+      n.onmouseleave=()=>n.style.background='';
+      n.onclick=()=>{if(e.isDir){$('fPath').value=e.path;loadDir();}else{openEditor(e.path);}};
       tree.appendChild(n);
     });
   }catch(e){$('fTree').innerHTML='<div style="color:var(--red)">'+esc(e.message)+'</div>';}
 }
+async function openEditor(path){
+  try{
+    const r=await fetch('/api/file?path='+encodeURIComponent(path));const d=await r.json();
+    $('editorFile').textContent=path;
+    $('editorFile').title=path;
+    $('editor').value=d.content;
+    $('editor').dataset.path=path;
+    $('editorWrap').style.display='';
+    updateLineNums();
+  }catch(e){toast(e.message);}
+}
+function closeEditor(){$('editorWrap').style.display='none';}
+function updateLineNums(){
+  const ta=$('editor'),ln=$('lineNums');
+  if(!ta||!ln)return;
+  const lines=ta.value.split('\n').length;
+  ln.innerHTML=Array.from({length:lines},(_,i)=>'<div>'+(i+1)+'</div>').join('');
+}
+async function saveFile(){
+  const path=$('editor').dataset.path;
+  if(!path)return;
+  try{
+    await fetch('/api/file',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({path,content:$('editor').value})});
+    toast('已保存 '+path);
+  }catch(e){toast(e.message);}
+}
+$('editor').addEventListener('input',updateLineNums);
+$('editor').addEventListener('scroll',()=>{$('lineNums').scrollTop=$('editor').scrollTop;});
+$('editor').addEventListener('keydown',e=>{
+  if(e.key==='Tab'){e.preventDefault();const s=e.target.selectionStart,v=e.target.value;e.target.value=v.slice(0,s)+'  '+v.slice(e.target.selectionEnd);e.target.selectionStart=e.target.selectionEnd=s+2;updateLineNums();}
+  if(e.key==='s'&&(e.ctrlKey||e.metaKey)){e.preventDefault();saveFile();}
+});
 
 /* ask */
 function replyAsk(ok,always){
