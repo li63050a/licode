@@ -262,7 +262,7 @@ const $=id=>document.getElementById(id);
 const esc=s=>{const d=document.createElement('div');d.textContent=s;return d.innerHTML};
 
 /* state */
-let ws,busy=false,lastAsst=null,tools=[],curAsk=null,sessions=[],curSess='';
+let ws,busy=false,lastAsst=null,tools=[],curAsk=null,sessions=[],curSess='',prevSess='';
 let curSettings={};
 
 /* theme */
@@ -440,7 +440,10 @@ function connect(){
       case 'tool_done':if(tools.length){setToolDone(tools.pop(),evt);}break;
       case 'status':$('statusBar').textContent=evt.content||'';break;
       case 'settings':curSettings=evt.settings||{};$('modelTag').textContent=curSettings.model||'';break;
-      case 'sessions':sessions=evt.sessions||[];curSess=evt.sessionId||'';renderSessions();$('chatWrap').innerHTML='';renderEmpty();break;
+      case 'sessions':
+        sessions=evt.sessions||[];const newSid=evt.sessionId||'';
+        if(newSid&&newSid!==curSess){$('chatWrap').innerHTML='';renderEmpty();}
+        curSess=newSid;prevSess=curSess;renderSessions();break;
       case 'stats':
         $('sMsgs').textContent=(evt.stats&&evt.stats.messages)||0;
         $('sTokens').textContent=(evt.stats&&evt.stats.tokens)||0;
