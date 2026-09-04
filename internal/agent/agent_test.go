@@ -76,10 +76,10 @@ func buildMockAgent(script []func(req mockReq) []mockStep) *Agent {
 }
 
 func TestAgentToolLoop(t *testing.T) {
-	// 第一步：要求调用 write_file；第二步：给最终回答。
+	// 第一步：要求调用 Write；第二步：给最终回答。
 	ag := buildMockAgent([]func(req mockReq) []mockStep{
 		func(req mockReq) []mockStep {
-			return []mockStep{{toolName: "write_file", args: `{"path":"/tmp/licode_test.txt","content":"hello"}`}}
+			return []mockStep{{toolName: "Write", args: `{"path":"/tmp/licode_test.txt","content":"hello"}`}}
 		},
 		func(req mockReq) []mockStep {
 			return []mockStep{{content: "已写入"}}
@@ -100,7 +100,7 @@ func TestAgentToolLoop(t *testing.T) {
 	}
 	// 工具确实执行了：文件应存在
 	if !fileExists("/tmp/licode_test.txt") {
-		t.Fatal("write_file tool did not actually write the file")
+		t.Fatal("Write tool did not actually write the file")
 	}
 	// 会话中应包含 tool 消息（回填给模型）
 	msgs := ag.Session.Messages()

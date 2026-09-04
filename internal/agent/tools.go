@@ -99,15 +99,16 @@ func intArg(args map[string]any, key string, def int) int {
 
 // RegisterDefaultTools installs the built-in coding tools on a registry.
 func RegisterDefaultTools(r *Registry) {
+	// Read - 读取文件
 	r.Register(Tool{
-		Name:        "read_file",
-		Description: "Read a text file. Returns the requested lines; use offset/limit for large files.",
+		Name:        "Read",
+		Description: "Read a text file. Returns the requested lines with line numbers; use offset/limit for large files.",
 		Schema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
 				"path":   map[string]any{"type": "string", "description": "Path to the file"},
 				"offset": map[string]any{"type": "integer", "description": "1-based starting line"},
-				"limit":  map[string]any{"type": "integer", "description": "Max lines to read"},
+				"limit":  map[string]any{"type": "integer", "description": "Max lines to read (default 200)"},
 			},
 			"required": []string{"path"},
 		},
@@ -156,9 +157,10 @@ func RegisterDefaultTools(r *Registry) {
 		},
 	})
 
+	// Write - 写入文件
 	r.Register(Tool{
-		Name:        "write_file",
-		Description: "Write or replace a file with the given content. Creates parent directories.",
+		Name:        "Write",
+		Description: "Write or replace a file with the given content. Creates parent directories automatically.",
 		Schema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -187,9 +189,70 @@ func RegisterDefaultTools(r *Registry) {
 		},
 	})
 
+	// Edit - 编辑文件（查找替换）
 	r.Register(Tool{
-		Name:        "list_dir",
-		Description: "List entries in a directory.",
+		Name:        "Edit",
+		Description: "Edit a file by finding and replacing specific text. Use for targeted changes without rewriting the whole file.",
+		Schema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"path":    map[string]any{"type": "string", "description": "Path to the file"},
+				"old":     map[string]any{"type": "string", "description": "Exact text to find (must be unique in file)"},
+				"new":     map[string]any{"type": "string", "description": "Replacement text"},
+				"all":     map[string]any{"type": "boolean", "description": "Replace all occurrences (default: false, only first)"},
+			},
+			"required": []string{"path", "old", "new"},
+		},
+		Run: func(ctx context.Context, args map[string]any) (string, error) {
+			path := strArg(args, "path")
+			path, err := validateToolPath(path)
+			if err != nil {
+				return "", err
+			}
+			old := strArg(args, "old")
+			new := strArg(args, "new")
+			if old == "" {
+				return "", fmt.Errorf("old text required")
+			}
+			data, err := os.ReadFile(path)
+			if err != nil {
+				return "", err
+			}
+			content := string(data)
+			if !strings.Contains(content, old) {
+				return "", fmt.Errorf("old text not found in file")
+			}
+			count := strings.Count(content, old)
+			replaceAll := false
+			if v, ok := args["all"]; ok {
+				if b, ok := v.(bool); ok {
+					replaceAll = b
+				}
+			}
+			if !replaceAll && count > 1 {
+				return "", fmt.Errorf("old text appears %d times; use all=true or provide more context", count)
+			}
+			var result string
+			if replaceAll {
+				result = strings.ReplaceAll(content, old, new)
+			} else {
+				result = strings.Replace(content, old, new, 1)
+			}
+			if err := os.WriteFile(path, []byte(result), 0o644); err != nil {
+				return "", err
+			}
+			replaced := 1
+			if replaceAll {
+				replaced = count
+			}
+			return fmt.Sprintf("replaced %d occurrence(s) in %s", replaced, path), nil
+		},
+	})
+
+	// ListDirectory - 列出目录
+	r.Register(Tool{
+		Name:        "ListDirectory",
+		Description: "List entries in a directory with file sizes.",
 		Schema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -227,15 +290,16 @@ func RegisterDefaultTools(r *Registry) {
 		},
 	})
 
+	// Grep - 搜索文件内容
 	r.Register(Tool{
-		Name:        "grep",
-		Description: "Search file contents with a regex. Returns matching file:line matches.",
+		Name:        "Grep",
+		Description: "Search file contents with a regex pattern. Returns matching file:line results.",
 		Schema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
-				"pattern": map[string]any{"type": "string", "description": "Regular expression"},
-				"include": map[string]any{"type": "string", "description": "File glob filter, e.g. *.go"},
-				"path":    map[string]any{"type": "string", "description": "Root directory (default .)"},
+				"pattern": map[string]any{"type": "string", "description": "Regular expression pattern"},
+				"include": map[string]any{"type": "string", "description": "File glob filter, e.g. *.go or *.ts"},
+				"path":    map[string]any{"type": "string", "description": "Root directory to search (default: current dir)"},
 			},
 			"required": []string{"pattern"},
 		},
@@ -272,9 +336,10 @@ func RegisterDefaultTools(r *Registry) {
 		},
 	})
 
+	// Glob - 按通配符查找文件
 	r.Register(Tool{
-		Name:        "glob",
-		Description: "Find files by glob pattern, e.g. **/*.go",
+		Name:        "Glob",
+		Description: "Find files by glob pattern, e.g. **/*.go or src/**/*.ts",
 		Schema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -308,15 +373,16 @@ func RegisterDefaultTools(r *Registry) {
 		},
 	})
 
+	// Bash - 执行 shell 命令
 	r.Register(Tool{
-		Name:        "run_shell",
-		Description: "Run a shell command and capture its output. Use for builds, tests, and git. Set timeout in seconds.",
+		Name:        "Bash",
+		Description: "Execute a shell command and return its output. Use for building, testing, git, and system operations.",
 		Schema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
-				"command": map[string]any{"type": "string", "description": "Shell command to run"},
-				"timeout": map[string]any{"type": "integer", "description": "Timeout in seconds (default 30)"},
-				"cwd":     map[string]any{"type": "string", "description": "Working directory"},
+				"command": map[string]any{"type": "string", "description": "Shell command to execute"},
+				"timeout": map[string]any{"type": "integer", "description": "Timeout in seconds (default 30, max 300)"},
+				"cwd":     map[string]any{"type": "string", "description": "Working directory for the command"},
 			},
 			"required": []string{"command"},
 		},
@@ -355,6 +421,73 @@ func RegisterDefaultTools(r *Registry) {
 				return fmt.Sprintf("exit error: %v\n%s", err, s), nil
 			}
 			return s, nil
+		},
+	})
+
+	// Delete - 删除文件
+	r.Register(Tool{
+		Name:        "Delete",
+		Description: "Delete a file or empty directory.",
+		Schema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"path": map[string]any{"type": "string", "description": "Path to delete"},
+			},
+			"required": []string{"path"},
+		},
+		Run: func(ctx context.Context, args map[string]any) (string, error) {
+			path := strArg(args, "path")
+			path, err := validateToolPath(path)
+			if err != nil {
+				return "", err
+			}
+			info, err := os.Stat(path)
+			if err != nil {
+				return "", err
+			}
+			if info.IsDir() {
+				entries, _ := os.ReadDir(path)
+				if len(entries) > 0 {
+					return "", fmt.Errorf("directory not empty (%d entries); only empty directories can be deleted", len(entries))
+				}
+			}
+			if err := os.Remove(path); err != nil {
+				return "", err
+			}
+			return fmt.Sprintf("deleted %s", path), nil
+		},
+	})
+
+	// Move - 移动/重命名文件
+	r.Register(Tool{
+		Name:        "Move",
+		Description: "Move or rename a file/directory.",
+		Schema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"source": map[string]any{"type": "string", "description": "Source path"},
+				"dest":   map[string]any{"type": "string", "description": "Destination path"},
+			},
+			"required": []string{"source", "dest"},
+		},
+		Run: func(ctx context.Context, args map[string]any) (string, error) {
+			source := strArg(args, "source")
+			source, err := validateToolPath(source)
+			if err != nil {
+				return "", err
+			}
+			dest := strArg(args, "dest")
+			dest, err = validateToolPath(dest)
+			if err != nil {
+				return "", err
+			}
+			if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
+				return "", err
+			}
+			if err := os.Rename(source, dest); err != nil {
+				return "", err
+			}
+			return fmt.Sprintf("moved %s -> %s", source, dest), nil
 		},
 	})
 }

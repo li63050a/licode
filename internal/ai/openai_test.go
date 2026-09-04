@@ -50,7 +50,7 @@ func mockOpenAIServer(t *testing.T, scenario string) *httptest.Server {
 				Function: struct {
 					Name      string `json:"name,omitempty"`
 					Arguments string `json:"arguments,omitempty"`
-				}{Name: "read_file", Arguments: `{"path":"`},
+				}{Name: "Read", Arguments: `{"path":"`},
 			}}}, "")
 			// 第二次仅追加参数剩余部分
 			writeChunk(openaiDelta{ToolCalls: []aiToolCallReq{{
@@ -107,7 +107,7 @@ func TestOpenAIChatStreamToolCalls(t *testing.T) {
 		t.Fatalf("expected 1 tool call, got %d", len(calls))
 	}
 	c := calls[0]
-	if c.Function.Name != "read_file" {
+	if c.Function.Name != "Read" {
 		t.Errorf("name = %q", c.Function.Name)
 	}
 	var args map[string]any

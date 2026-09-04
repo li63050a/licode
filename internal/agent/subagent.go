@@ -182,15 +182,15 @@ func DefaultSubAgentSpecs(client ai.LLMClient) []SubAgentSpec {
 			Prompt: `你是代码探索子代理。使用你的读/搜索工具调查代码库，并给出具体结论：
 涉及的文件、关键函数（带 文件:行号 引用）、各部分如何组合。请保持彻底
 且实事求是。不要修改文件。请用简体中文汇报。`,
-			Tools:  []string{"read_file", "list_dir", "glob", "grep"},
+			Tools:  []string{"Read", "ListDirectory", "Glob", "Grep"},
 			Client: client,
 		},
 		{
 			Name: "builder",
 			Prompt: `你是构建子代理。通过写入或编辑文件实现所要求的改动，然后用
-run_shell 运行构建/测试命令进行验证。最后总结改动内容、涉及的文件以及
+Bash 运行构建/测试命令进行验证。最后总结改动内容、涉及的文件以及
 验证结果。请用简体中文汇报。`,
-			Tools:  []string{"read_file", "write_file", "list_dir", "grep", "glob", "run_shell"},
+			Tools:  []string{"Read", "Write", "Edit", "ListDirectory", "Grep", "Glob", "Bash"},
 			Client: client,
 		},
 		{
@@ -217,7 +217,7 @@ func (a *Agent) RegisterSubAgents(specs []SubAgentSpec) {
 		names = append(names, s.Name)
 	}
 	_ = a.Tools.Register(Tool{
-		Name:        "dispatch_subagents",
+		Name:        "Dispatch",
 		Description: "Dispatch subtasks to specialized sub-agents in parallel. Each task needs a unique name, an agent name from {" + strings.Join(names, ", ") + "}, a prompt, and optional depends_on referencing other task names for ordering. Returns each task's output or error.",
 		Schema: map[string]any{
 			"type": "object",

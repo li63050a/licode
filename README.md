@@ -35,18 +35,22 @@
 
 | 工具 | 说明 | 默认权限 |
 | --- | --- | --- |
-| `read_file` | 读取文件（支持 offset/limit） | 允许 |
-| `write_file` | 写入/替换文件 | **需审批** |
-| `list_dir` | 列出目录 | 允许 |
-| `grep` | 正则搜索代码 | 允许 |
-| `glob` | 按通配符查找文件 | 允许 |
-| `run_shell` | 执行 shell 命令（构建/测试/git） | **需审批** |
+| `Read` | 读取文件（支持 offset/limit） | 允许 |
+| `Write` | 写入/替换文件 | **需审批** |
+| `Edit` | 查找替换编辑文件（精确修改） | 允许 |
+| `ListDirectory` | 列出目录内容 | 允许 |
+| `Grep` | 正则搜索代码 | 允许 |
+| `Glob` | 按通配符查找文件 | 允许 |
+| `Bash` | 执行 shell 命令（构建/测试/git） | **需审批** |
+| `Delete` | 删除文件或空目录 | **需审批** |
+| `Move` | 移动/重命名文件 | 允许 |
+| `Dispatch` | 并行调度子代理执行任务 | 允许 |
 
 > **Skills / MCP 不是"需要手动加载"的东西**：把它们放进对应目录就自动加载、运行中热更新。
 
-**权限配置**（设置 → 工具规则，如 `read_file:allow, write_file:ask, run_shell:deny`）：
+**权限配置**（设置 → 工具规则，如 `Read:allow, Write:ask, Bash:deny`）：
 
-- `allow` 允许 · `ask` 需审批 · `deny` 禁用
+- `allow` 允许 · `ask` 避审批 · `deny` 禁用
 - 需审批时前端弹出「拒绝 / 允许 / **始终允许**」——始终允许**仅当前对话生效**
 
 ## 设置

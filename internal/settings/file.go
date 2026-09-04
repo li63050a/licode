@@ -139,8 +139,9 @@ func (s *Settings) finalize() error {
 	// 默认：写文件/执行 shell 属于风险操作，默认询问
 	if len(s.ToolRules) == 0 && len(s.AskTools) == 0 && len(s.DenyTools) == 0 {
 		s.ToolRules = map[string]string{
-			"write_file": "ask",
-			"run_shell":  "ask",
+			"Write": "ask",
+			"Bash":  "ask",
+			"Delete": "ask",
 		}
 	}
 	if s.Streaming == nil {
