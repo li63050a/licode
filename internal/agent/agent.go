@@ -12,6 +12,7 @@ import (
 	"sync"
 
 	"licode/internal/ai"
+	"licode/internal/logx"
 	"licode/internal/session"
 )
 
@@ -169,12 +170,20 @@ type Agent struct {
 	MaxIterations int
 	MaxTokens     int
 	Temperature   float64
+	// Timeout 硬超时（秒，0=不限制）。超时后强制取消本次运行。
+	Timeout int
 	// Permissions 工具名 -> allow/ask/deny；"*" 为默认模式。
 	Permissions map[string]string
 	// Ask 在 permission=ask 时被调用，返回 true 表示允许执行。
 	Ask func(ctx context.Context, toolName, args string) (bool, error)
 	// Compaction 上下文超限时用 LLM 压缩旧对话。
 	Compaction bool
+	// RedactSecrets 对工具输出做敏感信息脱敏。
+	RedactSecrets bool
+	// Shell 配置 Shell 工具（路径、沙箱等）。
+	Shell ShellConfig
+	// TraceID 本次运行的调用链标识（结构化日志用）。
+	TraceID string
 	// Usage 累计本次运行消耗的 token（含缓存读取）。
 	Usage ai.Usage
 }
@@ -190,13 +199,17 @@ func NewAgent(client ai.LLMClient, system string) *Agent {
 		MaxIterations: 16,
 		MaxTokens:     4096,
 	}
-	RegisterDefaultTools(a.Tools, "")
+	RegisterDefaultTools(a.Tools, a.Shell)
 	return a
 }
 
 // Run executes a user request, streaming events through onEvent.
 // It returns after the reply completes or an error occurs.
 func (a *Agent) Run(ctx context.Context, input string, onEvent func(Event)) error {
+	if a.TraceID == "" {
+		a.TraceID = logx.NewTraceID()
+	}
+	logx.AgentStart(a.TraceID, a.Name)
 	a.Session.Add(ai.Message{Role: ai.RoleUser, Content: input})
 
 	for iter := 1; iter <= a.MaxIterations; iter++ {
@@ -263,6 +276,10 @@ func (a *Agent) Run(ctx context.Context, input string, onEvent func(Event)) erro
 			if terr != nil {
 				out = fmt.Sprintf("TOOL ERROR: %v", terr)
 			}
+			if a.RedactSecrets {
+				out = RedactSecrets(out)
+			}
+			logx.ToolCall(a.TraceID, tc.Function.Name, tc.Function.Arguments, out)
 			onEvent(Event{Type: EventToolDone, ToolName: tc.Function.Name, ToolOut: out})
 			a.Session.Add(ai.Message{Role: ai.RoleTool, ToolCallID: tc.ID, ToolName: tc.Function.Name, Content: out})
 		}

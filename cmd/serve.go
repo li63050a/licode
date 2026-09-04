@@ -322,6 +322,18 @@ func runServe(opts *ServeOptions) error {
 		}
 		handleMkdir(w, r, wsState)
 	})
+	mux.HandleFunc("/api/export", func(w http.ResponseWriter, r *http.Request) {
+		if !auth.require(w, r) {
+			return
+		}
+		handleExport(w, r)
+	})
+	mux.HandleFunc("/api/import", func(w http.ResponseWriter, r *http.Request) {
+		if !auth.require(w, r) {
+			return
+		}
+		handleImport(w, r)
+	})
 	mux.HandleFunc("/api/delete", func(w http.ResponseWriter, r *http.Request) {
 		if !auth.require(w, r) {
 			return
@@ -444,6 +456,18 @@ func runServe(opts *ServeOptions) error {
 
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
+	// SIGHUP：热重载配置（重读 ~/.licode/config.json 并重建客户端），不中断服务。
+	hup := make(chan os.Signal, 1)
+	signal.Notify(hup, syscall.SIGHUP)
+	go func() {
+		for range hup {
+			if err := reloadServerSettings(st); err != nil {
+				log.Printf("SIGHUP 重载失败: %v", err)
+			} else {
+				log.Printf("SIGHUP 已重载配置")
+			}
+		}
+	}()
 	go func() {
 		<-stop
 		log.Printf("正在关闭…")
@@ -488,6 +512,23 @@ func applyServerSettings(st *serverState, msg websocket.ClientMessage) error {
 	s.EnsureDefaults()
 	if err := s.Validate(); err != nil {
 		return fmt.Errorf("设置无效: %v", err)
+	}
+	client, err := s.NewClient()
+	if err != nil {
+		return err
+	}
+	st.mu.Lock()
+	st.settings = s.Snapshot()
+	st.client = client
+	st.mu.Unlock()
+	return nil
+}
+
+// reloadServerSettings 从磁盘重读配置并重建客户端（热重载，SIGHUP 触发）。
+func reloadServerSettings(st *serverState) error {
+	s, err := settings.Load()
+	if err != nil {
+		return err
 	}
 	client, err := s.NewClient()
 	if err != nil {

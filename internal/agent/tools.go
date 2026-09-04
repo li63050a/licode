@@ -97,12 +97,26 @@ func intArg(args map[string]any, key string, def int) int {
 	return def
 }
 
-// RegisterDefaultTools installs the built-in coding tools on a registry.
-// shellPath is the shell to use for Shell tool (default "/bin/sh").
-func RegisterDefaultTools(r *Registry, shellPath string) {
-	if shellPath == "" {
-		shellPath = "/bin/sh"
+// ShellConfig 配置 Shell 工具执行方式。
+type ShellConfig struct {
+	Path    string // shell 可执行文件（默认 /bin/sh）
+	Sandbox bool   // 使用 Docker 沙箱隔离执行
+	Image   string // 沙箱镜像（默认 alpine:latest）
+}
+
+func (c *ShellConfig) resolve() {
+	c.Path = strings.TrimSpace(c.Path)
+	if c.Path == "" {
+		c.Path = "/bin/sh"
 	}
+	if c.Sandbox && strings.TrimSpace(c.Image) == "" {
+		c.Image = "alpine:latest"
+	}
+}
+
+// RegisterDefaultTools installs the built-in coding tools on a registry.
+func RegisterDefaultTools(r *Registry, sh ShellConfig) {
+	sh.resolve()
 	// Read - 读取文件
 	r.Register(Tool{
 		Name:        "Read",
@@ -412,9 +426,21 @@ func RegisterDefaultTools(r *Registry, shellPath string) {
 			}
 			cmdCtx, cancel := context.WithTimeout(ctx, timeout)
 			defer cancel()
-			cmd := exec.CommandContext(cmdCtx, shellPath, "-c", command)
-			if cwd != "" {
-				cmd.Dir = cwd
+			var cmd *exec.Cmd
+			if sh.Sandbox {
+				// Docker 沙箱隔离执行：只读挂载工作区到 /work，命令在容器内运行。
+				img := sh.Image
+				dargs := []string{"run", "--rm", "-i", "-w", "/work"}
+				if cwd != "" {
+					dargs = append(dargs, "-v", cwd+":/work:ro")
+				}
+				dargs = append(dargs, img, sh.Path, "-c", command)
+				cmd = exec.CommandContext(cmdCtx, "docker", dargs...)
+			} else {
+				cmd = exec.CommandContext(cmdCtx, sh.Path, "-c", command)
+				if cwd != "" {
+					cmd.Dir = cwd
+				}
 			}
 			out, err := cmd.CombinedOutput()
 			s := string(out)

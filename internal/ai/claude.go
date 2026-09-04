@@ -17,6 +17,7 @@ type ClaudeProvider struct {
 	baseURL string
 	apiKey  string
 	model   string
+	retry   int
 	client  *http.Client
 }
 
@@ -131,27 +132,32 @@ func (p *ClaudeProvider) buildBody(req ChatRequest) ([]byte, error) {
 }
 
 func (p *ClaudeProvider) do(ctx context.Context, req ChatRequest) (*http.Response, error) {
-	payload, err := p.buildBody(req)
-	if err != nil {
-		return nil, err
-	}
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, p.baseURL+"/v1/messages", bytes.NewReader(payload))
-	if err != nil {
-		return nil, err
-	}
-	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("x-api-key", p.apiKey)
-	httpReq.Header.Set("anthropic-version", "2023-06-01")
-	resp, err := p.httpClient().Do(httpReq)
-	if err != nil {
-		return nil, fmt.Errorf("claude request: %w", err)
-	}
-	if resp.StatusCode != http.StatusOK {
-		defer resp.Body.Close()
-		b, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		return nil, fmt.Errorf("claude %s: %s", resp.Status, strings.TrimSpace(string(b)))
-	}
-	return resp, nil
+	var resp *http.Response
+	err := WithRetry(p.retry, func() error {
+		payload, err := p.buildBody(req)
+		if err != nil {
+			return err
+		}
+		httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, p.baseURL+"/v1/messages", bytes.NewReader(payload))
+		if err != nil {
+			return err
+		}
+		httpReq.Header.Set("Content-Type", "application/json")
+		httpReq.Header.Set("x-api-key", p.apiKey)
+		httpReq.Header.Set("anthropic-version", "2023-06-01")
+		r, err := p.httpClient().Do(httpReq)
+		if err != nil {
+			return fmt.Errorf("claude request: %w", err)
+		}
+		if r.StatusCode != http.StatusOK {
+			b, _ := io.ReadAll(io.LimitReader(r.Body, 1024))
+			r.Body.Close()
+			return &statusErr{status: "claude " + r.Status, body: strings.TrimSpace(string(b))}
+		}
+		resp = r
+		return nil
+	})
+	return resp, err
 }
 
 // Chat performs a non-streaming completion.

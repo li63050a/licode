@@ -81,6 +81,12 @@ type Settings struct {
 	ToolRules     map[string]string `json:"tool_rules"`  // 工具名 -> allow/ask/deny
 	MCPServers    []MCPServer       `json:"mcp_servers"` // MCP 服务器列表
 	ShellPath     string            `json:"shell_path"`  // Shell 路径（默认 /bin/sh）
+	RetryMax      int               `json:"retry_max"`   // LLM 调用失败重试次数（0=关闭）
+	SubTimeout    int               `json:"sub_timeout"` // 子代理硬超时（秒，0=不限制）
+	MaxCtxTokens  int               `json:"max_ctx_tokens"` // 上下文窗口保护阈值（0=关闭）
+	RedactSecrets bool              `json:"redact_secrets"` // 工具输出敏感信息脱敏
+	Sandbox       bool              `json:"sandbox"`        // 使用沙箱执行 Shell（Docker）
+	SandboxImage  string            `json:"sandbox_image"`  // 沙箱镜像（默认 alpine）
 }
 
 // Defaults 返回合并了配置文件、环境变量与内置默认值的初始设置。
@@ -177,6 +183,7 @@ func (s *Settings) AIConfig() ai.Config {
 		BaseURL:  pc.BaseURL,
 		APIKey:   pc.APIKey,
 		Model:    pc.Model,
+		RetryMax: s.RetryMax,
 	}
 }
 
@@ -196,6 +203,12 @@ func (s *Settings) BuildAgent(client ai.LLMClient) *agent.Agent {
 	ag.MaxIterations = s.MaxIterations
 	ag.Temperature = s.Temperature
 	ag.Compaction = s.Compaction
+	ag.Timeout = s.SubTimeout
+	ag.RedactSecrets = s.RedactSecrets
+	ag.Shell = agent.ShellConfig{Path: s.ShellPath, Sandbox: s.Sandbox, Image: s.SandboxImage}
+	if s.MaxCtxTokens > 0 {
+		ag.Session.SetMaxTokens(s.MaxCtxTokens)
+	}
 	ag.Permissions = map[string]string{}
 	// 工具规则：tool -> allow/ask/deny（未配置默认为 allow）
 	for tool, mode := range s.ToolRules {
@@ -211,7 +224,7 @@ func (s *Settings) BuildAgent(client ai.LLMClient) *agent.Agent {
 		ag.Permissions[t] = "ask"
 	}
 	if s.SubAgents {
-		ag.RegisterSubAgents(agent.DefaultSubAgentSpecs(client, s.ShellPath))
+		ag.RegisterSubAgents(agent.DefaultSubAgentSpecs(client, ag.Shell, s.SubTimeout))
 	}
 	agent.RegisterSkills(ag.Tools, agent.LoadSkills(agent.SkillDirs()...))
 	_ = agent.RegisterMCPServers(ag.Tools, s.MCPServers)
@@ -255,6 +268,13 @@ func (s *Settings) Snapshot() Settings {
 		Streaming:     s.Streaming,
 		MCPServers:    append([]MCPServer{}, s.MCPServers...),
 		ToolRules:     map[string]string{},
+		ShellPath:     s.ShellPath,
+		RetryMax:      s.RetryMax,
+		SubTimeout:    s.SubTimeout,
+		MaxCtxTokens:  s.MaxCtxTokens,
+		RedactSecrets: s.RedactSecrets,
+		Sandbox:       s.Sandbox,
+		SandboxImage:  s.SandboxImage,
 	}
 	for k, v := range s.ToolRules {
 		out.ToolRules[k] = v

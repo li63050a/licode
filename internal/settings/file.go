@@ -95,6 +95,23 @@ func (s *Settings) mergeFrom(o *Settings) {
 			s.ToolRules[k] = v
 		}
 	}
+	if o.ShellPath != "" {
+		s.ShellPath = o.ShellPath
+	}
+	if o.RetryMax != 0 {
+		s.RetryMax = o.RetryMax
+	}
+	if o.SubTimeout != 0 {
+		s.SubTimeout = o.SubTimeout
+	}
+	if o.MaxCtxTokens != 0 {
+		s.MaxCtxTokens = o.MaxCtxTokens
+	}
+	s.RedactSecrets = o.RedactSecrets
+	s.Sandbox = o.Sandbox
+	if o.SandboxImage != "" {
+		s.SandboxImage = o.SandboxImage
+	}
 }
 
 // Save 把设置写入配置文件（默认 SavePath）。

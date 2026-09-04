@@ -6,6 +6,8 @@ package ai
 import (
 	"context"
 	"encoding/json"
+	"strings"
+	"time"
 )
 
 // Role constants for messages.
@@ -104,3 +106,41 @@ var (
 	_ LLMClient = (*OllamaProvider)(nil)
 	_ LLMClient = (*GeminiProvider)(nil)
 )
+
+// retryableError reports whether an LLM error is worth retrying with backoff:
+// rate limits (429), transient server errors (503), and network problems.
+func retryableError(err error) bool {
+	if err == nil {
+		return false
+	}
+	s := strings.ToLower(err.Error())
+	for _, pat := range []string{"429", "503", "rate limit", "too many requests", "temporarily", "connection reset", "i/o timeout", "server error", "eof", "dial tcp", "timeout"} {
+		if strings.Contains(s, pat) {
+			return true
+		}
+	}
+	return false
+}
+
+// WithRetry wraps an llm call with exponential backoff retry. It retries
+// retryable errors up to max times (max=0 disables retry).
+func WithRetry(max int, fn func() error) error {
+	if max <= 0 {
+		return fn()
+	}
+	var err error
+	for attempt := 0; attempt <= max; attempt++ {
+		if attempt > 0 {
+			backoff := time.Duration(1<<uint(attempt-1)) * time.Second
+			if backoff > 30*time.Second {
+				backoff = 30 * time.Second
+			}
+			time.Sleep(backoff)
+		}
+		err = fn()
+		if err == nil || !retryableError(err) {
+			return err
+		}
+	}
+	return err
+}

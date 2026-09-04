@@ -12,7 +12,12 @@
 - 多对话：会话列表、自动标题、切换、删除，实时保存到 `~/.licode/sessions/`
 - MCP 接入（stdio JSON-RPC，可多个）与 Skills 技能（可多个，`skills/*.md`）
 - 上下文压缩 compaction、自动标题 title_gen
-- 浅色/深色主题切换
+- 运行时健壮性：LLM 调用指数退避重试（处理 429/503/网络抖动）、子代理硬超时、上下文窗口滑动保护（token 预算）
+- 安全纵深：工具输出敏感信息脱敏（sk-* API Key 等）、可选 Docker 沙箱隔离执行 Shell
+- 可观测性：结构化 JSON 日志（trace_id 串联 Agent→Tool 调用链，`LICODE_JSON_LOG=1`）
+- 备份迁移：一键导出/导入 zip（配置 + 会话 + 技能 + 附加提示词）
+- 热重载：SIGHUP 重载配置（修改 `~/.licode/config.json` 后 `kill -HUP <pid>` 即时生效，不中断服务）
+- 浅色/深色主题切换，流式工具调用渲染（参数/结果折叠卡片），生成中可随时"停止"
 - 系统提示词读取 `~/.licode/system-prompt.md`；`md/` 目录递归读取所有 `.md` 作为附加提示词
 - 登录认证（默认用户名 `licode`，密码自行设置；未启用登录时页面会提醒如何启用）
 - HTTPS（`--https`，无证书时自动生成自签名证书）
@@ -77,6 +82,7 @@
 | `LICODE_USERNAME` | 登录用户名（同 `--username`） |
 | `LICODE_PASSWORD` | 登录密码（同 `--password`） |
 | `LICODE_HOME` | 用户数据目录（默认 `~/.licode`） |
+| `LICODE_JSON_LOG` | 置为 `1` 输出结构化 JSON 日志（含 trace_id） |
 
 ### 提供商默认值
 

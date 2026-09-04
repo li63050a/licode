@@ -13,6 +13,7 @@ type Config struct {
 	BaseURL  string
 	APIKey   string
 	Model    string
+	RetryMax int // LLM 调用失败重试次数（指数退避，处理 429/503/网络抖动）
 }
 
 const (
@@ -108,13 +109,13 @@ func New(cfg Config) (LLMClient, error) {
 	name := cfg.Provider
 	switch cfg.Type {
 	case "openai":
-		return &OpenAIProvider{name: name, baseURL: cfg.BaseURL, apiKey: cfg.APIKey, model: cfg.Model}, nil
+		return &OpenAIProvider{name: name, baseURL: cfg.BaseURL, apiKey: cfg.APIKey, model: cfg.Model, retry: cfg.RetryMax}, nil
 	case "claude":
-		return &ClaudeProvider{name: name, baseURL: cfg.BaseURL, apiKey: cfg.APIKey, model: cfg.Model}, nil
+		return &ClaudeProvider{name: name, baseURL: cfg.BaseURL, apiKey: cfg.APIKey, model: cfg.Model, retry: cfg.RetryMax}, nil
 	case "ollama":
-		return &OllamaProvider{name: name, baseURL: cfg.BaseURL, model: cfg.Model}, nil
+		return &OllamaProvider{name: name, baseURL: cfg.BaseURL, model: cfg.Model, retry: cfg.RetryMax}, nil
 	case "google", "gemini":
-		return &GeminiProvider{name: name, baseURL: cfg.BaseURL, apiKey: cfg.APIKey, model: cfg.Model}, nil
+		return &GeminiProvider{name: name, baseURL: cfg.BaseURL, apiKey: cfg.APIKey, model: cfg.Model, retry: cfg.RetryMax}, nil
 	default:
 		return nil, fmt.Errorf("unsupported protocol type %q", cfg.Type)
 	}

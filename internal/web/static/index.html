@@ -90,6 +90,9 @@ header .spacer{flex:1}
 .tool .body{padding:0 12px;max-height:0;overflow:hidden;transition:max-height .2s}
 .tool.open .body{max-height:400px;overflow-y:auto;padding:8px 12px}
 .tool pre{margin:0;background:var(--bg-panel);border:none;border-radius:0;padding:8px;font-size:12px}
+.tool .tl{font-size:11px;color:var(--muted);margin:6px 0 2px;font-weight:600}
+.tool .head .status.run{color:var(--primary)}
+.tool .head .status{color:var(--green)}
 
 /* copy btn on pre */
 pre .cp{position:absolute;top:6px;right:6px;background:var(--bg-card);border:1px solid var(--border);border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer;color:var(--muted)}
@@ -198,6 +201,9 @@ pre .cp:hover{color:var(--primary)}
     <div id="inputBar">
       <div class="wrap">
         <textarea id="input" rows="1" placeholder="输入消息..."></textarea>
+        <button id="stop" onclick="stopGen()" style="display:none" title="停止生成">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>
+        </button>
         <button id="send" onclick="send()">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4z"/></svg>
         </button>
@@ -219,6 +225,12 @@ pre .cp:hover{color:var(--primary)}
       <div class="row"><span>始终允许</span><span id="sAlways">-</span></div>
       <h4>版本</h4>
       <div class="row"><span>licode</span><span id="sVer">-</span></div>
+      <h4>备份</h4>
+      <div style="display:flex;gap:6px;margin-top:6px">
+        <button class="btn" style="flex:1" onclick="exportBackup()">导出</button>
+        <button class="btn" style="flex:1" onclick="document.getElementById('impFile').click()">导入</button>
+        <input type="file" id="impFile" accept=".zip" style="display:none" onchange="importBackup(this.files[0])" />
+      </div>
       <h4>联系与交流</h4>
       <div class="row"><span>GitHub</span><a href="https://github.com/li63050a/licode" target="_blank" style="color:var(--primary);text-decoration:none">li63050a/licode</a></div>
       <div class="row"><span>Gitee</span><a href="https://gitee.com/li63050a/licode" target="_blank" style="color:var(--primary);text-decoration:none">li63050a/licode</a></div>
@@ -264,6 +276,12 @@ pre .cp:hover{color:var(--primary)}
       <div class="fg"><label>子代理</label><select id="sSub"><option value="on">开启</option><option value="off">关闭</option></select></div>
       <div class="fg"><label>自动允许工具</label><select id="sAuto"><option value="on">开启</option><option value="off">关闭</option></select></div>
       <div class="fg"><label>Shell 路径</label><input id="sShell" placeholder="/bin/sh" /></div>
+      <div class="fg"><label>重试次数 (LLM)</label><input id="sRetry" placeholder="2" /></div>
+      <div class="fg"><label>子代理超时(秒)</label><input id="sSubT" placeholder="0=不限制" /></div>
+      <div class="fg"><label>上下文保护(tokens)</label><input id="sCtx" placeholder="0=关闭" /></div>
+      <div class="fg"><label>敏感信息脱敏</label><select id="sRedact"><option value="on">开启</option><option value="off">关闭</option></select></div>
+      <div class="fg"><label>沙箱执行(需Docker)</label><select id="sSandbox"><option value="off">关闭</option><option value="on">开启</option></select></div>
+      <div class="fg"><label>沙箱镜像</label><input id="sSandImg" placeholder="alpine:latest" /></div>
       <div class="fg"><label>MCP 服务器 (JSON)</label><textarea id="sMCP"></textarea></div>
       <div class="fg"><label>多提供商 (JSON)</label><textarea id="sProvs"></textarea></div>
     </div>
@@ -355,14 +373,41 @@ function copyPre(btn){const code=btn.previousElementSibling;navigator.clipboard.
 
 /* tool call */
 function addTool(evt){
-  const d=document.createElement('div');d.className='tool';
-  d.innerHTML='<div class="head" onclick="this.parentElement.classList.toggle(\'open\')"><span class="name">⚙ '+esc(evt.toolName)+'</span><span class="status">执行中...</span></div><div class="body"><pre>'+esc(evt.toolArgs)+'</pre></div>';
+  const d=document.createElement('div');d.className='tool open';
+  d.innerHTML='<div class="head" onclick="this.parentElement.classList.toggle(\'open\')"><span class="name">⚙ '+esc(evt.toolName)+'</span><span class="status run">执行中...</span></div>'+
+    '<div class="body"><div class="tl"><span>参数</span></div><pre class="args">'+esc(evt.toolArgs)+'</pre>'+
+    '<div class="tl out" style="display:none"><span>结果</span></div><pre class="out" style="display:none"></pre></div>';
   $('chatWrap').appendChild(d);scrollBottom();return d;
 }
-function setToolDone(el,evt){if(!el)return;el.querySelector('.status').textContent='完成';el.querySelector('.body pre').textContent=evt.toolOut||'';}
+function setToolDone(el,evt){
+  if(!el)return;
+  el.querySelector('.status').className='status';el.querySelector('.status').textContent='✓ 完成';
+  el.querySelector('.tl.out').style.display='';el.querySelector('pre.out').style.display='';
+  el.querySelector('pre.out').textContent=evt.toolOut||'';
+}
 
 /* toast */
 function toast(msg){const d=document.createElement('div');d.className='t';d.textContent=msg;$('toast').appendChild(d);setTimeout(()=>d.remove(),3000);}
+
+/* backup */
+async function exportBackup(){
+  try{
+    const r=await fetch('/api/export');
+    const blob=await r.blob();
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');a.href=url;a.download='licode-backup.zip';a.click();
+    URL.revokeObjectURL(url);toast('已导出备份');
+  }catch(e){toast(e.message);}
+}
+async function importBackup(file){
+  if(!file)return;
+  const fd=new FormData();fd.append('file',file);
+  try{
+    const r=await fetch('/api/import',{method:'POST',body:file});
+    const d=await r.json();
+    toast(d.ok?'导入成功':'导入失败: '+(d.error||''));
+  }catch(e){toast(e.message);}
+}
 
 /* settings */
 function openSettings(){
@@ -371,7 +416,10 @@ function openSettings(){
   $('sModel').value=s.model||'';$('sKey').value=s.api_key||'';$('sBase').value=s.base_url||'';
   $('sTemp').value=s.temperature??0.7;$('sMaxTok').value=s.max_tokens||4096;$('sMaxIter').value=s.max_iterations||16;
   $('sSub').value=s.subagents!==false?'on':'off';$('sAuto').value=s.auto_allow?'on':'off';
-  $('sShell').value=s.shell_path||'';$('sMCP').value=JSON.stringify(s.mcp_servers||[],null,2);
+  $('sShell').value=s.shell_path||'';$('sRetry').value=s.retry_max||'';$('sSubT').value=s.sub_timeout||'';
+  $('sCtx').value=s.max_ctx_tokens||'';$('sRedact').value=s.redact_secrets?'on':'off';
+  $('sSandbox').value=s.sandbox?'on':'off';$('sSandImg').value=s.sandbox_image||'';
+  $('sMCP').value=JSON.stringify(s.mcp_servers||[],null,2);
   $('sProvs').value=JSON.stringify(s.providers||[],null,2);
   $('settingsModal').classList.add('on');
 }
@@ -385,6 +433,9 @@ function saveSettings(){
     max_iterations:parseInt($('sMaxIter').value)||16,subagents:$('sSub').value==='on',
     auto_allow:$('sAuto').value==='on',streaming:true,
     shell_path:$('sShell').value||'/bin/sh',
+    retry_max:parseInt($('sRetry').value)||0,sub_timeout:parseInt($('sSubT').value)||0,
+    max_ctx_tokens:parseInt($('sCtx').value)||0,redact_secrets:$('sRedact').value==='on',
+    sandbox:$('sSandbox').value==='on',sandbox_image:$('sSandImg').value||'',
     mcp_servers:mcp,providers:provs
   }}));
   closeSettings();toast('设置已保存');
@@ -465,8 +516,15 @@ function send(){
   if(!text||busy||!ws||ws.readyState!==WebSocket.OPEN)return;
   if(text==='/clear'){$('chatWrap').innerHTML='';renderEmpty();ws.send(JSON.stringify({type:'message',content:'/clear'}));input.value='';return;}
   addMsg('user',text);input.value='';input.style.height='auto';
-  busy=true;$('send').disabled=true;
+  setBusy(true);
   ws.send(JSON.stringify({type:'message',content:text}));
+}
+function setBusy(b){
+  busy=b;$('send').disabled=b;$('stop').style.display=b?'':'none';
+  if(!b){lastAsst=null;}
+}
+function stopGen(){
+  if(!ws||busy){ws.send(JSON.stringify({type:'interrupt'}));busy=false;lastAsst=null;$('stop').style.display='none';$('send').disabled=false;$('statusBar').textContent='已停止';}
 }
 
 /* connection */
@@ -504,18 +562,17 @@ function connect(){
         $('sTokens').textContent=(evt.stats&&evt.stats.tokens)||0;
         $('sAlways').textContent=((evt.stats&&evt.stats.always_allow)||[]).join(', ')||'-';
         break;
-      case 'ask':curAsk=evt.askId;$('askName').textContent=evt.toolName;$('askBar').style.display='';busy=true;break;
+      case 'ask':curAsk=evt.askId;$('askName').textContent=evt.toolName;$('askBar').style.display='';setBusy(true);break;
       case 'done':
-        busy=false;lastAsst=null;tools=[];$('statusBar').textContent='';
-        $('send').disabled=false;
+        setBusy(false);tools=[];$('statusBar').textContent='';
         ws.send(JSON.stringify({type:'sessions_get'}));
         break;
       case 'error':
-        addMsg('assistant','⚠ '+evt.error);busy=false;lastAsst=null;$('send').disabled=false;
+        addMsg('assistant','⚠ '+evt.error);setBusy(false);tools=[];
         $('statusBar').textContent='';
         break;
       case 'interrupt':
-        busy=false;lastAsst=null;tools=[];$('send').disabled=false;
+        setBusy(false);tools=[];
         $('statusBar').textContent='';
         break;
     }

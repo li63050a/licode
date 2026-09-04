@@ -24,6 +24,7 @@ type GeminiProvider struct {
 	baseURL string
 	apiKey  string
 	model   string
+	retry   int
 	client  *http.Client
 }
 
@@ -175,36 +176,41 @@ func (p *GeminiProvider) endpoint(model, suffix string) string {
 }
 
 func (p *GeminiProvider) do(ctx context.Context, req ChatRequest, stream bool) (*http.Response, error) {
-	payload, err := p.buildBody(req)
-	if err != nil {
-		return nil, err
-	}
-	model := req.Model
-	if model == "" {
-		model = p.model
-	}
-	ep := p.endpoint(model, ":generateContent")
-	if stream {
-		ep = p.endpoint(model, ":streamGenerateContent?alt=sse")
-	}
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, ep, bytes.NewReader(payload))
-	if err != nil {
-		return nil, err
-	}
-	httpReq.Header.Set("Content-Type", "application/json")
-	if p.apiKey != "" {
-		httpReq.Header.Set("x-goog-api-key", p.apiKey)
-	}
-	resp, err := p.httpClient().Do(httpReq)
-	if err != nil {
-		return nil, fmt.Errorf("gemini request: %w", err)
-	}
-	if resp.StatusCode != http.StatusOK {
-		defer resp.Body.Close()
-		b, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		return nil, fmt.Errorf("gemini %s: %s", resp.Status, strings.TrimSpace(string(b)))
-	}
-	return resp, nil
+	var resp *http.Response
+	err := WithRetry(p.retry, func() error {
+		payload, err := p.buildBody(req)
+		if err != nil {
+			return err
+		}
+		model := req.Model
+		if model == "" {
+			model = p.model
+		}
+		ep := p.endpoint(model, ":generateContent")
+		if stream {
+			ep = p.endpoint(model, ":streamGenerateContent?alt=sse")
+		}
+		httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, ep, bytes.NewReader(payload))
+		if err != nil {
+			return err
+		}
+		httpReq.Header.Set("Content-Type", "application/json")
+		if p.apiKey != "" {
+			httpReq.Header.Set("x-goog-api-key", p.apiKey)
+		}
+		r, err := p.httpClient().Do(httpReq)
+		if err != nil {
+			return fmt.Errorf("gemini request: %w", err)
+		}
+		if r.StatusCode != http.StatusOK {
+			b, _ := io.ReadAll(io.LimitReader(r.Body, 1024))
+			r.Body.Close()
+			return &statusErr{status: "gemini " + r.Status, body: strings.TrimSpace(string(b))}
+		}
+		resp = r
+		return nil
+	})
+	return resp, err
 }
 
 // Chat performs a non-streaming completion.

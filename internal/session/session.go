@@ -232,6 +232,13 @@ func (s *Session) MaxTokens() int {
 	return s.maxTok
 }
 
+// SetMaxTokens 设置会话上下文预算（0=不裁剪），用于上下文窗口滑动保护。
+func (s *Session) SetMaxTokens(n int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.maxTok = n
+}
+
 // AddUsage 累计此对话消耗的 token（含缓存读取）。
 func (s *Session) AddUsage(u ai.Usage) {
 	s.mu.Lock()

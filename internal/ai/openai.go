@@ -18,6 +18,7 @@ type OpenAIProvider struct {
 	baseURL string
 	apiKey  string
 	model   string
+	retry   int
 	client  *http.Client
 }
 
@@ -126,28 +127,49 @@ func (p *OpenAIProvider) buildBody(req ChatRequest, stream bool) ([]byte, error)
 }
 
 func (p *OpenAIProvider) do(ctx context.Context, req ChatRequest, stream bool) (*http.Response, error) {
-	payload, err := p.buildBody(req, stream)
+	var resp *http.Response
+	err := WithRetry(p.retry, func() error {
+		payload, err := p.buildBody(req, stream)
+		if err != nil {
+			return err
+		}
+		httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, p.endpoint(), bytes.NewReader(payload))
+		if err != nil {
+			return err
+		}
+		httpReq.Header.Set("Content-Type", "application/json")
+		if p.apiKey != "" {
+			httpReq.Header.Set("Authorization", "Bearer "+p.apiKey)
+		}
+		r, err := p.httpClient().Do(httpReq)
+		if err != nil {
+			return fmt.Errorf("openai request: %w", err)
+		}
+		if r.StatusCode != http.StatusOK {
+			b, _ := io.ReadAll(io.LimitReader(r.Body, 1024))
+			r.Body.Close()
+			return &statusErr{status: r.Status, body: strings.TrimSpace(string(b))}
+		}
+		resp = r
+		return nil
+	})
 	if err != nil {
 		return nil, err
-	}
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, p.endpoint(), bytes.NewReader(payload))
-	if err != nil {
-		return nil, err
-	}
-	httpReq.Header.Set("Content-Type", "application/json")
-	if p.apiKey != "" {
-		httpReq.Header.Set("Authorization", "Bearer "+p.apiKey)
-	}
-	resp, err := p.httpClient().Do(httpReq)
-	if err != nil {
-		return nil, fmt.Errorf("openai request: %w", err)
-	}
-	if resp.StatusCode != http.StatusOK {
-		defer resp.Body.Close()
-		b, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		return nil, fmt.Errorf("openai %s: %s", resp.Status, strings.TrimSpace(string(b)))
 	}
 	return resp, nil
+}
+
+// statusErr is a retryable HTTP status error (429/5xx).
+type statusErr struct {
+	status string
+	body   string
+}
+
+func (e *statusErr) Error() string {
+	if e.body != "" {
+		return "openai " + e.status + ": " + e.body
+	}
+	return "openai " + e.status
 }
 
 func (p *OpenAIProvider) decodeError(resp *http.Response) error {
