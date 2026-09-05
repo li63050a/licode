@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/fs"
 	"log"
 	"net/http"
 	"os"
@@ -514,19 +515,34 @@ func runServe(opts *ServeOptions) error {
 		out["ok"] = out["node"] != ""
 		writeJSON(w, http.StatusOK, out)
 	})
+	mux.Handle("/_nuxt/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Nuxt 静态产物资源（公开）：登录页（SPA）也需要加载，故不要求认证。
+		nuxt := web.NuxtFS()
+		p := strings.TrimPrefix(r.URL.Path, "/")
+		if f, err := nuxt.Open(p); err == nil {
+			f.Close()
+			serveNuxtFile(w, r, nuxt, p)
+			return
+		}
+		http.NotFound(w, r)
+	}))
 	mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !auth.require(w, r) {
 			return
 		}
-		// 页面外壳由 Go 模板渲染；静态资源走 /static/。
-		// 禁止浏览器缓存旧界面，保证升级/改版后刷新即可看到最新版本。
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
-		w.Header().Set("Pragma", "no-cache")
-		w.Header().Set("Expires", "0")
-		if err := web.RenderIndex(w, web.PageData{Version: version.Current()}); err != nil {
-			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
+		// Nuxt SPA：先尝试直接命中的静态文件，否则回退 index.html 由前端路由接管（如 /login）。
+		// index.html 禁止浏览器缓存，保证升级/改版后刷新即可看到最新版本。
+		nuxt := web.NuxtFS()
+		p := strings.TrimPrefix(r.URL.Path, "/")
+		if p == "" {
+			p = "index.html"
 		}
+		if f, err := nuxt.Open(p); err == nil {
+			f.Close()
+			serveNuxtFile(w, r, nuxt, p)
+			return
+		}
+		serveNuxtFile(w, r, nuxt, "index.html")
 	}))
 	mux.Handle("/static/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !auth.require(w, r) {
@@ -806,6 +822,23 @@ func autoTitle(content string) string {
 		return string(runes[:18])
 	}
 	return trimmed
+}
+
+// serveNuxtFile 以正确的 Content-Type 与缓存策略提供 Nuxt 静态产物文件。
+// .html 不缓存（改版即时生效）；/_nuxt/ 资源名带内容哈希，可长缓存。
+func serveNuxtFile(w http.ResponseWriter, r *http.Request, nuxt fs.FS, name string) {
+	if _, err := fs.Stat(nuxt, name); err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	if strings.HasSuffix(name, ".html") {
+		w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+		w.Header().Set("Pragma", "no-cache")
+		w.Header().Set("Expires", "0")
+	} else {
+		w.Header().Set("Cache-Control", "public, max-age=604800")
+	}
+	http.ServeFileFS(w, r, nuxt, name)
 }
 
 func mapEventType(t agent.EventType) string {

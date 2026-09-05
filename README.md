@@ -19,7 +19,7 @@
 - 热重载：SIGHUP 重载配置（修改 `~/.licode/config.json` 后 `kill -HUP <pid>` 即时生效，不中断服务）
 - 浅色/深色主题切换，流式工具调用渲染（参数/结果折叠卡片），生成中可随时"停止"
 - 系统提示词读取 `~/.licode/system-prompt.md`；`md/` 目录递归读取所有 `.md` 作为附加提示词
-- 离线前端：页面由 Go 模板（html/template）+ HTMX 服务端渲染，JS/CSS/HTMX 全部随二进制打包（`go:embed`），无任何 CDN 外部依赖，内网/离线环境开箱即用
+- 离线前端：Nuxt 3 + Vue 静态 SPA（由 `nuxtweb/` 生成），JS/CSS 全部随二进制打包（`go:embed`），无任何 CDN 外部依赖，内网/离线环境开箱即用
 - 登录认证（默认用户名 `licode`，密码自行设置；未启用登录时页面会提醒如何启用）
 - HTTPS（`--https`，无证书时自动生成自签名证书）
 - 数据按系统用户隔离：每个系统用户在自己的家目录 `~/.licode` 运行，互不影响
@@ -176,7 +176,7 @@ API：`GET /api/search?q=…&engines=bing,baidu,duckduckgo&local=1&max=…`、`G
 │   ├── settings/          # 设置 + ~/.licode 数据目录
 │   ├── audit/             # 代码审计（静态规则 + LLM 分析 + 修复）
 │   ├── websocket/         # Hub + 事件协议
-│   └── web/               # go:embed 静态页面
+│   └── web/               # go:embed Nuxt 静态前端 + 旧版资源
 └── build.sh               # 9 平台交叉编译
 ```
 
