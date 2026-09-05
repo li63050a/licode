@@ -284,7 +284,7 @@ func (s *Settings) BuildAgent(client ai.LLMClient) *agent.Agent {
 		ag.RegisterSubAgents(agent.DefaultSubAgentSpecs(client, ag.Shell, s.SubTimeout))
 	}
 	agent.RegisterSkills(ag.Tools, agent.LoadSkills(agent.SkillDirs()...))
-	_ = agent.RegisterMCPServers(ag.Tools, s.MCPServers)
+	_, _ = agent.RegisterMCPServers(ag.Tools, s.MCPServers)
 	// WASM 插件（wazero 沙箱，运行时热加载）
 	for _, p := range plugin.Default.Plugins() {
 		pp := p

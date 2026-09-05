@@ -1,3 +1,10 @@
+// Package agent 提供 MCP (Model Context Protocol) 客户端管理。
+//
+// 支持两种传输：
+//   - stdio: 本地子进程，通过 stdin/stdout 以 Content-Length 帧交换 JSON-RPC
+//   - http:  远程 MCP 服务器，通过 POST 交换 JSON-RPC（支持 Streamable HTTP / SSE）
+//
+// 与旧实现的区别：无全局可变状态、Content-Length 帧解析、连接复用、真实 schema 保留。
 package agent
 
 import (
@@ -9,6 +16,7 @@ import (
 	"io"
 	"net/http"
 	"os/exec"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -24,27 +32,85 @@ type MCPServer struct {
 	URL     string   `json:"url"`
 }
 
-// IsHTTP 判断该服务器是否为远程 HTTP 类型。
 func (s MCPServer) IsHTTP() bool {
 	return strings.EqualFold(strings.TrimSpace(s.Type), "http")
 }
 
-// 包级跟踪所有 mcp 进程，便于统一关闭。
-var (
-	mcpMu      sync.Mutex
-	mcpClients []*mcpClient
-	mcpHTTP    []*httpMCPClient
-)
-
-// mcpClient 是一个最小 JSON-RPC (stdio) MCP 客户端。
-type mcpClient struct {
-	server  MCPServer
-	cmd     *exec.Cmd
-	stdin   *bufio.Writer
-	mu      sync.Mutex
-	nextID  int
-	pending map[int]chan json.RawMessage
+// MCPManager 管理一组 MCP 连接，可复用、可并发安全关闭。
+type MCPManager struct {
+	mu    sync.Mutex
+	conns []mcpConn
 }
+
+// NewMCPManager 创建一个空的 MCP 管理器。
+func NewMCPManager() *MCPManager {
+	m := &MCPManager{conns: make([]mcpConn, 0, 4)}
+	registerManager(m)
+	return m
+}
+
+// Register 连接所有 MCP 服务器并将其工具注册到 registry。
+// 工具名格式：mcp__<服务器名>__<工具名>。
+func (m *MCPManager) Register(registry *Registry, servers []MCPServer) error {
+	for _, s := range servers {
+		if s.IsHTTP() {
+			if strings.TrimSpace(s.URL) == "" {
+				continue
+			}
+			conn, err := newHTTPConn(s)
+			if err != nil {
+				m.Close()
+				return fmt.Errorf("mcp %s: %w", s.Name, err)
+			}
+			m.add(conn)
+			if err := registerTools(registry, s, conn); err != nil {
+				m.Close()
+				return err
+			}
+			continue
+		}
+		if strings.TrimSpace(s.Command) == "" {
+			continue
+		}
+		conn, err := newStdioConn(s)
+		if err != nil {
+			m.Close()
+			return fmt.Errorf("mcp %s: %w", s.Name, err)
+		}
+		m.add(conn)
+		if err := registerTools(registry, s, conn); err != nil {
+			m.Close()
+			return err
+		}
+	}
+	return nil
+}
+
+func (m *MCPManager) add(c mcpConn) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.conns = append(m.conns, c)
+}
+
+// Close 关闭所有 MCP 连接。并发安全，可多次调用。
+func (m *MCPManager) Close() {
+	m.mu.Lock()
+	conns := m.conns
+	m.conns = nil
+	m.mu.Unlock()
+	for _, c := range conns {
+		c.close()
+	}
+	unregisterManager(m)
+}
+
+// mcpConn 是 MCP 客户端连接的统一抽象。
+type mcpConn interface {
+	call(ctx context.Context, method string, params any) (json.RawMessage, error)
+	close()
+}
+
+// ---- JSON-RPC 消息 ----
 
 type jsonrpcMsg struct {
 	JSONRPC string          `json:"jsonrpc"`
@@ -58,85 +124,184 @@ type jsonrpcMsg struct {
 	} `json:"error,omitempty"`
 }
 
-func newMCPClient(s MCPServer) (*mcpClient, error) {
-	if s.Command == "" {
-		return nil, fmt.Errorf("mcp %s: command is empty", s.Name)
+func jsonrpcError(name, method string, msg jsonrpcMsg) error {
+	if msg.Error == nil {
+		return nil
 	}
-	for _, arg := range s.Args {
-		if strings.Contains(arg, ";") || strings.Contains(arg, "|") || strings.Contains(arg, "&") {
-			return nil, fmt.Errorf("mcp %s: args contain disallowed characters", s.Name)
-		}
-	}
+	return fmt.Errorf("mcp %s.%s: jsonrpc error %d: %s", name, method, msg.Error.Code, msg.Error.Message)
+}
+
+// ---- stdio 连接 ----
+
+type stdioConn struct {
+	server  MCPServer
+	cmd     *exec.Cmd
+	mu      sync.Mutex
+	pending map[int]chan json.RawMessage
+	nextID  int
+	stdin   *bufio.Writer
+	stdout  *bufio.Reader
+	closeCh chan struct{}
+}
+
+func newStdioConn(s MCPServer) (*stdioConn, error) {
 	cmd := exec.Command(s.Command, s.Args...)
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("stdin pipe: %w", err)
 	}
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("stdout pipe: %w", err)
 	}
-	cmdCtx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 	if err := cmd.Start(); err != nil {
-		return nil, fmt.Errorf("mcp %s 启动失败: %w", s.Name, err)
+		return nil, fmt.Errorf("启动失败: %w", err)
 	}
-	c := &mcpClient{
+	c := &stdioConn{
 		server:  s,
 		cmd:     cmd,
 		stdin:   bufio.NewWriter(stdin),
-		pending: map[int]chan json.RawMessage{},
+		stdout:  bufio.NewReader(stdout),
+		pending: make(map[int]chan json.RawMessage),
+		closeCh: make(chan struct{}),
 	}
-	go c.readLoop(cmdCtx, stdout)
-	mcpMu.Lock()
-	mcpClients = append(mcpClients, c)
-	mcpMu.Unlock()
+	go c.readLoop()
+	if err := c.init(); err != nil {
+		c.close()
+		return nil, err
+	}
+	return c, nil
+}
 
-	if _, err := c.call("initialize", map[string]any{
+func (c *stdioConn) init() error {
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	if _, err := c.call(ctx, "initialize", map[string]any{
 		"protocolVersion": "2024-11-05",
 		"capabilities":    map[string]any{},
 		"clientInfo":      map[string]any{"name": "licode", "version": "0.1"},
 	}); err != nil {
-		c.close()
-		return nil, err
+		return err
 	}
 	_ = c.notify("notifications/initialized", map[string]any{})
-	return c, nil
+	return nil
 }
 
-func (c *mcpClient) readLoop(ctx context.Context, stdout interface{ Read([]byte) (int, error) }) {
-	sc := bufio.NewScanner(stdout)
-	sc.Buffer(make([]byte, 1<<20), 1<<20)
+// readLoop 持续从 stdout 读取 Content-Length 帧或 NDJSON，分发到 pending。
+func (c *stdioConn) readLoop() {
 	for {
 		select {
-		case <-ctx.Done():
+		case <-c.closeCh:
 			return
 		default:
 		}
-		if !sc.Scan() {
+		payload, err := readMessage(c.stdout)
+		if err != nil {
 			return
 		}
-		line := strings.TrimSpace(sc.Text())
-		if line == "" {
-			continue
-		}
 		var msg jsonrpcMsg
-		if json.Unmarshal([]byte(line), &msg) != nil || msg.ID == nil {
+		if json.Unmarshal(payload, &msg) != nil || msg.ID == nil {
 			continue
 		}
 		c.mu.Lock()
-		ch, ok := c.pending[*msg.ID]
-		if ok {
-			delete(c.pending, *msg.ID)
-		}
+		ch := c.pending[*msg.ID]
+		delete(c.pending, *msg.ID)
 		c.mu.Unlock()
-		if ok {
-			ch <- json.RawMessage(line)
+		if ch != nil {
+			select {
+			case ch <- payload:
+			default:
+			}
 		}
 	}
 }
 
-func (c *mcpClient) request(id int, method string, params any, notify bool) error {
+// readMessage 同时支持两种格式：
+//   - Content-Length: N\r\n\r\n{json}（MCP 标准）
+//   - {json}\n（NDJSON，部分 MCP server 使用）
+func readMessage(r *bufio.Reader) ([]byte, error) {
+	peek, err := r.Peek(1)
+	if err != nil {
+		return nil, err
+	}
+	if peek[0] != 'C' {
+		// NDJSON: 一行一个 JSON
+		line, err := r.ReadBytes('\n')
+		if err != nil {
+			return nil, err
+		}
+		return bytes.TrimSpace(line), nil
+	}
+	// Content-Length 帧
+	var header strings.Builder
+	for {
+		line, err := r.ReadString('\n')
+		if err != nil {
+			return nil, err
+		}
+		header.WriteString(line)
+		if line == "\r\n" || line == "\n" {
+			break
+		}
+	}
+	h := header.String()
+	idx := strings.Index(h, "Content-Length:")
+	if idx < 0 {
+		return nil, fmt.Errorf("缺少 Content-Length")
+	}
+	n, err := strconv.Atoi(strings.TrimSpace(h[idx+len("Content-Length:"):]))
+	if err != nil || n <= 0 || n > 8<<20 {
+		return nil, fmt.Errorf("无效 Content-Length: %w", err)
+	}
+	body := make([]byte, n)
+	if _, err := io.ReadFull(r, body); err != nil {
+		return nil, err
+	}
+	return bytes.TrimSpace(body), nil
+}
+
+func (c *stdioConn) call(ctx context.Context, method string, params any) (json.RawMessage, error) {
+	c.mu.Lock()
+	c.nextID++
+	id := c.nextID
+	ch := make(chan json.RawMessage, 1)
+	c.pending[id] = ch
+	c.mu.Unlock()
+
+	if err := c.write(id, method, params, false); err != nil {
+		c.mu.Lock()
+		delete(c.pending, id)
+		c.mu.Unlock()
+		return nil, fmt.Errorf("mcp %s.%s write: %w", c.server.Name, method, err)
+	}
+
+	timer := time.NewTimer(30 * time.Second)
+	defer timer.Stop()
+	select {
+	case raw := <-ch:
+		var msg jsonrpcMsg
+		if err := json.Unmarshal(raw, &msg); err != nil {
+			return nil, err
+		}
+	if err := jsonrpcError(c.server.Name, method, msg); err != nil {
+			return nil, err
+		}
+		return msg.Result, nil
+	case <-timer.C:
+		c.mu.Lock()
+		delete(c.pending, id)
+		c.mu.Unlock()
+		return nil, fmt.Errorf("mcp %s.%s 超时", c.server.Name, method)
+	case <-c.closeCh:
+		return nil, fmt.Errorf("mcp %s 已关闭", c.server.Name)
+	}
+}
+
+func (c *stdioConn) notify(method string, params any) error {
+	return c.write(0, method, params, true)
+}
+
+func (c *stdioConn) write(id int, method string, params any, notify bool) error {
 	req := jsonrpcMsg{JSONRPC: "2.0", Method: method}
 	if !notify {
 		req.ID = &id
@@ -146,116 +311,75 @@ func (c *mcpClient) request(id int, method string, params any, notify bool) erro
 		req.Params = b
 	}
 	b, _ := json.Marshal(req)
+
 	c.mu.Lock()
-	_, err := c.stdin.Write(b)
-	if err == nil {
-		err = c.stdin.Flush()
+	defer c.mu.Unlock()
+	if _, err := fmt.Fprintf(c.stdin, "Content-Length: %d\r\n\r\n", len(b)); err != nil {
+		return err
 	}
-	c.mu.Unlock()
-	if err != nil {
-		return fmt.Errorf("mcp %s.%s write: %w", c.server.Name, method, err)
+	if _, err := c.stdin.Write(b); err != nil {
+		return err
 	}
-	return nil
+	return c.stdin.Flush()
 }
 
-func (c *mcpClient) call(method string, params any) (json.RawMessage, error) {
-	c.mu.Lock()
-	c.nextID++
-	id := c.nextID
-	ch := make(chan json.RawMessage, 1)
-	c.pending[id] = ch
-	c.mu.Unlock()
-
-	if err := c.request(id, method, params, false); err != nil {
-		c.mu.Lock()
-		delete(c.pending, id)
-		c.mu.Unlock()
-		return nil, err
-	}
+func (c *stdioConn) close() {
 	select {
-	case raw := <-ch:
-		var msg jsonrpcMsg
-		if err := json.Unmarshal(raw, &msg); err != nil {
-			return nil, err
-		}
-		if msg.Error != nil {
-			return nil, fmt.Errorf("mcp %s.%s: %s", c.server.Name, method, msg.Error.Message)
-		}
-		return msg.Result, nil
-	case <-time.After(15 * time.Second):
-		c.mu.Lock()
-		delete(c.pending, id)
-		c.mu.Unlock()
-		return nil, fmt.Errorf("mcp %s.%s 超时", c.server.Name, method)
+	case <-c.closeCh:
+		return
+	default:
+		close(c.closeCh)
 	}
-}
-
-func (c *mcpClient) notify(method string, params any) error {
-	return c.request(0, method, params, true)
-}
-
-func (c *mcpClient) close() {
 	if c.cmd != nil && c.cmd.Process != nil {
 		_ = c.cmd.Process.Kill()
 		_, _ = c.cmd.Process.Wait()
 	}
 }
 
-// CloseMCPClients 关闭所有已启动的 MCP 进程。
-func CloseMCPClients() {
-	mcpMu.Lock()
-	defer mcpMu.Unlock()
-	for _, c := range mcpClients {
-		c.close()
-	}
-	for _, c := range mcpHTTP {
-		c.close()
-	}
+// ---- HTTP 连接 ----
+
+type httpConn struct {
+	server  MCPServer
+	baseURL string
+	client  *http.Client
+	nextID  int
 }
 
-// httpMCPClient 是 MCP Streamable HTTP 远程客户端（无状态 JSON-RPC over POST）。
-type httpMCPClient struct {
-	server MCPServer
-	base   *http.Client
-	nextID int
-}
-
-func newHTTPMCPClient(s MCPServer) (*httpMCPClient, error) {
-	if s.URL == "" {
-		return nil, fmt.Errorf("mcp %s: http url is empty", s.Name)
+func newHTTPConn(s MCPServer) (*httpConn, error) {
+	url := strings.TrimSpace(s.URL)
+	if url == "" {
+		return nil, fmt.Errorf("url 为空")
 	}
-	if !strings.HasPrefix(s.URL, "http://") && !strings.HasPrefix(s.URL, "https://") {
-		return nil, fmt.Errorf("mcp %s: url must start with http(s)://", s.Name)
-	}
-	return &httpMCPClient{
-		server: s,
-		base:   &http.Client{Timeout: 60 * time.Second},
+	return &httpConn{
+		server:  s,
+		baseURL: url,
+		client:  &http.Client{Timeout: 60 * time.Second},
 	}, nil
 }
 
-func (c *httpMCPClient) call(method string, params any) (json.RawMessage, error) {
+func (c *httpConn) call(ctx context.Context, method string, params any) (json.RawMessage, error) {
 	c.nextID++
 	id := c.nextID
-	req := jsonrpcMsg{JSONRPC: "2.0", Method: method}
-	req.ID = &id
+	req := jsonrpcMsg{JSONRPC: "2.0", Method: method, ID: &id}
 	if params != nil {
 		b, _ := json.Marshal(params)
 		req.Params = b
 	}
 	body, _ := json.Marshal(req)
-	httpReq, err := http.NewRequest(http.MethodPost, c.server.URL, bytes.NewReader(body))
+
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL, bytes.NewReader(body))
 	if err != nil {
-		return nil, fmt.Errorf("mcp %s: %w", c.server.Name, err)
+		return nil, err
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Accept", "application/json, text/event-stream")
-	httpReq.Header.Set("User-Agent", "licode/0.1")
-	resp, err := c.base.Do(httpReq)
+
+	resp, err := c.client.Do(httpReq)
 	if err != nil {
 		return nil, fmt.Errorf("mcp %s.%s 请求失败: %w", c.server.Name, method, err)
 	}
 	defer resp.Body.Close()
-	raw, _ := io.ReadAll(resp.Body)
+	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return nil, fmt.Errorf("mcp %s.%s 返回 %d: %s", c.server.Name, method, resp.StatusCode, strings.TrimSpace(string(raw)))
 	}
@@ -263,8 +387,8 @@ func (c *httpMCPClient) call(method string, params any) (json.RawMessage, error)
 	if err != nil {
 		return nil, fmt.Errorf("mcp %s.%s: %w", c.server.Name, method, err)
 	}
-	if msg.Error != nil {
-		return nil, fmt.Errorf("mcp %s.%s: %s", c.server.Name, method, msg.Error.Message)
+	if err := jsonrpcError(c.server.Name, method, *msg); err != nil {
+		return nil, err
 	}
 	if msg.Result == nil {
 		return json.RawMessage("null"), nil
@@ -272,9 +396,9 @@ func (c *httpMCPClient) call(method string, params any) (json.RawMessage, error)
 	return msg.Result, nil
 }
 
-func (c *httpMCPClient) close() {}
+func (c *httpConn) close() {}
 
-// extractRPC 从 HTTP 响应（可能为纯 JSON 或 SSE 流）中提取指定 id 的 JSON-RPC 消息。
+// extractRPC 从 HTTP 响应（纯 JSON 或 SSE 流）中提取指定 id 的 JSON-RPC 消息。
 func extractRPC(body []byte, wantID int) (*jsonrpcMsg, error) {
 	trim := bytes.TrimSpace(body)
 	if len(trim) > 0 && trim[0] == '{' {
@@ -282,20 +406,12 @@ func extractRPC(body []byte, wantID int) (*jsonrpcMsg, error) {
 		if err := json.Unmarshal(trim, &m); err != nil {
 			return nil, fmt.Errorf("invalid json: %w", err)
 		}
-		if m.ID != nil && *m.ID != wantID {
-			return nil, fmt.Errorf("unexpected id %d (want %d)", *m.ID, wantID)
-		}
 		return &m, nil
 	}
-	// SSE：按空行分隔事件，从每个事件里拼出 data: 行，再解析 JSON，取 id 匹配者。
 	events := bytes.Split(body, []byte("\n\n"))
 	for _, ev := range events {
-		line := strings.TrimSpace(string(ev))
-		if line == "" {
-			continue
-		}
-		sc := bufio.NewScanner(bytes.NewReader(ev))
 		var data strings.Builder
+		sc := bufio.NewScanner(bytes.NewReader(ev))
 		for sc.Scan() {
 			l := sc.Text()
 			if strings.HasPrefix(l, "data:") {
@@ -315,52 +431,15 @@ func extractRPC(body []byte, wantID int) (*jsonrpcMsg, error) {
 			return &m, nil
 		}
 	}
-	return nil, fmt.Errorf("no response with id %d in response body", wantID)
+	return nil, fmt.Errorf("no response with id %d", wantID)
 }
 
-// RegisterMCPServers 连接所有 MCP 服务器并注册其工具（前缀 mcp__<服务器>__<工具>）。
-func RegisterMCPServers(r *Registry, servers []MCPServer) error {
-	for _, s := range servers {
-		if s.IsHTTP() {
-			if s.URL == "" {
-				continue
-			}
-			client, err := newHTTPMCPClient(s)
-			if err != nil {
-				return err
-			}
-			if err := registerServerTools(r, s, client); err != nil {
-				return err
-			}
-			mcpMu.Lock()
-			mcpHTTP = append(mcpHTTP, client)
-			mcpMu.Unlock()
-			continue
-		}
-		if s.Command == "" {
-			continue
-		}
-		client, err := newMCPClient(s)
-		if err != nil {
-			return err
-		}
-		if err := registerServerTools(r, s, client); err != nil {
-			client.close()
-			return err
-		}
-		mcpMu.Lock()
-		mcpClients = append(mcpClients, client)
-		mcpMu.Unlock()
-	}
-	return nil
-}
+// ---- 工具注册 ----
 
-type mcpCaller interface {
-	call(method string, params any) (json.RawMessage, error)
-}
-
-func registerServerTools(r *Registry, s MCPServer, client mcpCaller) error {
-	res, err := client.call("tools/list", map[string]any{})
+func registerTools(r *Registry, s MCPServer, client mcpConn) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	res, err := client.call(ctx, "tools/list", map[string]any{})
 	if err != nil {
 		return err
 	}
@@ -376,18 +455,20 @@ func registerServerTools(r *Registry, s MCPServer, client mcpCaller) error {
 	}
 	for _, t := range list.Tools {
 		toolName := "mcp__" + s.Name + "__" + t.Name
-		server := s
-		tool := t
-		schema := tool.InputSchema
-		if len(schema) == 0 {
-			schema = json.RawMessage(`{"type":"object"}`)
+		var schema map[string]any
+		if err := json.Unmarshal(t.InputSchema, &schema); err != nil || len(schema) == 0 {
+			schema = map[string]any{"type": "object"}
 		}
+		tool := t
+		server := s
 		_ = r.Register(Tool{
 			Name:        toolName,
 			Description: "MCP 工具 " + server.Name + "/" + tool.Name + "：" + tool.Description,
-			Schema:      map[string]any{"type": "object"},
+			Schema:      schema,
 			Run: func(ctx context.Context, args map[string]any) (string, error) {
-				res, err := client.call("tools/call", map[string]any{
+				callCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
+				defer cancel()
+				res, err := client.call(callCtx, "tools/call", map[string]any{
 					"name": tool.Name, "arguments": args,
 				})
 				if err != nil {
@@ -415,4 +496,106 @@ func registerServerTools(r *Registry, s MCPServer, client mcpCaller) error {
 		})
 	}
 	return nil
+}
+
+// RegisterMCPServers 是兼容旧 API 的便捷函数。
+func RegisterMCPServers(r *Registry, servers []MCPServer) (*MCPManager, error) {
+	mgr := NewMCPManager()
+	if err := mgr.Register(r, servers); err != nil {
+		return nil, err
+	}
+	return mgr, nil
+}
+
+// ---- 全局管理器注册（用于 CloseMCPClients） ----
+
+var (
+	mgrMu   sync.Mutex
+	allMgrs []*MCPManager
+)
+
+func registerManager(m *MCPManager) {
+	mgrMu.Lock()
+	defer mgrMu.Unlock()
+	allMgrs = append(allMgrs, m)
+}
+
+func unregisterManager(m *MCPManager) {
+	mgrMu.Lock()
+	defer mgrMu.Unlock()
+	for i, mm := range allMgrs {
+		if mm == m {
+			allMgrs = append(allMgrs[:i], allMgrs[i+1:]...)
+			return
+		}
+	}
+}
+
+// CloseMCPClients 关闭所有已创建的 MCP 管理器（兼容旧 API）。
+func CloseMCPClients() {
+	mgrMu.Lock()
+	mgrs := make([]*MCPManager, len(allMgrs))
+	copy(mgrs, allMgrs)
+	mgrMu.Unlock()
+	for _, m := range mgrs {
+		m.Close()
+	}
+}
+
+// Presets 是内置的常见 MCP 服务器预设，用户可直接添加而无需手写配置。
+var Presets = map[string]MCPServer{
+	"filesystem": {
+		Name:    "filesystem",
+		Type:    "stdio",
+		Command: "npx",
+		Args:    []string{"-y", "@modelcontextprotocol/server-filesystem", "/"},
+	},
+	"git": {
+		Name:    "git",
+		Type:    "stdio",
+		Command: "npx",
+		Args:    []string{"-y", "@modelcontextprotocol/server-git"},
+	},
+	"github": {
+		Name:    "github",
+		Type:    "stdio",
+		Command: "npx",
+		Args:    []string{"-y", "@modelcontextprotocol/server-github"},
+	},
+	"postgres": {
+		Name:    "postgres",
+		Type:    "stdio",
+		Command: "npx",
+		Args:    []string{"-y", "@modelcontextprotocol/server-postgres"},
+	},
+	"sqlite": {
+		Name:    "sqlite",
+		Type:    "stdio",
+		Command: "npx",
+		Args:    []string{"-y", "@modelcontextprotocol/server-sqlite"},
+	},
+	"memory": {
+		Name:    "memory",
+		Type:    "stdio",
+		Command: "npx",
+		Args:    []string{"-y", "@modelcontextprotocol/server-memory"},
+	},
+	"puppeteer": {
+		Name:    "puppeteer",
+		Type:    "stdio",
+		Command: "npx",
+		Args:    []string{"-y", "@modelcontextprotocol/server-puppeteer"},
+	},
+	"brave-search": {
+		Name:    "brave-search",
+		Type:    "stdio",
+		Command: "npx",
+		Args:    []string{"-y", "@modelcontextprotocol/server-brave-search"},
+	},
+	"fetch": {
+		Name:    "fetch",
+		Type:    "stdio",
+		Command: "npx",
+		Args:    []string{"-y", "@modelcontextprotocol/server-fetch"},
+	},
 }

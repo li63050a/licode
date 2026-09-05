@@ -53,12 +53,40 @@ type ProviderRow = ProviderConfig & { _newModel?: string }
 const licode = useLicode()
 const { state } = licode
 
-const tab = ref<'basic' | 'providers' | 'advanced'>('basic')
+const tab = ref<'basic' | 'providers' | 'advanced' | 'mcp'>('basic')
 const local = ref<Settings>({})
 const toolRows = ref<{ tool: string; rule: string }[]>([])
 const mcpJson = ref('')
+const mcpServers = ref<any[]>([])
 const fetching = ref('')
 const saving = ref(false)
+
+const mcpPresets: Record<string, any> = {
+  filesystem: { name: 'filesystem', type: 'stdio', command: 'npx', args: ['-y', '@modelcontextprotocol/server-filesystem', '/'] },
+  git: { name: 'git', type: 'stdio', command: 'npx', args: ['-y', '@modelcontextprotocol/server-git'] },
+  github: { name: 'github', type: 'stdio', command: 'npx', args: ['-y', '@modelcontextprotocol/server-github'] },
+  postgres: { name: 'postgres', type: 'stdio', command: 'npx', args: ['-y', '@modelcontextprotocol/server-postgres'] },
+  sqlite: { name: 'sqlite', type: 'stdio', command: 'npx', args: ['-y', '@modelcontextprotocol/server-sqlite'] },
+  memory: { name: 'memory', type: 'stdio', command: 'npx', args: ['-y', '@modelcontextprotocol/server-memory'] },
+  puppeteer: { name: 'puppeteer', type: 'stdio', command: 'npx', args: ['-y', '@modelcontextprotocol/server-puppeteer'] },
+  'brave-search': { name: 'brave-search', type: 'stdio', command: 'npx', args: ['-y', '@modelcontextprotocol/server-brave-search'] },
+  fetch: { name: 'fetch', type: 'stdio', command: 'npx', args: ['-y', '@modelcontextprotocol/server-fetch'] },
+}
+
+function isMcpAdded(name: string) {
+  return mcpServers.value.some((s) => s.name === name && s.type !== 'http')
+}
+
+function addMcpPreset(name: string) {
+  const p = mcpPresets[name]
+  if (p && !isMcpAdded(name)) {
+    mcpServers.value.push({ ...p })
+  }
+}
+
+function addMcpCustom() {
+  mcpServers.value.push({ name: 'custom', type: 'stdio', command: '', args: [] })
+}
 
 const NUM_KEYS = [
   'temperature',
@@ -101,6 +129,11 @@ watch(
         rule: String(rule),
       }))
       mcpJson.value = JSON.stringify(local.value.mcp_servers || [], null, 2)
+      try {
+        mcpServers.value = local.value.mcp_servers ? JSON.parse(JSON.stringify(local.value.mcp_servers)) : []
+      } catch {
+        mcpServers.value = []
+      }
       tab.value = 'basic'
     }
   },
@@ -233,11 +266,14 @@ function buildSettings(): Settings {
   }
   s.tool_rules = rules
   for (const k of COMMA_KEYS) s[k] = splitList(s[k])
-  try {
-    s.mcp_servers = JSON.parse(mcpJson.value || '[]')
-  } catch {
-    throw new Error('MCP 服务器 JSON 格式无效')
-  }
+  const rawMcp = mcpServers.value
+    .filter((s) => s && (s.type === 'http' ? s.url?.trim() : s.command?.trim()))
+    .map((s) => {
+      if (s.type === 'http') return { name: s.name, type: 'http', url: s.url }
+      return { name: s.name, type: 'stdio', command: s.command, args: s.args || [] }
+    })
+  s.mcp_servers = rawMcp
+  mcpJson.value = JSON.stringify(rawMcp, null, 2)
   const dns = s.dns
   if (dns) {
     const servers = (dns.servers || []).filter((x) => x && (x.server || '').trim())
@@ -305,6 +341,7 @@ function save() {
               { label: '基础', value: 'basic' },
               { label: '厂商', value: 'providers' },
               { label: '高级', value: 'advanced' },
+              { label: 'MCP', value: 'mcp' },
             ]"
             variant="line"
             @update:model-value="tab = $event as any"
@@ -543,7 +580,7 @@ function save() {
           </template>
 
           <!-- 高级 -->
-          <template v-else>
+          <template v-else-if="tab === 'advanced'">
             <div class="grid grid-cols-2 gap-3">
               <label class="space-y-1">
                 <span class="text-xs text-zinc-500">Shell 路径</span>
@@ -635,6 +672,66 @@ function save() {
                 spellcheck="false"
               />
             </label>
+          </template>
+
+          <!-- MCP -->
+          <template v-if="tab === 'mcp'">
+            <div class="space-y-3 p-4 text-sm">
+              <div class="rounded-xl border border-zinc-200 p-3 dark:border-zinc-800">
+                <div class="mb-2 text-xs font-medium text-zinc-500">内置预设（点击添加）</div>
+                <div class="flex flex-wrap gap-2">
+                  <Button
+                    v-for="(_, name) in mcpPresets"
+                    :key="name"
+                    size="sm"
+                    variant="outline"
+                    :icon="Plus"
+                    :disabled="isMcpAdded(name)"
+                    @click="addMcpPreset(name)"
+                  >
+                    {{ name }}
+                  </Button>
+                </div>
+              </div>
+
+              <div class="rounded-xl border border-zinc-200 p-3 dark:border-zinc-800">
+                <div class="mb-2 flex items-center justify-between">
+                  <span class="text-xs font-medium text-zinc-500">已添加的 MCP 服务器</span>
+                  <Button size="sm" variant="outline" :icon="Plus" @click="addMcpCustom">自定义</Button>
+                </div>
+                <div v-if="!mcpServers.length" class="text-xs text-zinc-400">暂未添加 MCP 服务器</div>
+                <div
+                  v-for="(srv, i) in mcpServers"
+                  :key="i"
+                  class="mb-2 rounded-lg border border-zinc-200 p-2 dark:border-zinc-800"
+                >
+                  <div class="mb-1 flex items-center gap-2">
+                    <Chip size="sm" variant="secondary">{{ srv.type || 'stdio' }}</Chip>
+                    <span class="flex-1 truncate text-xs font-medium">{{ srv.name }}</span>
+                    <Button size="sm" variant="ghost" danger :icon="Trash2" @click="mcpServers.splice(i, 1)" />
+                  </div>
+                  <div v-if="srv.type === 'http'" class="grid grid-cols-1 gap-1">
+                    <Input v-model="srv.url" size="sm" placeholder="URL (https://...)" />
+                  </div>
+                  <div v-else class="grid grid-cols-2 gap-1">
+                    <Input v-model="srv.command" size="sm" placeholder="命令 (如 npx)" class="col-span-2" />
+                    <Input :model-value="(srv.args || []).join(' ')" size="sm" placeholder="参数（空格分隔）" class="col-span-2" @update:model-value="srv.args = String($event).split(' ')" />
+                  </div>
+                </div>
+              </div>
+
+              <details class="rounded-xl border border-zinc-200 p-3 dark:border-zinc-800">
+                <summary class="cursor-pointer text-xs text-zinc-500">高级：JSON 编辑</summary>
+                <label class="mt-2 block space-y-1">
+                  <textarea
+                    v-model="mcpJson"
+                    rows="6"
+                    class="w-full rounded-lg border border-zinc-200 bg-transparent p-2 font-mono text-xs outline-none focus:border-zinc-400 dark:border-zinc-800 dark:focus:border-zinc-600"
+                    spellcheck="false"
+                  />
+                </label>
+              </details>
+            </div>
           </template>
         </div>
 
