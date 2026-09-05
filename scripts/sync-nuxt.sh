@@ -14,6 +14,11 @@ if [ ! -d "nuxtweb" ]; then
     exit 0
 fi
 
+if [ ! -d "nuxtweb/node_modules" ]; then
+    echo "[nuxt] nuxtweb/node_modules 不存在，跳过重建（如需重建先 cd nuxtweb && npm install）" >&2
+    exit 0
+fi
+
 echo "==> nuxt generate ..."
 ( cd nuxtweb && npm run generate )
 

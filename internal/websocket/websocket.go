@@ -16,18 +16,19 @@ import (
 
 // Message types (client -> server).
 const (
-	TypeMessage       = "message" // {content}
-	TypePing          = "ping"
-	TypeSettingsGet   = "settings_get"
-	TypeSettingsSet   = "settings_set"
-	TypeAskReply      = "ask_reply"
-	TypeInterrupt     = "interrupt"
-	TypeSessionsGet   = "sessions_get"
-	TypeSessionNew    = "session_new"
-	TypeSessionSwitch = "session_switch" // {session_id}
-	TypeSessionRename = "session_rename" // {session_id, content}
-	TypeSessionDelete = "session_delete" // {session_id}
-	TypeSessionBranch = "session_branch" // {session_id, index, content}
+	TypeMessage        = "message" // {content}
+	TypePing           = "ping"
+	TypeSettingsGet    = "settings_get"
+	TypeSettingsSet    = "settings_set"
+	TypeAskReply       = "ask_reply"
+	TypeInterrupt      = "interrupt"
+	TypeSessionsGet    = "sessions_get"
+	TypeSessionNew     = "session_new"
+	TypeSessionSwitch  = "session_switch"  // {session_id}
+	TypeSessionRename  = "session_rename"  // {session_id, content}
+	TypeSessionDelete  = "session_delete"  // {session_id}
+	TypeSessionBranch  = "session_branch"  // {session_id, index, content}
+	TypeSessionHistory = "session_history" // {session_id} 请求某会话的完整历史消息
 	// 审计完成后，前端把摘要通过该类型提交，服务端追加为一条助手消息。
 	TypeAuditLog = "audit_log" // {content: 摘要文本}
 )
@@ -44,6 +45,8 @@ const (
 	EvtAsk       = "ask"
 	EvtSessions  = "sessions"
 	EvtStats     = "stats"
+	// EvtHistory 回放某个会话的完整历史消息（存放于 ~/.licode/sessions/*.json）。
+	EvtHistory = "history"
 	// EvtAuditLog 把审计结果/修复摘要推送到所有页面（含后台监听）。
 	EvtAuditLog = "audit_log"
 )
@@ -73,6 +76,8 @@ type ServerEvent struct {
 	Sessions  any    `json:"sessions,omitempty"`
 	SessionID string `json:"sessionId,omitempty"`
 	Stats     any    `json:"stats,omitempty"`
+	// Messages 携带会话历史（EvtHistory）。
+	Messages any `json:"messages,omitempty"`
 	// AskID 标识一次待确认的工具调用。
 	AskID string `json:"askId,omitempty"`
 }

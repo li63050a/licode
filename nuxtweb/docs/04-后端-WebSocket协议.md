@@ -50,6 +50,7 @@ Upgrade → 注册到 Hub → 后端打日志「客户端已连接（当前 N �
 | `session_rename` | 重命名，回 `sessions`。 |
 | `session_delete` | 删除，回 `sessions`。 |
 | `session_branch` | 复制会话为分支（`index` 为截断点，-1=整段复制），回 `sessions`；失败回 `error`「无法创建分支」。 |
+| `session_history` | 请求某会话完整历史（`sessionId`），回 `history`（`messages` + `sessionId`）。会话不存在回 `messages: []`。 |
 | `audit_log` | 把 `content`（审计摘要文本）追加为一条助手消息，回 `done`。 |
 | `ping` | **已声明但后端未处理**（no-op）——不要依赖。 |
 
@@ -63,6 +64,7 @@ Upgrade → 注册到 Hub → 后端打日志「客户端已连接（当前 N �
   "error": "",
   "settings": {},
   "sessions": [{"id":"","title":"","count":0}], "sessionId": "",
+  "messages": [{"role":"assistant","content":"","tool_calls":[]}],  // history
   "stats": {},
   "askId": ""
 }
@@ -77,7 +79,8 @@ Upgrade → 注册到 Hub → 后端打日志「客户端已连接（当前 N �
 | `error` | `error` 字段为可展示文本（busy / 校验失败 / 队列满 / 关停等）。 |
 | `status` | 状态文案（如「思考中 (2)」），`content`。 |
 | `settings` | 完整设置快照。 |
-| `sessions` | `sessions`（id/title/count）+ `sessionId`（当前）。 |
+| `sessions` | `sessions`（id/title/count）+ `sessionId`（当前）。**前端收到后应立刻 `session_history` 拉取当前会话历史回放。** |
+| `history` | 会话历史：`messages`（`ai.Message[]`：`role`/`content`/`tool_calls`/`tool_call_id`/`tool_name`）+ `sessionId`。前端仅当 `sessionId` 等于当前会话时才应用（防切换竞态）。 |
 | `ask` | 工具权限询问：`askId` + `toolName` + `toolArgs`；前端弹权限条，用户选择后回 `ask_reply`。 |
 | `stats` | 会话统计，字段见下。 |
 | `audit_log` | **`content` 是一个 JSON 字符串**（二次 parse）：`{"critical":..,"high":..,"medium":..,"low":..,...}`，审计完成时广播给所有客户端。 |
@@ -107,6 +110,6 @@ Upgrade → 注册到 Hub → 后端打日志「客户端已连接（当前 N �
   - `tool_done` → 反向查找**最后一个同名 running 块**写入 out。
   - `status` → `state.statusText`；`done` → busy=false + 重新 `sessions_get`；`error` → busy=false + Message。
   - `ask` → `state.ask`（AskBar 渲染）。
-  - `settings`/`sessions`/`stats` → 更新对应状态。
+  - `settings`/`stats` → 更新对应状态；`sessions` → 更新列表 + 发 `session_history`；`history` → 重建 `state.messages`（`message.role=='tool'` 并入上一个 assistant 的工具块）。
   - `audit_log` → `auditTick++`（触发审计面板刷新）+ `JSON.parse(content)` 弹摘要 toast。
 - 断线 → 2s 自动重连；重连成功后 `onopen` 发 `settings_get` + `sessions_get`。

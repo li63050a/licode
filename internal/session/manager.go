@@ -153,6 +153,16 @@ func (m *Manager) Get(id string) (*Session, bool) {
 	return s, ok
 }
 
+// Messages 返回指定会话的完整消息副本（用于 WS 历史回放）。会话不存在时返回 nil。
+func (m *Manager) Messages(id string) []ai.Message {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if s, ok := m.sessions[id]; ok {
+		return s.Messages()
+	}
+	return nil
+}
+
 // Branch 从 parent 会话复制出直到某个位置的消息，形成新会话（对话分支），并切换
 // 到它。fromIndex 为截断位置：0<=i<=len 复制前 i 条；<0 表示复制整个对话。
 // parent 不存在时返回 ok=false。分支继承父会话的上下文预算。

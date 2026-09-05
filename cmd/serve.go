@@ -236,6 +236,15 @@ func runServe(opts *ServeOptions) error {
 					})
 				}
 
+			case websocket.TypeSessionHistory:
+				msgs := cs.sessions.Messages(msg.SessionID)
+				if msgs == nil {
+					msgs = []ai.Message{}
+				}
+				c.SendEvent(websocket.ServerEvent{
+					Type: websocket.EvtHistory, SessionID: msg.SessionID, Messages: msgs,
+				})
+
 			case websocket.TypeSessionRename:
 				cs.sessions.Rename(msg.SessionID, msg.Content)
 				_ = cs.sessions.SaveAll()

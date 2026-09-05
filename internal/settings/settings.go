@@ -18,12 +18,26 @@ var ProviderChoices = []string{"openai", "claude", "ollama", "gemini"}
 
 // ProviderConfig 描述一个已配置的厂商条目（可自定义名称与协议类型）。
 type ProviderConfig struct {
-	Provider string `json:"provider"` // 标识（内置名或自定义）
-	Name     string `json:"name"`     // 自定义显示名称
-	Type     string `json:"type"`     // 协议类型：openai/claude/ollama/gemini；空按 Provider 推断
-	BaseURL  string `json:"base_url"`
-	APIKey   string `json:"api_key"`
-	Model    string `json:"model"`
+	Provider string   `json:"provider"` // 标识（内置名或自定义）
+	Name     string   `json:"name"`     // 自定义显示名称
+	Type     string   `json:"type"`     // 协议类型：openai/claude/ollama/gemini；空按 Provider 推断
+	BaseURL  string   `json:"base_url"`
+	APIKey   string   `json:"api_key"`
+	Model    string   `json:"model"`            // 当前使用的模型
+	Models   []string `json:"models,omitempty"` // 该厂商的模型列表（可自由增删，仅作展示/选择用）
+}
+
+// AddModel 把模型追加进列表（去重），供激活与导入时保持一致性。
+func (p *ProviderConfig) AddModel(m string) {
+	if m == "" {
+		return
+	}
+	for _, x := range p.Models {
+		if x == m {
+			return
+		}
+	}
+	p.Models = append(p.Models, m)
 }
 
 // resolveType 推断协议类型（openai / claude / google；ollama 归 openai）。
@@ -134,6 +148,7 @@ func (s *Settings) UpsertActive() {
 			}
 			if s.Model != "" {
 				s.Providers[i].Model = s.Model
+				s.Providers[i].AddModel(s.Model)
 			}
 			s.Providers[i].Type = s.Providers[i].resolveType()
 			return
@@ -144,6 +159,9 @@ func (s *Settings) UpsertActive() {
 		BaseURL:  s.BaseURL,
 		APIKey:   s.APIKey,
 		Model:    s.Model,
+	}
+	if s.Model != "" {
+		pc.AddModel(s.Model)
 	}
 	if d, ok := ai.Defaults[strings.ToLower(s.Provider)]; ok && pc.BaseURL == "" {
 		pc.BaseURL = d.BaseURL
@@ -285,7 +303,7 @@ func (s *Settings) Snapshot() Settings {
 		BaseURL:         s.BaseURL,
 		APIKey:          s.APIKey,
 		Model:           s.Model,
-		Providers:       append([]ProviderConfig{}, s.Providers...),
+		Providers:       copyProviders(s.Providers),
 		Temperature:     s.Temperature,
 		MaxTokens:       s.MaxTokens,
 		MaxIterations:   s.MaxIterations,
@@ -333,6 +351,18 @@ func (s *Settings) Validate() error {
 // EnsureDefaults 补全默认值（提供商模型、风险工具规则等）。
 func (s *Settings) EnsureDefaults() {
 	_ = s.finalize()
+}
+
+// copyProviders 深拷贝厂商列表（含其内部的 models 切片），避免快照共享底层数组。
+func copyProviders(in []ProviderConfig) []ProviderConfig {
+	out := make([]ProviderConfig, len(in))
+	for i, p := range in {
+		out[i] = p
+		if len(p.Models) > 0 {
+			out[i].Models = append([]string{}, p.Models...)
+		}
+	}
+	return out
 }
 
 // ParseToolList 解析逗号分隔的工具列表。
