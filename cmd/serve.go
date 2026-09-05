@@ -324,6 +324,7 @@ func runServe(opts *ServeOptions) error {
 	authUser, authPass, authEnabled := ResolveAuth(opts.Username, opts.Password)
 	auth := newAuthState(authUser, authPass, authEnabled)
 	wsState := newWorkspace()
+	searchAPI := newSearchState()
 
 	// 静态资源（CSS/JS/HTMX，全部 go:embed 打进二进制）统一走 /static/
 	staticServer := http.StripPrefix("/static/", http.FileServer(http.FS(web.StaticFS())))
@@ -415,6 +416,49 @@ func runServe(opts *ServeOptions) error {
 	})
 	// 代码审计：状态 / 启动 / 结果 / 一键修复（预览 + 二次确认）
 	registerAuditRoutes(mux, st, wsState, hub)
+	// 联网搜索：本地库 + 多引擎 meta 搜索 + 网页预览/收录
+	mux.HandleFunc("/api/search/engines", func(w http.ResponseWriter, r *http.Request) {
+		if !auth.require(w, r) {
+			return
+		}
+		searchAPI.handleSearchEngines(w, r)
+	})
+	mux.HandleFunc("/api/search", func(w http.ResponseWriter, r *http.Request) {
+		if !auth.require(w, r) {
+			return
+		}
+		searchAPI.handleSearch(w, r)
+	})
+	mux.HandleFunc("/api/search/fetch", func(w http.ResponseWriter, r *http.Request) {
+		if !auth.require(w, r) {
+			return
+		}
+		searchAPI.handleSearchFetch(w, r)
+	})
+	mux.HandleFunc("/api/search/save", func(w http.ResponseWriter, r *http.Request) {
+		if !auth.require(w, r) {
+			return
+		}
+		searchAPI.handleSearchSave(w, r)
+	})
+	mux.HandleFunc("/api/search/catalog", func(w http.ResponseWriter, r *http.Request) {
+		if !auth.require(w, r) {
+			return
+		}
+		searchAPI.handleSearchCatalog(w, r)
+	})
+	mux.HandleFunc("/api/search/delete", func(w http.ResponseWriter, r *http.Request) {
+		if !auth.require(w, r) {
+			return
+		}
+		searchAPI.handleSearchDelete(w, r)
+	})
+	mux.HandleFunc("/api/search/stats", func(w http.ResponseWriter, r *http.Request) {
+		if !auth.require(w, r) {
+			return
+		}
+		searchAPI.handleSearchStats(w, r)
+	})
 	// HTMX 片段：设置弹窗 / 文件树 / 审计面板（服务器渲染 HTML）
 	registerFragmentRoutes(mux, auth, st, wsState, hub)
 	mux.HandleFunc("/api/models", func(w http.ResponseWriter, r *http.Request) {

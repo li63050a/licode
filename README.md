@@ -135,6 +135,14 @@
 
 API：`GET /api/audit/status`、`POST /api/audit/start`、`GET /api/audit/result?task_id=…`、`POST /api/audit/fix`（`?confirm=true` 时落盘）。审计报告同时以 JSON 保存到 `~/.licode/logs/audit/<task_id>.json`。
 
+## 联网搜索（自建，多引擎）
+
+Web 界面「搜索」面板可同时检索多个引擎（必应 / 百度 / DuckDuckGo，均为自建解析，无第三方搜索 API）与本地已收录库；每条结果支持**网页预览**与**收藏收录**。本地库用倒排索引（中文 bigram 分词 + BM25），持久化在 `~/.licode/search/index.json`，支持增、删、站内检索。
+
+已接入 Agent 工具（`WebSearch` 多引擎合成检索 / `WebFetch` 抓单页全文并自动收录），对话中即可联网查询。
+
+API：`GET /api/search?q=…&engines=bing,baidu,duckduckgo&local=1&max=…`、`GET/POST /api/search/fetch`、`POST /api/search/save`、`GET /api/search/catalog`、`POST /api/search/delete`、`GET /api/search/engines|stats`。
+
 ## 文档
 
 - [⚙️ 配置与数据目录](docs/config.md)

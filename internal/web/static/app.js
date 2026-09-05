@@ -152,11 +152,131 @@ function saveSettings(){
 function switchTab(tab,btn){
   $('tabInfo').style.display=tab==='info'?'':'none';
   $('tabFiles').style.display=tab==='files'?'':'none';
+  $('tabSearch').style.display=tab==='search'?'':'none';
   $('tabAudit').style.display=tab==='audit'?'':'none';
   document.querySelectorAll('.rtabs button').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
   if(tab==='audit')loadAudit();
   if(tab==='files')loadDir();
+  if(tab==='search')initSearchTab();
+}
+
+/* 联网搜索：多引擎 meta 检索 + 本地已收录库 + 网页预览/收录 */
+let sEngines=null;
+async function initSearchTab(){
+  loadCatalog();
+  if(!sEngines){
+    try{
+      const r=await fetch('/api/search/stats');
+      if(!r.ok){throw new Error();}
+      const d=await r.json();
+      sEngines=d.engines||['bing','baidu','duckduckgo'];
+      const box=$('sEngines');box.innerHTML='';
+      // 引擎勾选（默认全选）+ 本地库选项
+      const locals=['bing:必应','baidu:百度','duckduckgo:DuckDuckGo'];
+      for(const e of sEngines){
+        const lb=document.createElement('label');
+        lb.style.cssText='display:flex;align-items:center;gap:3px;cursor:pointer';
+        lb.innerHTML='<input type="checkbox" value="'+esc(e)+'" class="seng" checked>'+esc(locals.find(l=>l.split(':')[0]===e)?locals.find(l=>l.split(':')[0]===e).split(':')[1]:e);
+        box.appendChild(lb);
+      }
+      const lb=document.createElement('label');
+      lb.style.cssText='display:flex;align-items:center;gap:3px;cursor:pointer';
+      lb.innerHTML='<input type="checkbox" id="sUseLocal" checked> 本地库';
+      box.appendChild(lb);
+    }catch(e){
+      $('sEngines').innerText='搜索服务不可用';
+    }
+  }
+}
+function selectedEngines(){
+  const out=[];
+  document.querySelectorAll('.seng:checked').forEach(c=>out.push(c.value));
+  return out;
+}
+async function runSearch(){
+  const q=$('sq').value.trim();
+  if(!q){toast('请输入关键词');return;}
+  const engines=selectedEngines();
+  const local=$('sUseLocal')&&$('sUseLocal').checked;
+  const max=10;
+  let url='/api/search?q='+encodeURIComponent(q)+'&engines='+encodeURIComponent(engines.join(','))+(local?'':'&local=0')+'&max='+max;
+  $('sResults').innerHTML='<div style="color:var(--muted);padding:8px">搜索中…</div>';
+  try{
+    const r=await fetch(url);
+    const d=await r.json();
+    if(!r.ok)throw new Error(d.error||'搜索失败');
+    renderSearchResults(d.results||[]);
+  }catch(e){$('sResults').innerHTML='<div style="color:var(--red);padding:8px">'+esc(e.message)+'</div>';}
+}
+function renderSearchResults(rs){
+  const box=$('sResults');
+  const byBatch=[];
+  for(let i=0;i<rs.length;i++)byBatch.push(rs[i]);
+  const localTag={};
+  let html='';
+  rs.forEach((r,i)=>{
+    const tag=r.engine==='local'?'<span style="color:var(--primary);font-size:11px">[本地]</span>':'<span style="color:var(--muted);font-size:11px">['+esc(r.engine)+']</span>';
+    html+='<div class="sitem">'+tag+' <a href="#" onclick="event.preventDefault();viewUrl(\''+escAttr(r.url)+'\')" style="color:var(--primary);text-decoration:none;font-weight:600">'+esc(r.title||r.url)+'</a>'+
+      '<div style="color:var(--fg2);font-size:12px;margin-top:2px">'+esc(r.snippet||'')+'</div>'+
+      '<div style="display:flex;gap:8px;margin-top:4px;font-size:12px">'+
+      '<a href="'+escAttr(r.url)+'" target="_blank" style="color:var(--muted)">打开原文 ↗</a>'+
+      '<a href="#" onclick="event.preventDefault();viewUrl(\''+escAttr(r.url)+'\')" style="color:var(--muted)">查看</a>'+
+      '<a href="#" onclick="event.preventDefault();saveUrl(\''+escAttr(r.url)+'\')" style="color:var(--muted)">收藏收录</a>'+
+      '</div></div>';
+  });
+  box.innerHTML=(rs.length?'':'<div style="color:var(--muted);padding:8px">无结果</div>')+html;
+}
+function escAttr(s){return esc(String(s).replace(/'/g,"\\'")).replace(/"/g,'&quot;');}
+async function viewUrl(url){
+  $('sResults')&&$('sResults');
+  $('sPreview').style.display='';
+  $('sPrevUrl').textContent=url;
+  $('sPrevBody').textContent='抓取中…';
+  try{
+    const r=await fetch('/api/search/fetch',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url})});
+    const d=await r.json();
+    if(!r.ok)throw new Error(d.error||'抓取失败');
+    $('sPrevBody').textContent=(d.title?('📌 '+d.title+'\n\n'):'')+d.text;
+  }catch(e){$('sPrevBody').textContent='抓取失败: '+e.message;}
+}
+async function saveUrl(url){
+  try{
+    const r=await fetch('/api/search/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url})});
+    const d=await r.json();
+    if(!r.ok)throw new Error(d.error||'收藏失败');
+    toast('已收录：'+(d.title||url));
+    loadCatalog();
+  }catch(e){toast('收藏失败: '+e.message);}
+}
+function saveCurrent(){saveUrl($('sPrevUrl').textContent);}
+function closePreview(){$('sPreview').style.display='none';}
+async function loadCatalog(){
+  const box=$('sResults');
+  try{
+    const r=await fetch('/api/search/catalog');
+    const d=await r.json();
+    if(!r.ok)throw new Error(d.error||'加载失败');
+    const docs=d.docs||[];
+    let html='<div style="color:var(--muted);font-size:12px;margin-bottom:6px">本地已收录 '+docs.length+' 篇</div>';
+    html+=docs.map(x=>'<div class="sitem">'+
+      '<a href="#" onclick="event.preventDefault();viewUrl(\''+escAttr(x.url)+'\')" style="color:var(--primary);text-decoration:none;font-weight:600">'+esc(x.title||x.url)+'</a>'+
+      '<div style="color:var(--fg2);font-size:12px;margin-top:2px">'+esc(x.url)+' · '+Math.round(x.len/1024)+'KB</div>'+
+      '<div style="display:flex;gap:8px;margin-top:4px;font-size:12px">'+
+      '<a href="'+escAttr(x.url)+'" target="_blank" style="color:var(--muted)">打开原文 ↗</a>'+
+      '<a href="#" onclick="event.preventDefault();delCatalog(\''+escAttr(x.url)+'\')" style="color:var(--muted)">删除</a>'+
+      '</div></div>').join('');
+    box.innerHTML=html;
+  }catch(e){box.innerHTML='<div style="color:var(--red)">'+esc(e.message)+'</div>';}
+}
+async function delCatalog(url){
+  if(!confirm('从本地库删除：'+url+' ?'))return;
+  try{
+    const r=await fetch('/api/search/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url})});
+    const d=await r.json();
+    if(!r.ok)throw new Error(d.error||'删除失败');
+    toast('已删除');loadCatalog();
+  }catch(e){toast('删除失败: '+e.message);}
 }
 
 /* 文件浏览（HTMX：树由 /fragment/files 服务器渲染，支持任意绝对路径） */

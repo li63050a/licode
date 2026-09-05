@@ -75,6 +75,7 @@
     <div class="rtabs">
       <button class="active" onclick="switchTab('info',this)">信息</button>
       <button onclick="switchTab('files',this)">文件</button>
+      <button onclick="switchTab('search',this)">搜索</button>
       <button onclick="switchTab('audit',this)">审计</button>
     </div>
     <div class="rpanel" id="tabInfo">
@@ -120,6 +121,26 @@
           <div id="lineNums" style="padding:8px 0;text-align:right;color:var(--muted);font:12px/1.5 var(--mono);min-width:36px;user-select:none;overflow:hidden;background:var(--bg-panel);border-right:1px solid var(--border)"></div>
           <textarea id="editor" style="flex:1;padding:8px 12px;border:none;outline:none;resize:none;font:12px/1.5 var(--mono);background:var(--bg-card);color:var(--fg);tab-size:2;overflow:auto;min-height:200px"></textarea>
         </div>
+      </div>
+    </div>
+    <div class="rpanel" id="tabSearch" style="display:none;padding:0">
+      <div style="padding:12px 12px 8px">
+        <div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap">
+          <input id="sq" style="flex:1;min-width:140px" placeholder="搜索关键词（多引擎 + 本地已收录库）" onkeydown="if(event.key==='Enter')runSearch()" />
+          <button class="btn" onclick="runSearch()">搜索</button>
+          <button class="btn" onclick="loadCatalog()">已收录</button>
+        </div>
+        <div id="sEngines" style="display:flex;gap:10px;font-size:12px;color:var(--fg2);margin-bottom:8px;flex-wrap:wrap"></div>
+        <div id="sResults" style="font-size:13px"></div>
+      </div>
+      <!-- 网页预览 -->
+      <div id="sPreview" style="display:none;border-top:1px solid var(--border)">
+        <div style="display:flex;align-items:center;gap:6px;padding:8px 12px;border-bottom:1px solid var(--border);background:var(--bg-panel)">
+          <span id="sPrevUrl" style="flex:1;font-size:12px;font-family:var(--mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--fg2)"></span>
+          <button class="btn" style="padding:4px 10px;font-size:11px" onclick="saveCurrent()">收藏收录</button>
+          <button class="ib" style="padding:4px" onclick="closePreview()">✕</button>
+        </div>
+        <div id="sPrevBody" style="max-height:36vh;overflow:auto;white-space:pre-wrap;padding:10px 12px;font:12px/1.6 var(--mono);color:var(--fg)"></div>
       </div>
     </div>
     <div class="rpanel" id="tabAudit" style="display:none;padding:0"></div>
