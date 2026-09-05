@@ -61,7 +61,12 @@ export interface Settings {
   audit_auto_fix?: boolean
   audit_scan_dirs?: string[]
   audit_exclude?: string[]
-  [key: string]: any
+  dns?: DNSConfig
+}
+
+export interface DNSConfig {
+  mode?: string // system | plain | dot | doh
+  server?: string
 }
 
 export interface ToolBlock {

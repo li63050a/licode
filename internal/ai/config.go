@@ -2,18 +2,36 @@ package ai
 
 import (
 	"fmt"
+	"net/http"
 	"os"
 	"strings"
+	"time"
+
+	"licode/internal/dnsclient"
 )
+
+// NewLLMHTTPClient 构造一个 *http.Client，并依据 DNS 配置注入自定义解析器。
+func (c Config) NewLLMHTTPClient(timeout time.Duration) *http.Client {
+	client := &http.Client{Timeout: timeout}
+	if c.DNSMode != "" && c.DNSMode != "system" && c.DNSServer != "" {
+		dc := dnsclient.Config{Mode: dnsclient.Mode(c.DNSMode), Server: c.DNSServer}
+		if dial := dc.Resolver(); dial != nil {
+			client.Transport = &http.Transport{DialContext: dial, TLSHandshakeTimeout: 15 * time.Second, ResponseHeaderTimeout: timeout}
+		}
+	}
+	return client
+}
 
 // Config holds connection settings for an LLM provider.
 type Config struct {
-	Provider string // 显示名（如 "openai" 或自定义名称）
-	Type     string // 协议类型：openai | claude | ollama | gemini；空则按 Provider 推断，未知按 openai 兼容
-	BaseURL  string
-	APIKey   string
-	Model    string
-	RetryMax int // LLM 调用失败重试次数（指数退避，处理 429/503/网络抖动）
+	Provider  string // 显示名（如 "openai" 或自定义名称）
+	Type      string // 协议类型：openai | claude | ollama | gemini；空则按 Provider 推断，未知按 openai 兼容
+	BaseURL   string
+	APIKey    string
+	Model     string
+	RetryMax  int    // LLM 调用失败重试次数（指数退避，处理 429/503/网络抖动）
+	DNSMode   string // 自定义 DNS 模式："" | system | plain | dot | doh
+	DNSServer string // 自定义 DNS 服务器地址
 }
 
 const (
@@ -107,15 +125,16 @@ func New(cfg Config) (LLMClient, error) {
 		return nil, err
 	}
 	name := cfg.Provider
+	dnsMode, dnsServer := cfg.DNSMode, cfg.DNSServer
 	switch cfg.Type {
 	case "openai":
-		return &OpenAIProvider{name: name, baseURL: cfg.BaseURL, apiKey: cfg.APIKey, model: cfg.Model, retry: cfg.RetryMax}, nil
+		return &OpenAIProvider{name: name, baseURL: cfg.BaseURL, apiKey: cfg.APIKey, model: cfg.Model, retry: cfg.RetryMax, dnsMode: dnsMode, dnsServer: dnsServer}, nil
 	case "claude":
-		return &ClaudeProvider{name: name, baseURL: cfg.BaseURL, apiKey: cfg.APIKey, model: cfg.Model, retry: cfg.RetryMax}, nil
+		return &ClaudeProvider{name: name, baseURL: cfg.BaseURL, apiKey: cfg.APIKey, model: cfg.Model, retry: cfg.RetryMax, dnsMode: dnsMode, dnsServer: dnsServer}, nil
 	case "ollama":
-		return &OllamaProvider{name: name, baseURL: cfg.BaseURL, model: cfg.Model, retry: cfg.RetryMax}, nil
+		return &OllamaProvider{name: name, baseURL: cfg.BaseURL, model: cfg.Model, retry: cfg.RetryMax, dnsMode: dnsMode, dnsServer: dnsServer}, nil
 	case "google", "gemini":
-		return &GeminiProvider{name: name, baseURL: cfg.BaseURL, apiKey: cfg.APIKey, model: cfg.Model, retry: cfg.RetryMax}, nil
+		return &GeminiProvider{name: name, baseURL: cfg.BaseURL, apiKey: cfg.APIKey, model: cfg.Model, retry: cfg.RetryMax, dnsMode: dnsMode, dnsServer: dnsServer}, nil
 	default:
 		return nil, fmt.Errorf("unsupported protocol type %q", cfg.Type)
 	}

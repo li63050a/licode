@@ -29,7 +29,7 @@ func ListModels(ctx context.Context, cfg Config) ([]string, error) {
 	return nil, fmt.Errorf("不支持的协议类型 %q", cfg.Type)
 }
 
-func httpGetJSON(ctx context.Context, url, apiKey string) (*http.Response, error) {
+func httpGetJSON(ctx context.Context, url, apiKey string, cfg Config) (*http.Response, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
@@ -37,12 +37,12 @@ func httpGetJSON(ctx context.Context, url, apiKey string) (*http.Response, error
 	if apiKey != "" {
 		req.Header.Set("Authorization", "Bearer "+apiKey)
 	}
-	client := &http.Client{Timeout: 15 * time.Second}
+	client := cfg.NewLLMHTTPClient(15 * time.Second)
 	return client.Do(req)
 }
 
 func listOpenAIModels(ctx context.Context, cfg Config) ([]string, error) {
-	resp, err := httpGetJSON(ctx, strings.TrimRight(cfg.BaseURL, "/")+"/models", cfg.APIKey)
+	resp, err := httpGetJSON(ctx, strings.TrimRight(cfg.BaseURL, "/")+"/models", cfg.APIKey, cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -67,7 +67,7 @@ func listOpenAIModels(ctx context.Context, cfg Config) ([]string, error) {
 }
 
 func listOllamaModels(ctx context.Context, cfg Config) ([]string, error) {
-	resp, err := httpGetJSON(ctx, strings.TrimRight(cfg.BaseURL, "/")+"/api/tags", "")
+	resp, err := httpGetJSON(ctx, strings.TrimRight(cfg.BaseURL, "/")+"/api/tags", "", cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -97,7 +97,7 @@ func listGeminiModels(ctx context.Context, cfg Config) ([]string, error) {
 	if cfg.APIKey != "" {
 		url += "?key=" + cfg.APIKey
 	}
-	resp, err := httpGetJSON(ctx, url, "")
+	resp, err := httpGetJSON(ctx, url, "", cfg)
 	if err != nil {
 		return nil, err
 	}

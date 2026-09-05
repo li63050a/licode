@@ -1,7 +1,25 @@
 <script setup lang="ts">
 import { X, Plus, Trash2, RefreshCw, CheckCircle2, Loader2 } from 'lucide-vue-next'
 import { Message, Button, Input, Switch, Chip, Select, Tabs } from 'fuxsto-design'
-import type { ProviderConfig, Settings } from '~/composables/useLicode'
+import type { DNSConfig, ProviderConfig, Settings } from '~/composables/useLicode'
+
+const dnsModeOptions = [
+  { label: '系统默认', value: 'system' },
+  { label: '普通 DNS', value: 'plain' },
+  { label: 'DoT (TLS)', value: 'dot' },
+  { label: 'DoH (HTTPS)', value: 'doh' },
+]
+
+function setDnsMode(m: string) {
+  if (!local.value.dns) local.value.dns = {}
+  local.value.dns.mode = m
+  if (m === 'system') local.value.dns.server = ''
+}
+
+function setDnsServer(v: string) {
+  if (!local.value.dns) local.value.dns = {}
+  local.value.dns.server = v
+}
 
 type ProviderRow = ProviderConfig & { _newModel?: string }
 
@@ -193,7 +211,13 @@ function buildSettings(): Settings {
   } catch {
     throw new Error('MCP 服务器 JSON 格式无效')
   }
-  // _newModel 与 __models 都是临时字段，不随设置持久化
+  const dns = s.dns
+if (dns && !dns.mode && !dns.server) {
+  delete s.dns
+} else if (dns) {
+  s.dns = { mode: dns.mode || 'system', server: dns.server || '' }
+}
+// _newModel 与 __models 都是临时字段，不随设置持久化
   s.providers = (s.providers || []).map((p) => {
     const { _newModel: _a, ...rest } = p as ProviderRow
     return rest
@@ -318,6 +342,36 @@ function save() {
                 <span>语义缓存</span>
                 <Switch :model-value="!!local.cache_enabled" size="sm" @update:model-value="local.cache_enabled = !!$event" />
               </label>
+            </div>
+            <div class="rounded-xl border border-zinc-200 p-3 dark:border-zinc-800">
+              <div class="mb-2 flex items-center justify-between">
+                <span class="text-xs font-medium text-zinc-500">DNS 解析</span>
+                <span class="text-[10px] text-zinc-400">解决 connection refused / DNS 污染</span>
+              </div>
+              <div class="grid grid-cols-2 gap-2">
+                <label class="space-y-1">
+                  <span class="text-xs text-zinc-500">模式</span>
+                  <Select
+                    :model-value="local.dns?.mode || 'system'"
+                    size="sm"
+                    :options="dnsModeOptions"
+                    placeholder="系统默认"
+                    @update:model-value="setDnsMode(String($event))"
+                  />
+                </label>
+                <label class="space-y-1">
+                  <span class="text-xs text-zinc-500">服务器</span>
+                  <Input
+                    :model-value="local.dns?.server || ''"
+                    size="sm"
+                    placeholder="8.8.8.8:53 / https://doh.pub/dns-query"
+                    @update:model-value="setDnsServer(String($event))"
+                  />
+                </label>
+              </div>
+              <p class="mt-1 text-[10px] text-zinc-400">
+                system 系统默认 · plain 普通 DNS · dot DNS over TLS (853) · doh DNS over HTTPS
+              </p>
             </div>
           </template>
 

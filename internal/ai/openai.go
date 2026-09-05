@@ -9,17 +9,20 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 )
 
 // OpenAIProvider implements the OpenAI Chat Completions API (also compatible
 // with any OpenAI-compatible endpoint such as vLLM, LM Studio, OpenRouter).
 type OpenAIProvider struct {
-	name    string
-	baseURL string
-	apiKey  string
-	model   string
-	retry   int
-	client  *http.Client
+	name     string
+	baseURL  string
+	apiKey   string
+	model    string
+	retry    int
+	dnsMode  string
+	dnsServer string
+	client   *http.Client
 }
 
 func (p *OpenAIProvider) Provider() string { return p.name }
@@ -27,7 +30,8 @@ func (p *OpenAIProvider) Model() string    { return p.model }
 
 func (p *OpenAIProvider) httpClient() *http.Client {
 	if p.client == nil {
-		p.client = &http.Client{}
+		cfg := Config{DNSMode: p.dnsMode, DNSServer: p.dnsServer}
+		p.client = cfg.NewLLMHTTPClient(60 * time.Second)
 	}
 	return p.client
 }

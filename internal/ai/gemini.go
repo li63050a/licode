@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 )
 
 // GeminiProvider implements Google Gemini 原生接口：
@@ -20,12 +21,14 @@ import (
 // 使用 Google 自己的 RPC 风格请求体（contents / parts / functionCall /
 // functionResponse），与 OpenAI 的 chat/completions 完全不同。
 type GeminiProvider struct {
-	name    string
-	baseURL string
-	apiKey  string
-	model   string
-	retry   int
-	client  *http.Client
+	name      string
+	baseURL   string
+	apiKey    string
+	model     string
+	retry     int
+	dnsMode   string
+	dnsServer string
+	client    *http.Client
 }
 
 func (p *GeminiProvider) Provider() string { return p.name }
@@ -33,7 +36,8 @@ func (p *GeminiProvider) Model() string    { return p.model }
 
 func (p *GeminiProvider) httpClient() *http.Client {
 	if p.client == nil {
-		p.client = &http.Client{}
+		cfg := Config{DNSMode: p.dnsMode, DNSServer: p.dnsServer}
+		p.client = cfg.NewLLMHTTPClient(60 * time.Second)
 	}
 	return p.client
 }

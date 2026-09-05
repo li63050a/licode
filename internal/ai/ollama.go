@@ -9,15 +9,18 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 )
 
 // OllamaProvider talks to a local Ollama server (native /api/chat endpoint).
 type OllamaProvider struct {
-	name    string
-	baseURL string
-	model   string
-	retry   int
-	client  *http.Client
+	name      string
+	baseURL   string
+	model     string
+	retry     int
+	dnsMode   string
+	dnsServer string
+	client    *http.Client
 }
 
 func (p *OllamaProvider) Provider() string { return p.name }
@@ -25,7 +28,8 @@ func (p *OllamaProvider) Model() string    { return p.model }
 
 func (p *OllamaProvider) httpClient() *http.Client {
 	if p.client == nil {
-		p.client = &http.Client{}
+		cfg := Config{DNSMode: p.dnsMode, DNSServer: p.dnsServer}
+		p.client = cfg.NewLLMHTTPClient(120 * time.Second)
 	}
 	return p.client
 }

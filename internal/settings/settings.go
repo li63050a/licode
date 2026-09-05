@@ -119,6 +119,14 @@ type Settings struct {
 	AuditAutoFix  *bool    `json:"audit_auto_fix"`  // 修复前自动生成预览（nil=默认开启）
 	AuditScanDirs []string `json:"audit_scan_dirs"` // 扫描目录（相对工作目录，默认 ["."]）
 	AuditExclude  []string `json:"audit_exclude"`   // 排除路径（相对路径正则，默认排除 vendor/node_modules/.git/dist）
+	// DNS 自定义解析配置，用于解决 API 端点域名解析失败或 DNS 污染导致的 connection refused。
+	DNS *DNSConfig `json:"dns,omitempty"`
+}
+
+// DNSConfig 自定义 DNS 解析配置。
+type DNSConfig struct {
+	Mode   string `json:"mode"`   // system | plain | dot | doh
+	Server string `json:"server"` // 服务器地址，如 "8.8.8.8:53" / "1.1.1.1:853" / "https://1.1.1.1/dns-query"
 }
 
 // Defaults 返回合并了配置文件、环境变量与内置默认值的初始设置。
@@ -213,7 +221,7 @@ func (s *Settings) SetActiveProvider(name string) {
 // AIConfig 把激活厂商设置转成 ai.Config。
 func (s *Settings) AIConfig() ai.Config {
 	pc := s.ActiveProvider()
-	return ai.Config{
+	cfg := ai.Config{
 		Provider: pc.DisplayName(),
 		Type:     pc.resolveType(),
 		BaseURL:  pc.BaseURL,
@@ -221,6 +229,11 @@ func (s *Settings) AIConfig() ai.Config {
 		Model:    pc.Model,
 		RetryMax: s.RetryMax,
 	}
+	if s.DNS != nil {
+		cfg.DNSMode = s.DNS.Mode
+		cfg.DNSServer = s.DNS.Server
+	}
+	return cfg
 }
 
 // NewClient 根据激活厂商创建设置 LLM 客户端。
@@ -335,6 +348,9 @@ func (s *Settings) Snapshot() Settings {
 		AuditAutoFix:    s.AuditAutoFix,
 		AuditScanDirs:   append([]string{}, s.AuditScanDirs...),
 		AuditExclude:    append([]string{}, s.AuditExclude...),
+	}
+	if s.DNS != nil {
+		out.DNS = &DNSConfig{Mode: s.DNS.Mode, Server: s.DNS.Server}
 	}
 	for k, v := range s.ToolRules {
 		out.ToolRules[k] = v
