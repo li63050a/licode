@@ -11,6 +11,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"licode/internal/search"
 )
 
 var (
@@ -214,10 +216,10 @@ func RegisterDefaultTools(r *Registry, sh ShellConfig) {
 		Schema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
-				"path":    map[string]any{"type": "string", "description": "Path to the file"},
-				"old":     map[string]any{"type": "string", "description": "Exact text to find (must be unique in file)"},
-				"new":     map[string]any{"type": "string", "description": "Replacement text"},
-				"all":     map[string]any{"type": "boolean", "description": "Replace all occurrences (default: false, only first)"},
+				"path": map[string]any{"type": "string", "description": "Path to the file"},
+				"old":  map[string]any{"type": "string", "description": "Exact text to find (must be unique in file)"},
+				"new":  map[string]any{"type": "string", "description": "Replacement text"},
+				"all":  map[string]any{"type": "boolean", "description": "Replace all occurrences (default: false, only first)"},
 			},
 			"required": []string{"path", "old", "new"},
 		},
@@ -539,4 +541,85 @@ func safeCommand(command string) bool {
 		}
 	}
 	return true
+}
+
+// RegisterSearchTools 注册联网搜索工具：WebSearch（多引擎合成检索 + 本地知识库）
+// 与 WebFetch（抓取单页全文并自动收录到本地库）。
+// svc 为 nil 时静默跳过，保证搜索不可用时 Agent 照常工作。
+func RegisterSearchTools(r *Registry, svc *search.Service) {
+	if svc == nil {
+		return
+	}
+	r.Register(Tool{
+		Name: "WebSearch",
+		Description: "Search the web using multiple engines (bing / baidu / duckduckgo) and the local knowledge base. " +
+			"Returns ranked results (title, url, snippet). Use for real-time, up-to-date or unfamiliar topics.",
+		Schema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"query": map[string]any{"type": "string", "description": "搜索关键词，支持中文"},
+				"max":   map[string]any{"type": "integer", "description": "最多返回条数（默认 8，上限 15）"},
+			},
+			"required": []string{"query"},
+		},
+		Run: func(ctx context.Context, args map[string]any) (string, error) {
+			q := strArg(args, "query")
+			if q == "" {
+				return "", fmt.Errorf("web search requires a non-empty query")
+			}
+			k := intArg(args, "max", 8)
+			if k < 1 {
+				k = 1
+			}
+			if k > 15 {
+				k = 15
+			}
+			res, err := svc.Search(ctx, q, nil, true, true, k)
+			if err != nil {
+				return "", err
+			}
+			if len(res) == 0 {
+				return "（各引擎均未返回结果）", nil
+			}
+			var sb strings.Builder
+			for i, r := range res {
+				fmt.Fprintf(&sb, "[%d][%s] %s\n%s\n%s\n", i+1, r.Engine, r.Title, r.URL, r.Snippet)
+			}
+			return strings.TrimSpace(sb.String()), nil
+		},
+	})
+	r.Register(Tool{
+		Name: "WebFetch",
+		Description: "Fetch a web page and return its readable full text (title + content). " +
+			"The page is also added to the local knowledge base. Use to read the actual content behind a search result.",
+		Schema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"url": map[string]any{"type": "string", "description": "要抓取的 http(s) 链接"},
+			},
+			"required": []string{"url"},
+		},
+		Run: func(ctx context.Context, args map[string]any) (string, error) {
+			u := strArg(args, "url")
+			if u == "" {
+				return "", fmt.Errorf("web fetch requires a url")
+			}
+			fctx, cancel := context.WithTimeout(ctx, 20*time.Second)
+			defer cancel()
+			title, text, err := svc.Fetch(fctx, u)
+			if err != nil {
+				return "", fmt.Errorf("抓取失败：%w", err)
+			}
+			_, _ = svc.Save(fctx, u) // 尽力收录，失败不影响返回
+			const maxLen = 6000
+			if rest := countRunes(text) - maxLen; rest > 0 {
+				text = string([]rune(text)[:maxLen]) + fmt.Sprintf("\n…（已截断，原文共多出 %d 字）", rest)
+			}
+			return "标题：" + title + "\n\n" + text, nil
+		},
+	})
+}
+
+func countRunes(s string) int {
+	return len([]rune(s))
 }

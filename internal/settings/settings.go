@@ -10,6 +10,7 @@ import (
 	"licode/internal/agent"
 	"licode/internal/ai"
 	"licode/internal/plugin"
+	"licode/internal/search"
 )
 
 // ProviderChoices 是可选厂商。
@@ -218,6 +219,10 @@ func (s *Settings) BuildAgent(client ai.LLMClient) *agent.Agent {
 	ag := agent.NewAgent(client, agent.DefaultMainPrompt)
 	// 特性6：把 fsnotify 热加载的外部命令工具并入当前 Agent（动态增/删）。
 	ag.Tools.MergeFrom(agent.ExternalTools)
+	// 联网搜索：WebSearch（多引擎合成）+ WebFetch（抓单页并收录本地库）
+	if st, serr := search.DefaultStore(); serr == nil {
+		agent.RegisterSearchTools(ag.Tools, search.NewService(st, nil))
+	}
 	// 附加提示词：~/.licode/md/ 下的所有 .md（默认空）
 	if md, err := ReadMDPrompts(MDPromptDir()); err == nil && md != "" {
 		ag.System += "\n" + md

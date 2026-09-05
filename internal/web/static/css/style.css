@@ -145,6 +145,8 @@ pre .cp:hover{color:var(--primary)}
 .fitem .fops .ib{padding:2px 5px;border-radius:6px;font-size:12px}
 .fitem:not(:hover) .fops .ib{opacity:.35}
 .fitem .fops .ib:hover{opacity:1}
+.sitem{padding:8px 12px;border-bottom:1px solid var(--border)}
+.sitem:hover{background:var(--primary-light)}
 
 /* audit */
 .a-summary{display:flex;gap:8px;margin-bottom:8px;font-size:12px}
