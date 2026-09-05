@@ -136,9 +136,15 @@ pre .cp:hover{color:var(--primary)}
 .rpanel .row:last-child{border:none}
 
 /* file tree (HTMX fragment) */
-.fitem{display:flex;gap:6px;padding:4px 6px;cursor:pointer;border-radius:4px;font-size:13px}
+.fitem{display:flex;align-items:center;gap:8px;padding:4px 12px;cursor:pointer;border-radius:4px;font-size:13px}
 .fitem:hover{background:var(--primary-light)}
 .fitem.dim{color:var(--muted)}
+.fitem .ficon{flex:none}
+.fitem .fname{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fitem .fops{display:flex;gap:2px;flex:none}
+.fitem .fops .ib{padding:2px 5px;border-radius:6px;font-size:12px}
+.fitem:not(:hover) .fops .ib{opacity:.35}
+.fitem .fops .ib:hover{opacity:1}
 
 /* audit */
 .a-summary{display:flex;gap:8px;margin-bottom:8px;font-size:12px}

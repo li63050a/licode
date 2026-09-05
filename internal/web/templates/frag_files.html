@@ -1,12 +1,23 @@
 {{define "frag_files.html"}}
-
-
-{{- /* 文件浏览（HTMX /fragment/files 渲染）。目录/文件行用 data-path 由 app.js 事件委托处理 */ -}}
-{{if .Error}}<div style="padding:8px;color:var(--red)">{{.Error}}</div>{{else}}
-{{if .HasParent}}<div class="fitem dim" data-path="{{.Parent}}" data-isdir="1">↩ 上一级</div>{{end}}
-{{range .Entries}}
-<div class="fitem" data-path="{{.Path}}" data-isdir="{{if .IsDir}}1{{else}}0{{end}}">{{if .IsDir}}📁 {{else}}📄 {{end}}{{.Name}}</div>
-{{end}}
-{{if not .Entries}}{{if .HasParent}}<div style="padding:8px;color:var(--muted)">空目录</div>{{else}}<div style="padding:8px;color:var(--muted)">（工作目录为空）</div>{{end}}{{end}}
-{{end}}
+{{- /* 文件浏览（HTMX /fragment/files 渲染）。data-dir=当前绝对路径，供 app.js 同步到输入框。
+      每行带操作按钮（data-act：edit/del/chmod/chown），事件由 app.js 委托处理。 */ -}}
+<div data-dir="{{.Path}}">
+  {{if .Error}}<div style="padding:12px;color:var(--red)">{{.Error}}</div>{{else}}
+  <div style="padding:4px 12px 6px;font-size:11px;color:var(--muted);font-family:var(--mono);word-break:break-all">{{.Path}}</div>
+  {{if .HasParent}}<div class="fitem dim" data-path="{{.Parent}}" data-isdir="1">↩ 上一级（{{.Parent}}）</div>{{end}}
+  {{range .Entries}}
+  <div class="fitem" data-path="{{.Path}}" data-isdir="{{if .IsDir}}1{{else}}0{{end}}">
+    <span class="ficon">{{if .IsDir}}📁{{else}}📄{{end}}</span>
+    <span class="fname">{{.Name}}</span>
+    <span class="fops">
+      {{if not .IsDir}}<button class="ib" data-act="edit" title="编辑/查看">✎</button>{{end}}
+      <button class="ib" data-act="del" title="删除">🗑</button>
+      <button class="ib" data-act="chmod" title="修改权限">🔐</button>
+      <button class="ib" data-act="chown" title="修改所有者">👤</button>
+    </span>
+  </div>
+  {{end}}
+  <div style="padding:8px 12px;color:var(--muted);font-size:12px">{{if not .Entries}}{{if .HasParent}}空目录{{else}}空{{end}}{{end}}共 {{len .Entries}} 项</div>
+  {{end}}
+</div>
 {{end}}

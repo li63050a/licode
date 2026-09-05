@@ -374,6 +374,18 @@ func runServe(opts *ServeOptions) error {
 		}
 		handleDeleteFile(w, r, wsState)
 	})
+	mux.HandleFunc("/api/chmod", func(w http.ResponseWriter, r *http.Request) {
+		if !auth.require(w, r) {
+			return
+		}
+		handleChmod(w, r, wsState)
+	})
+	mux.HandleFunc("/api/chown", func(w http.ResponseWriter, r *http.Request) {
+		if !auth.require(w, r) {
+			return
+		}
+		handleChown(w, r, wsState)
+	})
 	mux.HandleFunc("/api/upload", func(w http.ResponseWriter, r *http.Request) {
 		if !auth.require(w, r) {
 			return

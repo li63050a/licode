@@ -98,9 +98,12 @@
     </div>
     <div class="rpanel" id="tabFiles" style="display:none;padding:0">
       <div style="padding:12px 12px 8px">
-        <div style="display:flex;gap:6px;margin-bottom:8px">
-          <input id="fPath" style="flex:1" placeholder="路径" />
+        <div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap">
+          <input id="fPath" style="flex:1;min-width:140px" placeholder="绝对路径（如 / 或 /home/user/project）" onkeydown="if(event.key==='Enter')loadDir()" />
           <button class="btn" onclick="loadDir()">浏览</button>
+          <button class="btn" onclick="fsRoot()">根目录 /</button>
+          <button class="btn" onclick="mkFile()">＋文件</button>
+          <button class="btn" onclick="mkDir()">＋文件夹</button>
         </div>
         <div id="fTree" style="font-size:13px"></div>
       </div>

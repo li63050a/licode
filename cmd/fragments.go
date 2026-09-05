@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"licode/internal/settings"
@@ -31,26 +33,24 @@ func registerFragmentRoutes(mux *http.ServeMux, a *authState, st *serverState, w
 			return
 		}
 		p := r.URL.Query().Get("path")
-		entries, err := listDirEntries(ws, p)
+		abs, err := ws.fsPath(p)
 		if err != nil {
 			renderHTMLFragment(w, "frag_files.html", map[string]any{"Error": err.Error()})
 			return
 		}
-		parent := ""
-		trimmed := strings.Trim(p, "/")
-		if trimmed != "" {
-			parent = dirParent(trimmed)
+		info, err := os.Stat(abs)
+		if err != nil || !info.IsDir() {
+			renderHTMLFragment(w, "frag_files.html", map[string]any{"Error": "路径无效或不是目录"})
+			return
 		}
-		type fentry struct {
-			Name, Path string
-			IsDir      bool
+		entries, err := browseDir(abs)
+		if err != nil {
+			renderHTMLFragment(w, "frag_files.html", map[string]any{"Error": err.Error()})
+			return
 		}
-		out := make([]fentry, 0, len(entries))
-		for _, e := range entries {
-			out = append(out, fentry{Name: e.Name, Path: e.Path, IsDir: e.IsDir})
-		}
+		parent := filepath.Dir(abs)
 		renderHTMLFragment(w, "frag_files.html", map[string]any{
-			"Entries": out, "Parent": parent, "HasParent": trimmed != "",
+			"Path": abs, "Entries": entries, "Parent": parent, "HasParent": parent != abs,
 		})
 	})
 
@@ -240,13 +240,4 @@ func auditFragmentData(st *serverState, sev string) map[string]any {
 		"HasIssues":  len(issues) > 0,
 		"Issues":     issues,
 	}
-}
-
-// dirParent 返回相对路径的上一级（"a/b/c" → "a/b"，"a" → ""）。
-func dirParent(p string) string {
-	i := strings.LastIndex(p, "/")
-	if i < 0 {
-		return ""
-	}
-	return p[:i]
 }

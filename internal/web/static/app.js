@@ -159,9 +159,29 @@ function switchTab(tab,btn){
   if(tab==='files')loadDir();
 }
 
-/* 文件浏览（HTMX：树由 /fragment/files 服务器渲染） */
+/* 文件浏览（HTMX：树由 /fragment/files 服务器渲染，支持任意绝对路径） */
+function curPath(){
+  return ($('fPath').value||'').trim();
+}
+function joinPath(dir,name){
+  name=String(name||'').trim().replace(/^\/+|\/+$/g,'');
+  if(!name)return dir||'/';
+  dir=String(dir||'/').replace(/\/+$/,'');
+  if(dir==='')return '/'+name;
+  return dir+'/'+name;
+}
+function parentDir(p){
+  p=String(p||'/').replace(/\/+$/,'');
+  if(!p||p==='/'||!p.includes('/'))return '/';
+  return p.replace(/\/[^\/]*$/,'')||'/';
+}
+function fsRoot(){loadDir('/');}
+function syncFPath(){
+  const t=$('fTree');
+  if(t&&t.dataset&&t.dataset.dir!==''&&t.dataset.dir!==undefined)$('fPath').value=t.dataset.dir;
+}
 function loadDir(path){
-  const p=(path===undefined||path===null)?($('fPath').value||''):path;
+  const p=(path===undefined||path===null)?curPath():path;
   $('fPath').value=p;
   const url='/fragment/files?path='+encodeURIComponent(p);
   if(window.htmx){
@@ -170,12 +190,82 @@ function loadDir(path){
     fetch(url).then(r=>r.text()).then(t=>{$('fTree').innerHTML=t;if(window.htmx)htmx.process($('fTree'));}).catch(e=>{$('fTree').innerHTML='<div style="color:var(--red)">'+esc(e.message)+'</div>';});
   }
 }
+document.body.addEventListener('htmx:afterSwap',e=>{
+  const t=e.detail&&e.detail.target;
+  if(t&&t.id==='fTree')syncFPath();
+});
 document.addEventListener('click',e=>{
+  const bt=e.target&&e.target.closest?e.target.closest('.fops [data-act]'):null;
+  if(bt){
+    const row=bt.closest('.fitem');
+    if(!row)return;
+    const path=row.dataset.path, isdir=row.dataset.isdir==='1';
+    const act=bt.dataset.act;
+    if(act==='edit'){openEditor(path);}
+    else if(act==='del'){delPath(path,isdir);}
+    else if(act==='chmod'){chmodPath(path);}
+    else if(act==='chown'){chownPath(path);}
+    return;
+  }
   const n=e.target&&e.target.closest?e.target.closest('.fitem'):null;
   if(!n)return;
   if(n.dataset.isdir==='1'){loadDir(n.dataset.path);}
   else{openEditor(n.dataset.path);}
 });
+async function mkFile(){
+  const dir=curPath()||'/';
+  const name=prompt('新建文件名（可含子目录，如 src/app.js）');
+  if(!name)return;
+  const full=joinPath(dir,name);
+  try{
+    const r=await fetch('/api/file',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({path:full,content:''})});
+    const d=await r.json();
+    if(!r.ok)throw new Error(d.error||'创建失败');
+    loadDir();openEditor(full);
+  }catch(e){toast('新建文件失败: '+e.message);}
+}
+async function mkDir(){
+  const dir=curPath()||'/';
+  const name=prompt('新建文件夹名（可含多级，如 test/sub）');
+  if(!name)return;
+  try{
+    const r=await fetch('/api/mkdir',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({path:joinPath(dir,name)})});
+    const d=await r.json();
+    if(!r.ok)throw new Error(d.error||'创建失败');
+    toast('已创建文件夹');loadDir();
+  }catch(e){toast('新建文件夹失败: '+e.message);}
+}
+async function delPath(path,isDir){
+  if(!confirm((isDir?'删除目录':'删除文件')+'（'+path+'）'+(isDir?'\n非空目录将递归删除！':'')+'\n此操作不可恢复，确定？'))return;
+  try{
+    const r=await fetch('/api/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({path,recursive:true})});
+    const d=await r.json();
+    if(!r.ok)throw new Error(d.error||'删除失败');
+    toast('已删除');
+    if(isDir&&(curPath()===path||curPath().indexOf(path+'/')===0))loadDir(parentDir(curPath()));
+    else loadDir();
+  }catch(e){toast('删除失败: '+e.message);}
+}
+async function chmodPath(path){
+  const mode=prompt('权限值（八进制，644 / 755 / 0o644）','644');
+  if(mode===null||mode==='')return;
+  try{
+    const r=await fetch('/api/chmod',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({path,mode})});
+    const d=await r.json();
+    if(!r.ok)throw new Error(d.error||'修改失败');
+    toast('已修改权限为 '+d.mode);loadDir();
+  }catch(e){toast('修改权限失败: '+e.message);}
+}
+async function chownPath(path){
+  const owner=prompt('所有者（格式 uid:gid，-1 表示不变），如 1000:1000');
+  if(owner===null||owner==='')return;
+  try{
+    const r=await fetch('/api/chown',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({path,owner})});
+    const d=await r.json();
+    if(!r.ok)throw new Error(d.error||'修改失败');
+    toast('已修改所有者 uid='+d.uid+' gid='+d.gid);loadDir();
+  }catch(e){toast('修改所有者失败: '+e.message);}
+}
 async function openEditor(path){
   try{
     const r=await fetch('/api/file?path='+encodeURIComponent(path));const d=await r.json();

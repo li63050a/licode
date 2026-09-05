@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -54,72 +55,23 @@ func (w *workspaceState) Set(path string) error {
 	return nil
 }
 
-// resolve 把相对工作目录的路径解析为绝对路径，并防止越界。
-func (w *workspaceState) resolve(p string) (string, error) {
-	root := w.Root()
+// fsPath 把用户输入解析为绝对路径，用于文件管理器（Web 界面）：
+// - 以 / 开头（或平台绝对路径）→ 按原样使用（可浏览整个文件系统，含根目录）
+// - 其他 → 相对工作目录
+// 不做"限界"检查：文件管理器是用户显式操作，允许浏览/修改任意路径。
+func (w *workspaceState) fsPath(p string) (string, error) {
 	if p == "" {
-		return root, nil
+		return w.Root(), nil
 	}
-	abs := p
-	if !filepath.IsAbs(abs) {
-		abs = filepath.Join(root, p)
+	if filepath.IsAbs(p) {
+		return filepath.Clean(p), nil
 	}
-	abs = filepath.Clean(abs)
-	resolved, err := filepath.EvalSymlinks(abs)
-	if err != nil {
-		return "", errors.New("路径无效")
-	}
-	resolved = filepath.Clean(resolved)
-	rel, err := filepath.Rel(root, resolved)
-	if err != nil {
-		return "", errors.New("路径无效")
-	}
-	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-		return "", errors.New("不允许访问工作目录之外")
-	}
-	return resolved, nil
+	return filepath.Clean(filepath.Join(w.Root(), p)), nil
 }
 
-// resolveForWrite 解析目标路径，允许目标本身（或其子路径）尚不存在，
-// 用于新建/保存场景。仍会解析已存在的最深前缀并校验不越出工作目录。
-func (w *workspaceState) resolveForWrite(p string) (string, error) {
-	root := w.Root()
-	if p == "" {
-		return root, nil
-	}
-	abs := p
-	if !filepath.IsAbs(abs) {
-		abs = filepath.Join(root, p)
-	}
-	abs = filepath.Clean(abs)
-	// 从目标逐级向上，找到已存在的最深前缀并解析其符号链接
-	missing := abs
-	var existing string
-	for {
-		ex, err := filepath.EvalSymlinks(missing)
-		if err == nil {
-			existing = ex
-			break
-		}
-		parent := filepath.Dir(missing)
-		if parent == missing { // 已经到根目录仍未命中
-			return "", errors.New("路径无效")
-		}
-		missing = parent
-	}
-	relPart, err := filepath.Rel(existing, abs)
-	if err != nil {
-		return "", errors.New("路径无效")
-	}
-	combined := filepath.Clean(filepath.Join(existing, relPart))
-	rel, err := filepath.Rel(root, combined)
-	if err != nil {
-		return "", errors.New("路径无效")
-	}
-	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-		return "", errors.New("不允许访问工作目录之外")
-	}
-	return combined, nil
+// resolveWriteAbs 同 fsPath，用于新建/保存场景（目标本身可以尚不存在）。
+func (w *workspaceState) resolveWriteAbs(p string) (string, error) {
+	return w.fsPath(p)
 }
 
 type fileEntry struct {
@@ -129,12 +81,8 @@ type fileEntry struct {
 	Size  int64  `json:"size"`
 }
 
-// listDirEntries 列出工作目录下（相对路径 p）的目录内容，供 JSON API 与 HTMX 片段共用。
-func listDirEntries(ws *workspaceState, p string) ([]fileEntry, error) {
-	abs, err := ws.resolve(p)
-	if err != nil {
-		return nil, errors.New("路径无效")
-	}
+// browseDir 列出绝对目录（abs）下的内容，子条目 Path 为绝对路径。
+func browseDir(abs string) ([]fileEntry, error) {
 	entries, err := os.ReadDir(abs)
 	if err != nil {
 		return nil, errors.New("无法读取目录")
@@ -149,12 +97,8 @@ func listDirEntries(ws *workspaceState, p string) ([]fileEntry, error) {
 		if info != nil {
 			size = info.Size()
 		}
-		rel := p
-		if rel != "" {
-			rel = strings.TrimSuffix(rel, "/") + "/"
-		}
 		out = append(out, fileEntry{
-			Name: e.Name(), Path: rel + e.Name(), IsDir: e.IsDir(), Size: size,
+			Name: e.Name(), Path: filepath.Join(abs, e.Name()), IsDir: e.IsDir(), Size: size,
 		})
 	}
 	sort.Slice(out, func(i, j int) bool {
@@ -166,20 +110,25 @@ func listDirEntries(ws *workspaceState, p string) ([]fileEntry, error) {
 	return out, nil
 }
 
-// handleFiles 列出工作目录下的目录内容。GET /api/files?path=sub
+// handleFiles 列出目录内容。GET /api/files?path=…（可为绝对路径）
 func handleFiles(w http.ResponseWriter, r *http.Request, ws *workspaceState) {
 	p := r.URL.Query().Get("path")
-	out, err := listDirEntries(ws, p)
+	abs, err := ws.fsPath(p)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "路径无效"})
+		return
+	}
+	out, err := browseDir(abs)
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"root": ws.Root(), "path": p, "entries": out})
+	writeJSON(w, http.StatusOK, map[string]any{"root": ws.Root(), "path": abs, "entries": out})
 }
 
-// handleFile 读取文件内容。GET /api/file?path=...
+// handleFile 读取文件内容。GET /api/file?path=…（可为绝对路径）
 func handleFile(w http.ResponseWriter, r *http.Request, ws *workspaceState) {
-	abs, err := ws.resolve(r.URL.Query().Get("path"))
+	abs, err := ws.fsPath(r.URL.Query().Get("path"))
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "路径无效"})
 		return
@@ -193,7 +142,7 @@ func handleFile(w http.ResponseWriter, r *http.Request, ws *workspaceState) {
 	writeJSON(w, http.StatusOK, map[string]any{"path": abs, "content": string(data)})
 }
 
-// handleSaveFile 写文件。POST /api/file {path, content}
+// handleSaveFile 写文件（目标不存在则新建）。POST /api/file {path, content}
 func handleSaveFile(w http.ResponseWriter, r *http.Request, ws *workspaceState) {
 	r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1MB limit
 	var body struct {
@@ -204,7 +153,7 @@ func handleSaveFile(w http.ResponseWriter, r *http.Request, ws *workspaceState) 
 		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "请求格式错误"})
 		return
 	}
-	abs, err := ws.resolveForWrite(body.Path)
+	abs, err := ws.resolveWriteAbs(body.Path)
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "路径无效"})
 		return
@@ -220,14 +169,14 @@ func handleSaveFile(w http.ResponseWriter, r *http.Request, ws *workspaceState) 
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "path": abs})
 }
 
-// handleMkdir 创建目录。POST /api/mkdir {path}
+// handleMkdir 创建目录（可为绝对路径）。POST /api/mkdir {path}
 func handleMkdir(w http.ResponseWriter, r *http.Request, ws *workspaceState) {
 	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 	var body struct {
 		Path string `json:"path"`
 	}
 	_ = json.NewDecoder(r.Body).Decode(&body)
-	abs, err := ws.resolveForWrite(body.Path)
+	abs, err := ws.resolveWriteAbs(body.Path)
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "路径无效"})
 		return
@@ -239,23 +188,136 @@ func handleMkdir(w http.ResponseWriter, r *http.Request, ws *workspaceState) {
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "path": abs})
 }
 
-// handleDeleteFile 删除文件/目录。POST /api/delete {path}
+// handleDeleteFile 删除文件/目录（可为绝对路径）。POST /api/delete {path, recursive}
+// 非空目录必须显式 recursive=true 才会删除，防止误删。
 func handleDeleteFile(w http.ResponseWriter, r *http.Request, ws *workspaceState) {
 	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 	var body struct {
-		Path string `json:"path"`
+		Path      string `json:"path"`
+		Recursive bool   `json:"recursive"`
 	}
 	_ = json.NewDecoder(r.Body).Decode(&body)
-	abs, err := ws.resolve(body.Path)
+	abs, err := ws.fsPath(body.Path)
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "路径无效"})
 		return
+	}
+	info, err := os.Stat(abs)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "路径不存在"})
+		return
+	}
+	if info.IsDir() && !body.Recursive {
+		if ents, _ := os.ReadDir(abs); len(ents) > 0 {
+			writeJSON(w, http.StatusConflict, map[string]any{"error": "目录非空，请确认递归删除"})
+			return
+		}
 	}
 	if err := os.RemoveAll(abs); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "无法删除"})
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
+// handleChmod 修改文件/目录权限。POST /api/chmod {path, mode}
+func handleChmod(w http.ResponseWriter, r *http.Request, ws *workspaceState) {
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+	var body struct {
+		Path string `json:"path"`
+		Mode string `json:"mode"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "请求格式错误"})
+		return
+	}
+	abs, err := ws.fsPath(body.Path)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "路径无效"})
+		return
+	}
+	mode, err := parseMode(body.Mode)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
+		return
+	}
+	if err := os.Chmod(abs, mode); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "修改权限失败: " + err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "path": abs, "mode": fmt.Sprintf("%o", uint32(mode))})
+}
+
+// parseMode 解析八进制权限串（644 / 0755 / 0o644）。
+func parseMode(s string) (os.FileMode, error) {
+	s = strings.TrimSpace(s)
+	s = strings.TrimPrefix(s, "0o")
+	s = strings.TrimPrefix(s, "0O")
+	n, err := strconv.ParseUint(s, 8, 32)
+	if err != nil || n > 0o7777 {
+		return 0, errors.New("权限格式无效（八进制，如 644 / 755 / 0o644）")
+	}
+	return os.FileMode(n), nil
+}
+
+// handleChown 修改文件/目录所有者。POST /api/chown {path, owner}
+// owner 形如 "uid:gid"，任一侧可为 -1 表示保持不变（如 "1000:-1"）。
+func handleChown(w http.ResponseWriter, r *http.Request, ws *workspaceState) {
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+	var body struct {
+		Path  string `json:"path"`
+		Owner string `json:"owner"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "请求格式错误"})
+		return
+	}
+	abs, err := ws.fsPath(body.Path)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "路径无效"})
+		return
+	}
+	uid, gid, err := parseOwner(body.Owner)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
+		return
+	}
+	if err := os.Chown(abs, uid, gid); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "修改所有者失败: " + err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "path": abs, "uid": uid, "gid": gid})
+}
+
+// parseOwner 解析 "uid:gid"（-1 表示不变）。空串返回 -1:-1。
+func parseOwner(s string) (int, int, error) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return -1, -1, nil
+	}
+	parts := strings.SplitN(s, ":", 2)
+	atoi := func(v string) (int, error) {
+		v = strings.TrimSpace(v)
+		if v == "" || v == "-" {
+			return -1, nil
+		}
+		n, err := strconv.Atoi(v)
+		if err != nil {
+			return 0, errors.New("所有者格式无效（应为 uid:gid，-1 表示不变）")
+		}
+		return n, nil
+	}
+	uid, err := atoi(parts[0])
+	if err != nil {
+		return 0, 0, err
+	}
+	gid := -1
+	if len(parts) == 2 {
+		if gid, err = atoi(parts[1]); err != nil {
+			return 0, 0, err
+		}
+	}
+	return uid, gid, nil
 }
 
 // handleWorkspace 获取/设置工作目录。GET /api/workspace  POST /api/workspace {path}
