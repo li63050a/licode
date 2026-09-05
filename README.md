@@ -1,8 +1,8 @@
 # licode —— AI 编程助手（Web 版）
 
-用 Go 编写的 AI 编程助手，单二进制、静态编译、跨平台。浏览器打开即用，手机/电脑均可。
+用 Go 编写的 AI 编程助手，单二进制、静态编译、跨平台。浏览器打开即用，手机/电脑均可使用。
 
-> **重要声明：该分支为beta版本，无法保证稳定性，如有介意请去使用main主分支。**
+> **重要声明：发行版可能并不代表最新版本，如想使用最新代码，请自行构建。claudeClaude没有任何贡献。**
 
 ## 功能
 
@@ -51,8 +51,10 @@
 | `Delete` | 删除文件或空目录 | **需审批** |
 | `Move` | 移动/重命名文件 | 允许 |
 | `Dispatch` | 并行调度子代理执行任务 | 允许 |
+| `WebSearch` | 自建联网搜索（必应/百度/DuckDuckGo + 本地收录库） | 允许 |
+| `WebFetch` | 抓取网页正文并自动收录到本地库 | 允许 |
 
-> **Skills / MCP 不是"需要手动加载"的东西**：把它们放进对应目录就自动加载、运行中热更新。
+> **Skills / MCP 不是"需要手动加载"的东西**：把它们放进对应目录就自动加载、运行中热更新。`WebSearch` / `WebFetch` 同理——搜索功能可用时自动注册，无需手动开启。
 
 **权限配置**（设置 → 工具规则，如 `Read:allow, Write:ask, Bash:deny`）：
 
@@ -195,12 +197,3 @@ go test ./...      # 单元测试
 - **开发者 B 站**：[小帅5656](https://b23.tv/nDqj0DT) — 关注获取最新动态、教程、演示
 - **QQ 技术交流群**：[点击加入](https://qun.qq.com/universal-share/share?ac=1&authKey=zq9BYcTtBQm6GbvWiEWiBvDWNWbqhw2%2F%2BRnGM21c0jcL%2FofGqBFeXLr%2BtYT3SkO6&busi_data=eyJncm91cENvZGUiOiIxMDI2OTM5NzQxIiwidG9rZW4iOiJxNkNWUTUxYXVxSmRHZXRvdWtkZnhaN25INzJrMmNaNFpVTjJ5ZTVLYmRvWTFuOEZTd093UXBtQi8vQWk2T1JyIiwidWluIjoiMzYzNTczNjE4MCJ9&data=073ZrPEFZXFvoEDWatbWTidAitiN4OIbiaVDWoR7hVIwJurEPC7Swm6OREVpn6omzobXLn3SRErNKxKbYDTZQA&svctype=4&tempid=h5_group_info)（群号：1026939741）— 提问、反馈 bug、讨论功能
 - **开发者邮箱**：li63050@qq.com
-
-## 👥 贡献者
-
-感谢所有开发者（排名不分先后）：
-
-[![贡献者列表](https://contrib.rocks/image?repo=li63050a/licode)](https://github.com/li63050a/licode/graphs/contributors)
-
----
-

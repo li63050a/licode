@@ -9,16 +9,19 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 )
 
 // ClaudeProvider implements the Anthropic Messages API (streaming SSE).
 type ClaudeProvider struct {
-	name    string
-	baseURL string
-	apiKey  string
-	model   string
-	retry   int
-	client  *http.Client
+	name      string
+	baseURL   string
+	apiKey    string
+	model     string
+	retry     int
+	dnsMode   string
+	dnsServer string
+	client    *http.Client
 }
 
 func (p *ClaudeProvider) Provider() string { return p.name }
@@ -26,7 +29,8 @@ func (p *ClaudeProvider) Model() string    { return p.model }
 
 func (p *ClaudeProvider) httpClient() *http.Client {
 	if p.client == nil {
-		p.client = &http.Client{}
+		cfg := Config{DNSMode: p.dnsMode, DNSServer: p.dnsServer}
+		p.client = cfg.NewLLMHTTPClient(60 * time.Second)
 	}
 	return p.client
 }

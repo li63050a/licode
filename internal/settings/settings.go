@@ -18,12 +18,26 @@ var ProviderChoices = []string{"openai", "claude", "ollama", "gemini"}
 
 // ProviderConfig 描述一个已配置的厂商条目（可自定义名称与协议类型）。
 type ProviderConfig struct {
-	Provider string `json:"provider"` // 标识（内置名或自定义）
-	Name     string `json:"name"`     // 自定义显示名称
-	Type     string `json:"type"`     // 协议类型：openai/claude/ollama/gemini；空按 Provider 推断
-	BaseURL  string `json:"base_url"`
-	APIKey   string `json:"api_key"`
-	Model    string `json:"model"`
+	Provider string   `json:"provider"` // 标识（内置名或自定义）
+	Name     string   `json:"name"`     // 自定义显示名称
+	Type     string   `json:"type"`     // 协议类型：openai/claude/ollama/gemini；空按 Provider 推断
+	BaseURL  string   `json:"base_url"`
+	APIKey   string   `json:"api_key"`
+	Model    string   `json:"model"`            // 当前使用的模型
+	Models   []string `json:"models,omitempty"` // 该厂商的模型列表（可自由增删，仅作展示/选择用）
+}
+
+// AddModel 把模型追加进列表（去重），供激活与导入时保持一致性。
+func (p *ProviderConfig) AddModel(m string) {
+	if m == "" {
+		return
+	}
+	for _, x := range p.Models {
+		if x == m {
+			return
+		}
+	}
+	p.Models = append(p.Models, m)
 }
 
 // resolveType 推断协议类型（openai / claude / google；ollama 归 openai）。
@@ -105,6 +119,14 @@ type Settings struct {
 	AuditAutoFix  *bool    `json:"audit_auto_fix"`  // 修复前自动生成预览（nil=默认开启）
 	AuditScanDirs []string `json:"audit_scan_dirs"` // 扫描目录（相对工作目录，默认 ["."]）
 	AuditExclude  []string `json:"audit_exclude"`   // 排除路径（相对路径正则，默认排除 vendor/node_modules/.git/dist）
+	// DNS 自定义解析配置，用于解决 API 端点域名解析失败或 DNS 污染导致的 connection refused。
+	DNS *DNSConfig `json:"dns,omitempty"`
+}
+
+// DNSConfig 自定义 DNS 解析配置。
+type DNSConfig struct {
+	Mode   string `json:"mode"`   // system | plain | dot | doh
+	Server string `json:"server"` // 服务器地址，如 "8.8.8.8:53" / "1.1.1.1:853" / "https://1.1.1.1/dns-query"
 }
 
 // Defaults 返回合并了配置文件、环境变量与内置默认值的初始设置。
@@ -134,6 +156,7 @@ func (s *Settings) UpsertActive() {
 			}
 			if s.Model != "" {
 				s.Providers[i].Model = s.Model
+				s.Providers[i].AddModel(s.Model)
 			}
 			s.Providers[i].Type = s.Providers[i].resolveType()
 			return
@@ -144,6 +167,9 @@ func (s *Settings) UpsertActive() {
 		BaseURL:  s.BaseURL,
 		APIKey:   s.APIKey,
 		Model:    s.Model,
+	}
+	if s.Model != "" {
+		pc.AddModel(s.Model)
 	}
 	if d, ok := ai.Defaults[strings.ToLower(s.Provider)]; ok && pc.BaseURL == "" {
 		pc.BaseURL = d.BaseURL
@@ -195,7 +221,7 @@ func (s *Settings) SetActiveProvider(name string) {
 // AIConfig 把激活厂商设置转成 ai.Config。
 func (s *Settings) AIConfig() ai.Config {
 	pc := s.ActiveProvider()
-	return ai.Config{
+	cfg := ai.Config{
 		Provider: pc.DisplayName(),
 		Type:     pc.resolveType(),
 		BaseURL:  pc.BaseURL,
@@ -203,6 +229,11 @@ func (s *Settings) AIConfig() ai.Config {
 		Model:    pc.Model,
 		RetryMax: s.RetryMax,
 	}
+	if s.DNS != nil {
+		cfg.DNSMode = s.DNS.Mode
+		cfg.DNSServer = s.DNS.Server
+	}
+	return cfg
 }
 
 // NewClient 根据激活厂商创建设置 LLM 客户端。
@@ -285,7 +316,7 @@ func (s *Settings) Snapshot() Settings {
 		BaseURL:         s.BaseURL,
 		APIKey:          s.APIKey,
 		Model:           s.Model,
-		Providers:       append([]ProviderConfig{}, s.Providers...),
+		Providers:       copyProviders(s.Providers),
 		Temperature:     s.Temperature,
 		MaxTokens:       s.MaxTokens,
 		MaxIterations:   s.MaxIterations,
@@ -318,6 +349,9 @@ func (s *Settings) Snapshot() Settings {
 		AuditScanDirs:   append([]string{}, s.AuditScanDirs...),
 		AuditExclude:    append([]string{}, s.AuditExclude...),
 	}
+	if s.DNS != nil {
+		out.DNS = &DNSConfig{Mode: s.DNS.Mode, Server: s.DNS.Server}
+	}
 	for k, v := range s.ToolRules {
 		out.ToolRules[k] = v
 	}
@@ -333,6 +367,18 @@ func (s *Settings) Validate() error {
 // EnsureDefaults 补全默认值（提供商模型、风险工具规则等）。
 func (s *Settings) EnsureDefaults() {
 	_ = s.finalize()
+}
+
+// copyProviders 深拷贝厂商列表（含其内部的 models 切片），避免快照共享底层数组。
+func copyProviders(in []ProviderConfig) []ProviderConfig {
+	out := make([]ProviderConfig, len(in))
+	for i, p := range in {
+		out[i] = p
+		if len(p.Models) > 0 {
+			out[i].Models = append([]string{}, p.Models...)
+		}
+	}
+	return out
 }
 
 // ParseToolList 解析逗号分隔的工具列表。

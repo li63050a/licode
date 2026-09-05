@@ -13,6 +13,7 @@ export interface ProviderConfig {
   base_url?: string
   api_key?: string
   model?: string
+  models?: string[] // 该厂商的模型列表（可自由增删，仅作展示/选择用）
 }
 
 export interface McpServer {
@@ -60,7 +61,12 @@ export interface Settings {
   audit_auto_fix?: boolean
   audit_scan_dirs?: string[]
   audit_exclude?: string[]
-  [key: string]: any
+  dns?: DNSConfig
+}
+
+export interface DNSConfig {
+  mode?: string // system | plain | dot | doh
+  server?: string
 }
 
 export interface ToolBlock {
@@ -210,6 +216,48 @@ function createStore() {
     else msg.blocks.push({ kind: 'text', id: ++blockId, text })
   }
 
+  // historyToMessages 把后端会话历史（ai.Message: role/content/tool_calls/tool_call_id/tool_name）
+  // 转成前端渲染用的 ChatMessage[]。tool 角色的消息并入其前一条 assistant 的工具结果。
+  function historyToMessages(src: any[]): ChatMessage[] {
+    const out: ChatMessage[] = []
+    let mid = 1_000_000
+    let bid = 1_000_000
+    for (const m of src) {
+      if (!m || typeof m !== 'object') continue
+      const role = String(m.role ?? '')
+      if (role === 'system') continue
+      if (role === 'tool') {
+        const last = out[out.length - 1]
+        if (last && last.role === 'assistant') {
+          for (let i = last.blocks.length - 1; i >= 0; i--) {
+            const b = last.blocks[i]
+            if (b.kind === 'tool' && !b.out) {
+              b.out = String(m.content ?? '')
+              break
+            }
+          }
+        }
+        continue
+      }
+      const blocks: Block[] = []
+      if (m.content) blocks.push({ kind: 'text', id: bid++, text: String(m.content) })
+      for (const tc of Array.isArray(m.tool_calls) ? m.tool_calls : []) {
+        const fn = tc && tc.function && typeof tc.function === 'object' ? tc.function : null
+        if (!fn || !fn.name) continue
+        blocks.push({
+          kind: 'tool',
+          id: bid++,
+          name: String(fn.name),
+          args: String(fn.arguments ?? ''),
+          out: '',
+          running: false,
+        })
+      }
+      if (blocks.length) out.push({ id: mid++, role: role === 'user' ? 'user' : 'assistant', blocks })
+    }
+    return out
+  }
+
   function handleEvent(evt: any) {
     switch (evt.type) {
       case 'delta':
@@ -267,7 +315,17 @@ function createStore() {
       case 'sessions':
         state.sessions = (evt.sessions ?? []) as SessionInfo[]
         state.sessionId = String(evt.sessionId ?? '')
+        if (state.sessionId) send('session_history', { sessionId: state.sessionId })
         break
+      case 'history': {
+        // 只应用当前会话的历史，避免切换期间旧响应覆盖新视图。
+        if (String(evt.sessionId ?? '') !== state.sessionId) break
+        state.messages = historyToMessages(Array.isArray(evt.messages) ? evt.messages : [])
+        state.busy = false
+        state.statusText = ''
+        state.ask = null
+        break
+      }
       case 'stats':
         state.stats = { ...state.stats, ...(evt.stats ?? {}) }
         break
@@ -287,6 +345,10 @@ function createStore() {
   function sendMessage(content: string) {
     const text = content.trim()
     if (!text || state.busy) return
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      Message.error('未连接 licode 后端，消息未发送')
+      return
+    }
     if (text === '/clear') {
       state.messages = []
       state.statusText = ''

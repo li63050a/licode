@@ -1,9 +1,27 @@
 <script setup lang="ts">
 import { X, Plus, Trash2, RefreshCw, CheckCircle2, Loader2 } from 'lucide-vue-next'
 import { Message, Button, Input, Switch, Chip, Select, Tabs } from 'fuxsto-design'
-import type { ProviderConfig, Settings } from '~/composables/useLicode'
+import type { DNSConfig, ProviderConfig, Settings } from '~/composables/useLicode'
 
-type ProviderRow = ProviderConfig & { __models?: string[] }
+const dnsModeOptions = [
+  { label: '系统默认', value: 'system' },
+  { label: '普通 DNS', value: 'plain' },
+  { label: 'DoT (TLS)', value: 'dot' },
+  { label: 'DoH (HTTPS)', value: 'doh' },
+]
+
+function setDnsMode(m: string) {
+  if (!local.value.dns) local.value.dns = {}
+  local.value.dns.mode = m
+  if (m === 'system') local.value.dns.server = ''
+}
+
+function setDnsServer(v: string) {
+  if (!local.value.dns) local.value.dns = {}
+  local.value.dns.server = v
+}
+
+type ProviderRow = ProviderConfig & { _newModel?: string }
 
 const licode = useLicode()
 const { state } = licode
@@ -43,7 +61,7 @@ const ruleOptions = [
   { label: 'deny', value: 'deny' },
 ]
 
-const newProvider = ref<ProviderRow>({ provider: '', name: '', type: 'openai', base_url: '', api_key: '', model: '' })
+const newProvider = ref<ProviderRow>({ provider: '', name: '', type: 'openai', base_url: '', api_key: '', model: '', models: [] })
 
 watch(
   () => state.settingsOpen,
@@ -63,8 +81,26 @@ watch(
 
 const providers = computed<ProviderRow[]>(() => (local.value.providers as ProviderRow[]) || [])
 
-function modelOptions(p: ProviderRow) {
-  return (p.__models || []).map((m) => ({ label: m, value: m }))
+// 当前模型的候选列表：已配置列表 + 当前使用模型（去重），保证旧配置/自定义模型都能显示。
+function modelOpts(p: ProviderRow): { label: string; value: string }[] {
+  const set = new Set<string>()
+  for (const m of p.models || []) set.add(m)
+  if (p.model) set.add(p.model)
+  return [...set].map((m) => ({ label: m, value: m }))
+}
+
+function addModel(p: ProviderRow) {
+  const m = (p._newModel || '').trim()
+  if (!m) return
+  if (!p.models) p.models = []
+  if (!p.models.includes(m)) p.models.push(m)
+  p.model = m
+  p._newModel = ''
+}
+
+function removeModel(p: ProviderRow, m: string) {
+  if (p.models) p.models = p.models.filter((x) => x !== m)
+  if (p.model === m) p.model = ''
 }
 
 function activate(p: ProviderRow) {
@@ -81,31 +117,35 @@ async function fetchModels(p: ProviderRow) {
     return
   }
   saving.value = true
+  const base = state.settings
+  const prev = base ? JSON.parse(JSON.stringify(base)) : null
+  const switched = !!(base && base.provider !== p.provider)
   try {
-    // /api/models 使用「激活厂商」的 key。目标厂商不是当前激活时，先临时激活
-    // （仅改激活字段，不动对话框里其他未提交的修改）。
-    const base = state.settings
-    if (base && base.provider !== p.provider) {
+    // /api/models 使用「激活厂商」的 key。目标厂商不是当前激活时，临时切到该厂商获取列表，
+    // 完成后立即还原原激活厂商（不改变已保存的设置）。
+    if (switched && prev) {
       licode.saveSettings({
-        ...JSON.parse(JSON.stringify(base)),
+        ...prev,
         provider: p.provider,
         base_url: p.base_url || '',
         api_key: p.api_key || '',
-        model: p.model || base.model || '',
+        model: p.model || prev.model || '',
       })
-      Message.info(`已切换激活厂商为「${p.name || p.provider}」，点击保存生效`)
     }
     fetching.value = p.provider
     const q = new URLSearchParams()
     if (p.type) q.set('type', p.type)
     if (p.base_url) q.set('base', p.base_url)
     const res = await useApi<{ models: string[] }>(`/api/models?${q.toString()}`)
-    p.__models = res.models || []
-    if (!p.__models.length) Message.info('该厂商无公开模型列表（如 Claude），请手动填写模型名')
-    else Message.success(`获取到 ${p.__models.length} 个模型`)
+    const fetched = res.models || []
+    if (!p.models) p.models = []
+    for (const m of fetched) if (!p.models.includes(m)) p.models.push(m)
+    if (!fetched.length) Message.info('该厂商无公开模型列表（如 Claude），请手动填写模型名')
+    else Message.success(`获取到 ${fetched.length} 个模型`)
   } catch (e: any) {
     Message.error(e?.message || '获取模型失败')
   } finally {
+    if (switched && prev) licode.saveSettings(prev)
     fetching.value = ''
     saving.value = false
   }
@@ -171,6 +211,17 @@ function buildSettings(): Settings {
   } catch {
     throw new Error('MCP 服务器 JSON 格式无效')
   }
+  const dns = s.dns
+if (dns && !dns.mode && !dns.server) {
+  delete s.dns
+} else if (dns) {
+  s.dns = { mode: dns.mode || 'system', server: dns.server || '' }
+}
+// _newModel 与 __models 都是临时字段，不随设置持久化
+  s.providers = (s.providers || []).map((p) => {
+    const { _newModel: _a, ...rest } = p as ProviderRow
+    return rest
+  })
   const act = (s.providers || []).find((p) => p.provider === s.provider)
   if (act) {
     act.base_url = s.base_url || ''
@@ -292,6 +343,36 @@ function save() {
                 <Switch :model-value="!!local.cache_enabled" size="sm" @update:model-value="local.cache_enabled = !!$event" />
               </label>
             </div>
+            <div class="rounded-xl border border-zinc-200 p-3 dark:border-zinc-800">
+              <div class="mb-2 flex items-center justify-between">
+                <span class="text-xs font-medium text-zinc-500">DNS 解析</span>
+                <span class="text-[10px] text-zinc-400">解决 connection refused / DNS 污染</span>
+              </div>
+              <div class="grid grid-cols-2 gap-2">
+                <label class="space-y-1">
+                  <span class="text-xs text-zinc-500">模式</span>
+                  <Select
+                    :model-value="local.dns?.mode || 'system'"
+                    size="sm"
+                    :options="dnsModeOptions"
+                    placeholder="系统默认"
+                    @update:model-value="setDnsMode(String($event))"
+                  />
+                </label>
+                <label class="space-y-1">
+                  <span class="text-xs text-zinc-500">服务器</span>
+                  <Input
+                    :model-value="local.dns?.server || ''"
+                    size="sm"
+                    placeholder="8.8.8.8:53 / https://doh.pub/dns-query"
+                    @update:model-value="setDnsServer(String($event))"
+                  />
+                </label>
+              </div>
+              <p class="mt-1 text-[10px] text-zinc-400">
+                system 系统默认 · plain 普通 DNS · dot DNS over TLS (853) · doh DNS over HTTPS
+              </p>
+            </div>
           </template>
 
           <!-- 厂商 -->
@@ -346,17 +427,48 @@ function save() {
                   />
                   <Input v-model="p.base_url" size="sm" placeholder="API 地址" />
                   <Input v-model="p.api_key" size="sm" type="password" placeholder="API 密钥" />
-                  <Select
-                    v-if="p.__models && p.__models.length"
-                    :model-value="p.model"
-                    size="sm"
-                    searchable
-                    :options="modelOptions(p)"
-                    placeholder="选择模型"
-                    class="col-span-2"
-                    @update:model-value="p.model = String($event)"
-                  />
-                  <Input v-else v-model="p.model" size="sm" placeholder="模型名" class="col-span-2" />
+                  <div class="col-span-2 space-y-2 pt-1">
+                    <div class="text-xs text-zinc-500">模型</div>
+                    <div class="flex flex-wrap gap-1">
+                      <Chip
+                        v-for="m in p.models || []"
+                        :key="m"
+                        size="sm"
+                        variant="secondary"
+                        class="group cursor-default"
+                      >
+                        {{ m }}
+                        <button
+                          class="ml-1 text-zinc-400 group-hover:text-red-500"
+                          :title="`移除「${m}」`"
+                          @click="removeModel(p, m)"
+                        >
+                          <X :size="11" />
+                        </button>
+                      </Chip>
+                      <span v-if="!(p.models && p.models.length)" class="self-center text-xs text-zinc-400">暂未添加模型</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                      <Input
+                        v-model="p._newModel"
+                        size="sm"
+                        placeholder="模型名（回车或点「添加」，如 gpt-4o-mini）"
+                        class="flex-1"
+                        @keydown.enter.prevent="addModel(p)"
+                      />
+                      <Button size="sm" variant="outline" :icon="Plus" @click="addModel(p)">添加</Button>
+                    </div>
+                    <Select
+                      v-if="modelOpts(p).length"
+                      :model-value="p.model"
+                      size="sm"
+                      searchable
+                      :options="modelOpts(p)"
+                      placeholder="当前模型"
+                      @update:model-value="p.model = String($event)"
+                    />
+                    <Input v-else v-model="p.model" size="sm" placeholder="当前模型（如 gpt-4o-mini）" />
+                  </div>
                 </div>
               </div>
             </div>

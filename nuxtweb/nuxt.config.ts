@@ -26,7 +26,7 @@ function attachWsTunnel(server: import('node:http').Server) {
       const lines = [`HTTP/1.1 ${ures.statusCode} ${ures.statusMessage || 'Switching Protocols'}`]
       for (const [k, v] of Object.entries(ures.headers)) {
         if (Array.isArray(v)) v.forEach((x) => lines.push(`${k}: ${x}`))
-        else if (v !== undefined) lines.push(`${k}: ${x}`)
+        else if (v !== undefined) lines.push(`${k}: ${v}`)
       }
       socket.write(lines.join('\r\n') + '\r\n\r\n')
       if (uhead && uhead.length) socket.write(uhead)
