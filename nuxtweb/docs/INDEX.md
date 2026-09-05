@@ -47,4 +47,6 @@ licode.exe --host 0.0.0.0 --port 8080 [--password 123]
 | 设置文件 | `~/.licode/config.json`（`settings_set` 全量替换落盘） |
 | 版本号 | `0.0.0.x`（`~/.licode` 计数，百进制进位） |
 | 心跳 | 无 → 前端 2s 自动重连 |
-| 会话历史 | 每次 WS 连接全新管理器，切换不回放 |
+| 会话历史 | 切换会话自动回放（`session_history` → `history`），仅应用当前会话（防切换竞态） |
+| 厂商模型 | `providers[].models` 自由增删；「获取模型」按激活厂商 key 拉 `/api/models` |
+| DNS 解析 | 多服务器容灾（`dns.servers[]`：plain/dot/doh），出网请求按序尝试 |
