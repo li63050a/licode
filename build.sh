@@ -22,6 +22,9 @@ freebsd/amd64
 
 mkdir -p "$OUT_DIR"
 
+# 刷新 Nuxt 前端静态产物（无 node 时跳过，使用已提交的 internal/web/nuxt 产物）
+bash scripts/sync-nuxt.sh
+
 echo "==> 纯静态编译（CGO_ENABLED=0，LDFLAGS=${LDFLAGS}，输出目录 ${OUT_DIR}/）"
 
 built=0

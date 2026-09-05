@@ -186,8 +186,8 @@ func (a *authState) handleLogin(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/login?error=1", http.StatusFound)
 		return
 	}
-	// GET：渲染登录页
-	login, err := web.FS.ReadFile("static/login.html")
+	// GET：渲染登录页（Nuxt 静态产物 login/index.html，SPA）
+	login, err := web.ReadNuxt("login/index.html")
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return

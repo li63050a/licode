@@ -1,0 +1,126 @@
+@import "tailwindcss";
+@import "fuxsto-design/styles";
+/* fuxsto-theme 自带 @custom-variant dark（系统暗色 + .dark 类）与 @source 扫描 */
+
+html,
+body,
+#__nuxt {
+  height: 100%;
+}
+
+body {
+  @apply bg-zinc-50 text-zinc-900 antialiased dark:bg-zinc-950 dark:text-zinc-100;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+}
+
+/* markdown 正文 */
+.md-body {
+  font-size: 0.875rem;
+  line-height: 1.7;
+  word-break: break-word;
+}
+.md-body .md-p {
+  margin: 0.4em 0;
+}
+.md-body .md-h {
+  font-weight: 600;
+  margin: 1em 0 0.4em;
+}
+.md-body .md-h2 { font-size: 1.15em; }
+.md-body .md-h3 { font-size: 1.08em; }
+.md-body .md-h4,
+.md-body .md-h5 {
+  font-size: 1em;
+}
+.md-body .md-list {
+  margin: 0.4em 0;
+  padding-left: 1.4em;
+  list-style: disc;
+}
+.md-body .md-ol {
+  list-style: decimal;
+}
+.md-body .md-list li {
+  margin: 0.15em 0;
+}
+.md-body .md-quote {
+  border-left: 3px solid rgb(161 161 170 / 0.5);
+  padding-left: 0.8em;
+  margin: 0.5em 0;
+  color: rgb(113 113 122);
+}
+.dark .md-body .md-quote {
+  color: rgb(161 161 170);
+}
+.md-body .md-code {
+  background: rgb(228 228 231);
+  border-radius: 4px;
+  padding: 0.1em 0.35em;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.85em;
+}
+.dark .md-body .md-code {
+  background: rgb(39 39 42);
+}
+.md-body .md-link {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.md-body .md-pre {
+  margin: 0.6em 0;
+  overflow: hidden;
+  border-radius: 0.6rem;
+  border: 1px solid rgb(228 228 231);
+  background: rgb(250 250 250);
+}
+.dark .md-body .md-pre {
+  border-color: rgb(39 39 42);
+  background: rgb(9 9 11);
+}
+.md-body .md-pre-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.3em 0.75em;
+  font-size: 11px;
+  color: rgb(113 113 122);
+  border-bottom: 1px solid rgb(228 228 231);
+}
+.dark .md-body .md-pre-head {
+  border-color: rgb(39 39 42);
+}
+.md-body .md-copy {
+  color: rgb(113 113 122);
+  transition: color 0.15s;
+}
+.md-body .md-copy:hover {
+  color: rgb(24 24 27);
+}
+.dark .md-body .md-copy:hover {
+  color: rgb(250 250 250);
+}
+.md-body .md-pre > pre {
+  overflow: auto;
+  padding: 0.75em;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+/* 细滚动条 */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(161 161 170 / 0.4) transparent;
+}
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+*::-webkit-scrollbar-thumb {
+  background: rgb(161 161 170 / 0.4);
+  border-radius: 3px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
