@@ -313,22 +313,6 @@ function downloadPath(p: string) {
   a.remove()
 }
 
-async function setWorkspace() {
-  const p = window.prompt('设置工作目录（绝对路径）', root.value)
-  if (!p) return
-  try {
-    await useApi('/api/workspace', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ path: p.trim() }),
-    })
-    Message.success('工作目录已更新')
-    loadDir(p.trim())
-  } catch (e: any) {
-    Message.error(e?.message || '设置失败')
-  }
-}
-
 onMounted(loadWorkspace)
 </script>
 
@@ -347,7 +331,7 @@ onMounted(loadWorkspace)
         <Button size="sm" variant="ghost" :icon="Upload" title="上传（支持多选，上传到当前目录）" @click="uploadRef?.click()">上传</Button>
         <input ref="uploadRef" type="file" multiple class="hidden" @change="onUpload" />
         <span class="flex-1" />
-        <Button size="sm" variant="ghost" title="设置工作目录" @click="setWorkspace">工作目录</Button>
+        <Button size="sm" variant="ghost" :icon="RefreshCw" title="刷新" @click="loadDir()" />
       </div>
       <div v-if="newKind" class="flex gap-1.5">
         <Input
