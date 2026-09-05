@@ -2,11 +2,11 @@
 
 licode 的**独立新前端**：Nuxt 3 + Tailwind CSS v4 + [fuxsto-design@0.1.0](https://npmmirror.com/package/fuxsto-design)（黑白锌色工业风）+ lucide-vue-next。
 
-不改动 Go 后端与原有界面（`internal/web`），通过代理/中继连接原后端的 REST API 与 WebSocket。
+支持两种形态：**Node 代理/中继形态**（dev / `.output`，不改后端）与 **静态内嵌形态**（`npm run generate` → `dist/` → `go:embed` 进 Go 二进制，同源直连，替代后端旧界面）。静态内嵌详见 [docs/13-静态生成与内嵌Go后端.md](docs/13-静态生成与内嵌Go后端.md)。
 
 ## 文档
 
-- [开发文档索引](docs/INDEX.md)：13 份详细文档（后端构建/REST/WS/认证/设置/子系统 + 前端架构/状态/组件 + 陷阱边界 + 验证调试）
+- [开发文档索引](docs/INDEX.md)：完整开发文档（后端构建/REST/WS/认证/设置/子系统 + 前端架构/状态/组件 + 静态生成与内嵌 + 陷阱边界 + 验证调试）
 - [日常运维文档](docs/ops-guide.md)：拉取后端最新源码 → 对比差异 → 适配前端 → 验证发布的标准流程
 
 ## 运行
@@ -56,11 +56,11 @@ dist/
 
 ## 与后端的对接方式（不改后端）
 
-| 流量 | 开发（nuxt dev） | 生产（node .output） |
-| --- | --- | --- |
-| REST `/api/*` | nitro `devProxy`（注意它是挂载点语义会剥前缀，所以 target 需带同名前缀） | nitro `routeRules.proxy` |
-| WebSocket `/ws` | CLI 把 upgrade 转发给 worker，由 `server/routes/ws.get.ts` 的 crossws 中继连接后端（带 cookie） | 同左（node-server preset 原生支持 crossws） |
-| 登录 `POST /login` | `server/routes/signin.post.ts` 用 Node `http.request` 直连后端（**不跟随 302**），读取 302 上的 `licode_auth` Set-Cookie 并原样回传给浏览器（`$fetch` 跟随重定向会丢掉中间响应的 cookie，导致登录后无法建立 WS） | 同左 |
+| 流量 | 开发（nuxt dev） | 生产（node .output） | 静态内嵌（go:embed） |
+| --- | --- | --- | --- |
+| REST `/api/*` | nitro `devProxy`（注意它是挂载点语义会剥前缀，所以 target 需带同名前缀） | nitro `routeRules.proxy` | **同源直连**（无代理） |
+| WebSocket `/ws` | CLI 把 upgrade 转发给 worker，由 `server/routes/ws.get.ts` 的 crossws 中继连接后端（带 cookie） | 同左（node-server preset 原生支持 crossws） | **同源直连**（无中继） |
+| 登录 `POST /login` | `server/routes/signin.post.ts` 用 Node `http.request` 直连后端（**不跟随 302**），读取 302 上的 `licode_auth` Set-Cookie 并原样回传给浏览器（`$fetch` 跟随重定向会丢掉中间响应的 cookie，导致登录后无法建立 WS） | 同左 | 原生 form `POST /login`（浏览器自动跟随 302 保存 cookie，无需 `/signin`） |
 
 中继消息排队：后端连接就绪前到达的消息会缓存，避免竞态丢消息。
 
@@ -82,5 +82,5 @@ dist/
 - `/api/upload` 返回的 `url` 无路由（已忽略，只用 `path`）
 - `stats.provider/model` 后端当前恒为空，回退显示设置里的厂商/模型
 - 后端无心跳，前端 2s 自动重连
-- 后端未启用密码时不需登录；启用密码后走 `/login` 登录页，登录 cookie 经 `/signin` 中继回写
+- 后端未启用密码时不需登录；启用密码后走 `/login` 登录页，登录 cookie 经 `/signin` 中继（Node 形态）或原生 form `POST /login`（静态内嵌形态）回写
 - 保存设置依赖 WS（`settings_set`）；WS 未连接时保存按钮禁用并提示，避免静默失败或误清空配置

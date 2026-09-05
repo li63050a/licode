@@ -23,6 +23,7 @@
 | 10 | [前端-组件参考](10-前端-组件参考.md) | 15 个组件逐一：职责/交互/注意点 | 前端 |
 | 11 | [陷阱与边界](11-陷阱与边界.md) | 所有已知坑：现象/根因/修复/位置 | 所有人，必读 |
 | 12 | [验证与调试](12-验证与调试.md) | 构建、冒烟、WS 脚本、无头浏览器全流程验证 | 前后端 |
+| 13 | [静态生成与内嵌Go后端](13-静态生成与内嵌Go后端.md) | `npm run generate` → `dist/` → `go:embed` 进二进制，同源直连、form 登录 | 前后端 |
 
 运维：[ops-guide.md](ops-guide.md)（拉取最新后端源码 → 对比差异 → 适配前端 → 验证发布）。
 
@@ -39,6 +40,7 @@ cd D:\code\licode\nuxtweb
 npm run dev                 # http://localhost:3000
 npx nuxt typecheck          # 类型检查
 npm run build               # 生产构建 → node .output/server/index.mjs
+npm run generate            # 静态产物 → dist/（可 go:embed 内嵌到 Go 二进制，见 13）
 
 # 环境变量
 LICODE_BACKEND=http://127.0.0.1:8080   # 前端代理目标（默认 8080）
@@ -48,7 +50,7 @@ LICODE_BACKEND=http://127.0.0.1:8080   # 前端代理目标（默认 8080）
 | --- | --- |
 | 前端端口 | 3000（Nuxt dev / .output） |
 | 后端端口 | 8080（`--port` 可改） |
-| WS 端点 | `/ws`（前端 origin → crossws 中继 → 后端） |
+| WS 端点 | `/ws`（Node 形态：前端 origin → crossws 中继 → 后端；静态内嵌形态：同源直连） |
 | 登录 cookie | `licode_auth`（HttpOnly、SameSite=Lax、7 天，设在前端 origin） |
 | 数据目录 | `~/.licode`（`LICODE_HOME` 可覆盖） |
 | 设置文件 | `~/.licode/config.json`（`settings_set` 全量替换落盘） |
