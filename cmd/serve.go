@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/fs"
 	"log"
 	"net/http"
 	"os"
@@ -22,6 +21,7 @@ import (
 
 	"licode/internal/agent"
 	"licode/internal/ai"
+	"licode/internal/audit"
 	"licode/internal/plugin"
 	"licode/internal/rag"
 	"licode/internal/session"
@@ -125,8 +125,9 @@ type serverState struct {
 	mu           sync.RWMutex
 	settings     settings.Settings
 	client       ai.LLMClient
-	shuttingDown bool       // 收到关停信号后置位，拒绝新连接
-	rag          *rag.Index // 特性5：项目源码轻量 RAG 索引（懒构建）
+	shuttingDown bool           // 收到关停信号后置位，拒绝新连接
+	rag          *rag.Index     // 特性5：项目源码轻量 RAG 索引（懒构建）
+	audit        *audit.Manager // 代码审计任务管理器
 }
 
 // connState 保存每个连接独立的会话（多对话）与待确认的工具调用。
@@ -175,6 +176,7 @@ func runServe(opts *ServeOptions) error {
 	st := &serverState{}
 	st.settings = settings.Defaults()
 	st.settings.ApplyFlags(opts.NoSubAgents)
+	st.audit = audit.NewManager()
 
 	client, err := st.settings.NewClient()
 	if err != nil {
@@ -257,6 +259,13 @@ func runServe(opts *ServeOptions) error {
 					Type: websocket.EvtSessions, Sessions: cs.sessions.List(), SessionID: cs.sessions.CurrentID(),
 				})
 
+			case websocket.TypeAuditLog:
+				if strings.TrimSpace(msg.Content) != "" {
+					cs.sessions.Current().Add(ai.Message{Role: ai.RoleAssistant, Content: msg.Content})
+					_ = cs.sessions.SaveAll()
+					c.SendEvent(websocket.ServerEvent{Type: websocket.EvtDone})
+				}
+
 			case websocket.TypeAskReply:
 				cs.mu.Lock()
 				ch, ok := cs.pending[msg.AskID]
@@ -312,20 +321,14 @@ func runServe(opts *ServeOptions) error {
 		})
 	})
 
-	sub, err := fs.Sub(web.FS, "static")
-	if err != nil {
-		return err
-	}
-
 	authUser, authPass, authEnabled := ResolveAuth(opts.Username, opts.Password)
 	auth := newAuthState(authUser, authPass, authEnabled)
 	wsState := newWorkspace()
 
-	fileServer := http.FileServer(http.FS(sub))
+	// 静态资源（CSS/JS/HTMX，全部 go:embed 打进二进制）统一走 /static/
+	staticServer := http.StripPrefix("/static/", http.FileServer(http.FS(web.StaticFS())))
 	mux := http.NewServeMux()
-	mux.HandleFunc("/login", func(w http.ResponseWriter, r *http.Request) {
-		auth.handleLogin(w, r)
-	})
+	mux.Handle("/login", http.HandlerFunc(auth.handleLogin))
 	// 健康检查 / 就绪探针（供容器编排 / 负载均衡，不要求登录）
 	mux.HandleFunc("/health", handleHealth)
 	mux.HandleFunc("/ready", handleReady(st))
@@ -392,6 +395,10 @@ func runServe(opts *ServeOptions) error {
 			"counter": version.Parse(version.Current()),
 		})
 	})
+	// 代码审计：状态 / 启动 / 结果 / 一键修复（预览 + 二次确认）
+	registerAuditRoutes(mux, st, wsState, hub)
+	// HTMX 片段：设置弹窗 / 文件树 / 审计面板（服务器渲染 HTML）
+	registerFragmentRoutes(mux, auth, st, wsState, hub)
 	mux.HandleFunc("/api/models", func(w http.ResponseWriter, r *http.Request) {
 		if !auth.require(w, r) {
 			return
@@ -449,12 +456,24 @@ func runServe(opts *ServeOptions) error {
 		if !auth.require(w, r) {
 			return
 		}
-		// 静态前端每次直接走内存嵌入，禁止浏览器缓存旧界面，
-		// 保证升级/改版后刷新即可看到最新版本。
+		// 页面外壳由 Go 模板渲染；静态资源走 /static/。
+		// 禁止浏览器缓存旧界面，保证升级/改版后刷新即可看到最新版本。
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
 		w.Header().Set("Pragma", "no-cache")
 		w.Header().Set("Expires", "0")
-		fileServer.ServeHTTP(w, r)
+		if err := web.RenderIndex(w, web.PageData{Version: version.Current()}); err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
+		}
+	}))
+	mux.Handle("/static/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !auth.require(w, r) {
+			return
+		}
+		// 静态资源可缓存（版本变更时资源名不变但内容随二进制更新，
+		// 配合首页 no-store 保证刷新后引用到的是当前二进制内的文件）。
+		w.Header().Set("Cache-Control", "public, max-age=300")
+		staticServer.ServeHTTP(w, r)
 	}))
 	mux.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
 		if !auth.require(w, r) {

@@ -129,18 +129,15 @@ type fileEntry struct {
 	Size  int64  `json:"size"`
 }
 
-// handleFiles 列出工作目录下的目录内容。GET /api/files?path=sub
-func handleFiles(w http.ResponseWriter, r *http.Request, ws *workspaceState) {
-	p := r.URL.Query().Get("path")
+// listDirEntries 列出工作目录下（相对路径 p）的目录内容，供 JSON API 与 HTMX 片段共用。
+func listDirEntries(ws *workspaceState, p string) ([]fileEntry, error) {
 	abs, err := ws.resolve(p)
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "路径无效"})
-		return
+		return nil, errors.New("路径无效")
 	}
 	entries, err := os.ReadDir(abs)
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "无法读取目录"})
-		return
+		return nil, errors.New("无法读取目录")
 	}
 	var out []fileEntry
 	for _, e := range entries {
@@ -166,6 +163,17 @@ func handleFiles(w http.ResponseWriter, r *http.Request, ws *workspaceState) {
 		}
 		return out[i].Name < out[j].Name
 	})
+	return out, nil
+}
+
+// handleFiles 列出工作目录下的目录内容。GET /api/files?path=sub
+func handleFiles(w http.ResponseWriter, r *http.Request, ws *workspaceState) {
+	p := r.URL.Query().Get("path")
+	out, err := listDirEntries(ws, p)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
+		return
+	}
 	writeJSON(w, http.StatusOK, map[string]any{"root": ws.Root(), "path": p, "entries": out})
 }
 

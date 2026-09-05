@@ -1,0 +1,39 @@
+{{define "frag_settings.html"}}
+
+
+{{- /* 设置弹窗（HTMX /fragment/settings 渲染）。字段 id 与 app.js 的 saveSettings 保持一致 */ -}}
+<div class="box">
+  <div class="hd">设置 <button class="ib" type="button" onclick="closeSettings()">✕</button></div>
+  <div class="bd">
+    <div class="fg"><label>提供商</label><select id="sProv">{{range .Providers}}<option value="{{.}}"{{if eq $.Provider .}} selected{{end}}>{{.}}</option>{{end}}</select></div>
+    <div class="fg"><label>模型</label><input id="sModel" value="{{.Model}}" /></div>
+    <div class="fg"><label>API Key</label><input id="sKey" type="password" value="{{.APIKey}}" /></div>
+    <div class="fg"><label>Base URL</label><input id="sBase" value="{{.BaseURL}}" /></div>
+    <div class="fg"><label>Temperature</label><input id="sTemp" type="number" step="0.1" min="0" max="2" value="{{.Temperature}}" /></div>
+    <div class="fg"><label>Max Tokens</label><input id="sMaxTok" type="number" value="{{.MaxTokens}}" /></div>
+    <div class="fg"><label>Max 迭代次数</label><input id="sMaxIter" type="number" value="{{.MaxIterations}}" /></div>
+    <div class="fg"><label>子代理</label><select id="sSub"><option value="on"{{if .SubAgentsOn}} selected{{end}}>开启</option><option value="off"{{if not .SubAgentsOn}} selected{{end}}>关闭</option></select></div>
+    <div class="fg"><label>自动允许工具</label><select id="sAuto"><option value="on"{{if .AutoAllowOn}} selected{{end}}>开启</option><option value="off"{{if not .AutoAllowOn}} selected{{end}}>关闭</option></select></div>
+    <div class="fg"><label>Shell 路径</label><input id="sShell" placeholder="/bin/sh" value="{{.ShellPath}}" /></div>
+    <div class="fg"><label>重试次数 (LLM)</label><input id="sRetry" placeholder="2" value="{{.RetryMax}}" /></div>
+    <div class="fg"><label>子代理超时(秒)</label><input id="sSubT" placeholder="0=不限制" value="{{.SubTimeout}}" /></div>
+    <div class="fg"><label>上下文保护(tokens)</label><input id="sCtx" placeholder="0=关闭" value="{{.MaxCtxTokens}}" /></div>
+    <div class="fg"><label>敏感信息脱敏</label><select id="sRedact"><option value="on"{{if .RedactOn}} selected{{end}}>开启</option><option value="off"{{if not .RedactOn}} selected{{end}}>关闭</option></select></div>
+    <div class="fg"><label>沙箱执行(需Docker)</label><select id="sSandbox"><option value="off"{{if not .SandboxOn}} selected{{end}}>关闭</option><option value="on"{{if .SandboxOn}} selected{{end}}>开启</option></select></div>
+    <div class="fg"><label>沙箱镜像</label><input id="sSandImg" placeholder="alpine:latest" value="{{.SandboxImage}}" /></div>
+    <div class="fg"><label>语义缓存</label><select id="sCache"><option value="off"{{if not .CacheOn}} selected{{end}}>关闭</option><option value="on"{{if .CacheOn}} selected{{end}}>开启</option></select></div>
+    <div class="fg"><label>工具自动重试</label><select id="sAutoRetry"><option value="off"{{if not .AutoRetryOn}} selected{{end}}>关闭</option><option value="on"{{if .AutoRetryOn}} selected{{end}}>开启</option></select></div>
+    <div class="fg"><label>项目RAG索引</label><select id="sRAG"><option value="off"{{if not .RAGOn}} selected{{end}}>关闭</option><option value="on"{{if .RAGOn}} selected{{end}}>开启</option></select></div>
+    <div class="fg"><label>RAG索引目录</label><input id="sRAGSrc" placeholder="默认:启动目录" value="{{.RAGSource}}" /></div>
+    <div class="fg"><label>代码审计</label><select id="sAudit"><option value="on"{{if .AuditOn}} selected{{end}}>开启</option><option value="off"{{if not .AuditOn}} selected{{end}}>关闭</option></select></div>
+    <div class="fg"><label>修复前自动生成预览</label><select id="sAuditFix"><option value="on"{{if .AuditFixOn}} selected{{end}}>开启</option><option value="off"{{if not .AuditFixOn}} selected{{end}}>关闭</option></select></div>
+    <div class="fg"><label>审计排除(正则,逗号分隔)</label><input id="sAuditEx" placeholder="(^|/)vendor/,(^|/)node_modules/" value="{{.AuditExclude}}" /></div>
+    <div class="fg"><label>MCP 服务器 (JSON)</label><textarea id="sMCP">{{.MCPJSON}}</textarea></div>
+    <div class="fg"><label>多提供商 (JSON)</label><textarea id="sProvs">{{.ProvJSON}}</textarea></div>
+  </div>
+  <div class="ft">
+    <button class="btn" onclick="closeSettings()">取消</button>
+    <button class="btn p" onclick="saveSettings()">保存</button>
+  </div>
+</div>
+{{end}}

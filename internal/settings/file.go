@@ -130,6 +130,18 @@ func (s *Settings) mergeFrom(o *Settings) {
 	if o.RAGTopFiles != 0 {
 		s.RAGTopFiles = o.RAGTopFiles
 	}
+	if o.AuditEnabled != nil {
+		s.AuditEnabled = o.AuditEnabled
+	}
+	if o.AuditAutoFix != nil {
+		s.AuditAutoFix = o.AuditAutoFix
+	}
+	if len(o.AuditScanDirs) > 0 {
+		s.AuditScanDirs = append([]string{}, o.AuditScanDirs...)
+	}
+	if len(o.AuditExclude) > 0 {
+		s.AuditExclude = append([]string{}, o.AuditExclude...)
+	}
 }
 
 // Save 把设置写入配置文件（默认 SavePath）。
@@ -182,6 +194,21 @@ func (s *Settings) finalize() error {
 	if s.Streaming == nil {
 		t := true
 		s.Streaming = &t
+	}
+	// 审计默认开启；显式写入 false 则保持关闭
+	if s.AuditEnabled == nil {
+		t := true
+		s.AuditEnabled = &t
+	}
+	if s.AuditAutoFix == nil {
+		t := true
+		s.AuditAutoFix = &t
+	}
+	if len(s.AuditScanDirs) == 0 {
+		s.AuditScanDirs = []string{"."}
+	}
+	if len(s.AuditExclude) == 0 {
+		s.AuditExclude = []string{`(^|/)vendor/`, `(^|/)node_modules/`, `(^|/)\.git/`, `(^|/)dist/`}
 	}
 	s.UpsertActive()
 	s.syncTopLevel()

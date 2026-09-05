@@ -1,0 +1,58 @@
+{{define "frag_audit.html"}}
+
+
+{{- /* 代码审计面板（HTMX /fragment/audit 渲染）。运行中会自动轮询（hx-trigger every）。 */ -}}
+<div{{if .Running}} hx-get="/fragment/audit?sev={{.Sev}}" hx-trigger="every 1.5s" hx-target="#tabAudit" hx-swap="innerHTML"{{end}}>
+  <div style="padding:12px">
+    <input type="hidden" id="aTaskId" value="{{.TaskID}}" />
+    <div id="aStatus" style="font-size:12px;color:var(--muted);margin-bottom:8px">{{.StatusText}}</div>
+    <div style="display:flex;gap:6px;margin-bottom:8px">
+      {{if .Enabled}}
+      <button class="btn" style="flex:1" id="aStart" hx-post="/fragment/audit/start" hx-include="#aScanDirs" hx-target="#tabAudit" hx-swap="innerHTML"{{if .Running}} disabled{{end}}>{{if .Running}}审计中…{{else}}开始审计{{end}}</button>
+      {{else}}
+      <button class="btn" style="flex:1" id="aStart" hx-post="/fragment/audit/start" hx-include="#aScanDirs" hx-target="#tabAudit" hx-swap="innerHTML" disabled>审计已禁用</button>
+      {{end}}
+      <button class="btn" onclick="loadAudit()">刷新</button>
+    </div>
+    <div style="display:flex;gap:6px;margin-bottom:8px">
+      <input id="aScanDirs" name="scan_dirs" placeholder="扫描目录(逗号分隔，默认 .)" value="{{.ScanDirs}}" style="flex:1;font-size:12px" />
+    </div>
+    {{if .HasSummary}}<div class="a-summary">
+      <div class="chip crit"><b>{{.Summary.Critical}}</b>严重</div>
+      <div class="chip high"><b>{{.Summary.High}}</b>高</div>
+      <div class="chip med"><b>{{.Summary.Medium}}</b>中</div>
+      <div class="chip low"><b>{{.Summary.Low}}</b>低</div>
+    </div>{{end}}
+  </div>
+  {{if .HasIssues}}
+  <div id="aFilterBar" style="display:flex;align-items:center;gap:6px;padding:6px 12px;border-top:1px solid var(--border);font-size:12px">
+    <label style="display:flex;align-items:center;gap:4px;color:var(--fg2)"><input type="checkbox" id="aSelAll" />全选</label>
+    <select id="aSev" onchange="loadAudit()" style="font-size:12px;padding:3px 6px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--fg)">
+      <option value="all"{{if eq .Sev "all"}} selected{{end}}>全部级别</option>
+      <option value="critical"{{if eq .Sev "critical"}} selected{{end}}>Critical</option>
+      <option value="high"{{if eq .Sev "high"}} selected{{end}}>High</option>
+      <option value="medium"{{if eq .Sev "medium"}} selected{{end}}>Medium</option>
+      <option value="low"{{if eq .Sev "low"}} selected{{end}}>Low</option>
+    </select>
+    <span style="flex:1"></span>
+    <span id="aSelCount" style="color:var(--muted)">已选 0</span>
+  </div>
+  <div id="aIssues">{{range .Issues}}
+    <div class="a-issue">
+      <input type="checkbox" data-id="{{.ID}}" />
+      <div class="body">
+        <div class="head"><span class="{{sevClass .Severity}}">{{sevLabel .Severity}}</span><span class="file">{{.File}}</span><span class="line">L{{if .Line}}{{.Line}}{{else}}-{{end}}</span></div>
+        <div class="desc">{{.Description}}</div>
+        {{if .Suggestion}}<div class="sug">💡 {{.Suggestion}}</div>{{end}}
+      </div>
+    </div>{{end}}</div>
+  <div id="aFixBar" style="display:flex;gap:6px;padding:10px 12px;border-top:1px solid var(--border)">
+    {{if .Running}}<button class="btn" style="flex:1" disabled>审计运行中，暂不可修复</button>{{else}}<button class="btn" style="flex:1" onclick="genPreview()">生成修复预览</button>{{end}}
+  </div>
+  <div id="aEmpty" style="display:none"></div>
+  {{else}}
+  <div id="aEmpty" style="padding:24px;text-align:center;color:var(--muted);font-size:13px">{{.EmptyText}}</div>
+  <div id="aIssues" style="display:none"></div>
+  {{end}}
+</div>
+{{end}}

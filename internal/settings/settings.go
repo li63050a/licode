@@ -99,6 +99,11 @@ type Settings struct {
 	RAGEnabled  bool   `json:"rag_enabled"`   // 索引项目源码并注入上下文
 	RAGSource   string `json:"rag_source"`    // 索引根目录（默认当前工作目录）
 	RAGTopFiles int    `json:"rag_top_files"` // 注入的最大文件数（默认 5）
+	// 代码审计（静态规则 + LLM 深度分析，修复需二次人工确认）
+	AuditEnabled  *bool    `json:"audit_enabled"`   // 是否启用审计（nil=默认开启）
+	AuditAutoFix  *bool    `json:"audit_auto_fix"`  // 修复前自动生成预览（nil=默认开启）
+	AuditScanDirs []string `json:"audit_scan_dirs"` // 扫描目录（相对工作目录，默认 ["."]）
+	AuditExclude  []string `json:"audit_exclude"`   // 排除路径（相对路径正则，默认排除 vendor/node_modules/.git/dist）
 }
 
 // Defaults 返回合并了配置文件、环境变量与内置默认值的初始设置。
@@ -303,6 +308,10 @@ func (s *Settings) Snapshot() Settings {
 		RAGEnabled:      s.RAGEnabled,
 		RAGSource:       s.RAGSource,
 		RAGTopFiles:     s.RAGTopFiles,
+		AuditEnabled:    s.AuditEnabled,
+		AuditAutoFix:    s.AuditAutoFix,
+		AuditScanDirs:   append([]string{}, s.AuditScanDirs...),
+		AuditExclude:    append([]string{}, s.AuditExclude...),
 	}
 	for k, v := range s.ToolRules {
 		out.ToolRules[k] = v

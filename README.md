@@ -19,6 +19,7 @@
 - 热重载：SIGHUP 重载配置（修改 `~/.licode/config.json` 后 `kill -HUP <pid>` 即时生效，不中断服务）
 - 浅色/深色主题切换，流式工具调用渲染（参数/结果折叠卡片），生成中可随时"停止"
 - 系统提示词读取 `~/.licode/system-prompt.md`；`md/` 目录递归读取所有 `.md` 作为附加提示词
+- 离线前端：页面由 Go 模板（html/template）+ HTMX 服务端渲染，JS/CSS/HTMX 全部随二进制打包（`go:embed`），无任何 CDN 外部依赖，内网/离线环境开箱即用
 - 登录认证（默认用户名 `licode`，密码自行设置；未启用登录时页面会提醒如何启用）
 - HTTPS（`--https`，无证书时自动生成自签名证书）
 - 数据按系统用户隔离：每个系统用户在自己的家目录 `~/.licode` 运行，互不影响
@@ -108,10 +109,31 @@
 ├── mcp/             MCP 服务器配置
 ├── sessions/        对话记录（实时保存）
 ├── logs/            日志
+│   └── audit/       代码审计报告（JSON，按 task_id 保存）
 ├── cache/           缓存
 ├── md/              附加提示词（递归读取其中所有 .md）
 └── system-prompt.md 系统提示词（首次自动生成默认内容）
 ```
+
+## 代码审计与一键修复
+
+「审计」面板（Web 界面右侧第三个标签页）可对整个工作区执行静态规则 + LLM 双重扫描，并支持「生成修复预览 → 人工确认 → 一键修复」流程：
+
+1. **静态扫描**：内置 12 类规则（硬编码密钥、SQL 拼接、eval、命令注入、弱哈希、777 权限、HTTP 明文、DOM 注入、不安全的 unsafe 调用、忽略错误、TODO/FIXME 标记、yaml.load 等），对全部受支持源码文件进行。
+2. **LLM 深度分析**：对体积较小的文件（≤ 64 KB，默认最多 8 个文件、3 并发）交由模型分析，并给出修复建议与代码补丁。
+3. **人工确认修复**：勾选问题 → 「生成修复预览」，以高亮 diff 展示模型的修改建议；点击「确认修复」后才会写入磁盘，且 **修改前自动生成 `.bak` 备份**，随时可回滚。
+4. **会话留痕**：修复完成后会向当前对话追加一条审计记录。
+
+设置项（`config.json`，Web 设置面板可改）：
+
+| 键 | 类型 | 默认 | 说明 |
+| --- | --- | --- | --- |
+| `audit_enabled` | bool | `true` | 是否启用审计功能 |
+| `audit_auto_fix` | bool | `true` | 修复前是否自动生成预览 |
+| `audit_scan_dirs` | string[] | `["."]` | 扫描目录（相对工作区根） |
+| `audit_exclude` | string[] | `vendor/`、`node_modules/`、`.git/`、`dist/` | 排除路径正则 |
+
+API：`GET /api/audit/status`、`POST /api/audit/start`、`GET /api/audit/result?task_id=…`、`POST /api/audit/fix`（`?confirm=true` 时落盘）。审计报告同时以 JSON 保存到 `~/.licode/logs/audit/<task_id>.json`。
 
 ## 文档
 
@@ -137,12 +159,14 @@
 ├── cmd/
 │   ├── serve.go           # Web 服务器 + WebSocket + 路由
 │   ├── auth.go            # 登录认证
-│   └── files.go           # 文件浏览/编辑 API
+│   ├── files.go           # 文件浏览/编辑 API
+│   └── audit.go           # 代码审计 API
 ├── internal/
 │   ├── ai/                # LLMClient 接口 + openai/claude/ollama/gemini
 │   ├── agent/             # 主 Agent、工具、子代理 DAG、MCP、Skills
 │   ├── session/           # 多会话 + 实时落盘
 │   ├── settings/          # 设置 + ~/.licode 数据目录
+│   ├── audit/             # 代码审计（静态规则 + LLM 分析 + 修复）
 │   ├── websocket/         # Hub + 事件协议
 │   └── web/               # go:embed 静态页面
 └── build.sh               # 9 平台交叉编译

@@ -1,0 +1,12 @@
+{{define "frag_files.html"}}
+
+
+{{- /* 文件浏览（HTMX /fragment/files 渲染）。目录/文件行用 data-path 由 app.js 事件委托处理 */ -}}
+{{if .Error}}<div style="padding:8px;color:var(--red)">{{.Error}}</div>{{else}}
+{{if .HasParent}}<div class="fitem dim" data-path="{{.Parent}}" data-isdir="1">↩ 上一级</div>{{end}}
+{{range .Entries}}
+<div class="fitem" data-path="{{.Path}}" data-isdir="{{if .IsDir}}1{{else}}0{{end}}">{{if .IsDir}}📁 {{else}}📄 {{end}}{{.Name}}</div>
+{{end}}
+{{if not .Entries}}{{if .HasParent}}<div style="padding:8px;color:var(--muted)">空目录</div>{{else}}<div style="padding:8px;color:var(--muted)">（工作目录为空）</div>{{end}}{{end}}
+{{end}}
+{{end}}

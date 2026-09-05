@@ -28,6 +28,8 @@ const (
 	TypeSessionRename = "session_rename" // {session_id, content}
 	TypeSessionDelete = "session_delete" // {session_id}
 	TypeSessionBranch = "session_branch" // {session_id, index, content}
+	// 审计完成后，前端把摘要通过该类型提交，服务端追加为一条助手消息。
+	TypeAuditLog = "audit_log" // {content: 摘要文本}
 )
 
 // Event types (server -> client), mirroring agent.Event.
@@ -42,7 +44,22 @@ const (
 	EvtAsk       = "ask"
 	EvtSessions  = "sessions"
 	EvtStats     = "stats"
+	// EvtAuditLog 把审计结果/修复摘要推送到所有页面（含后台监听）。
+	EvtAuditLog = "audit_log"
 )
+
+// Broadcast 向所有已连接客户端发送事件（审计完成通知等）。
+func (h *Hub) Broadcast(ev ServerEvent) {
+	h.mu.Lock()
+	clients := make([]*Client, 0, len(h.clients))
+	for c := range h.clients {
+		clients = append(clients, c)
+	}
+	h.mu.Unlock()
+	for _, c := range clients {
+		c.SendEvent(ev)
+	}
+}
 
 // ServerEvent is a JSON event streamed to clients.
 type ServerEvent struct {
