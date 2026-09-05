@@ -190,7 +190,7 @@ go test ./...      # 单元测试
 
 ## 👥 贡献者
 
-感谢所有有提交记录的开发者（排名不分先后）：
+感谢所有开发者（排名不分先后）：
 
 [![贡献者列表](https://contrib.rocks/image?repo=li63050a/licode)](https://github.com/li63050a/licode/graphs/contributors)
 
