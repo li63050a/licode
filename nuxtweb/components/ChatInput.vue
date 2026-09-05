@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { SendHorizontal, Square, GitBranch, Eraser, Paperclip, X, Image } from 'lucide-vue-next'
+import { SendHorizontal, Square, GitBranch, Eraser, Paperclip, X, Image, Plus } from 'lucide-vue-next'
 import { Dialog, Button } from 'fuxsto-design'
-import { ref, nextTick } from 'vue'
+import { ref, nextTick, computed } from 'vue'
 import type { Attachment } from '~/composables/useLicode'
 
 const licode = useLicode()
@@ -11,6 +11,69 @@ const taRef = ref<HTMLTextAreaElement | null>(null)
 const fileInput = ref<HTMLInputElement | null>(null)
 const attachments = ref<Attachment[]>([])
 const dragOver = ref(false)
+const showSlashMenu = ref(false)
+const slashMenuIndex = ref(0)
+
+const slashCommands = [
+  { key: '/clear', label: '清空对话', desc: '清空当前会话的全部消息', icon: Eraser, action: doClear },
+  { key: '/branch', label: '复制分支', desc: '复制当前对话为新会话', icon: GitBranch, action: doBranch },
+  { key: '/new', label: '新建对话', desc: '创建一个新会话', icon: Plus, action: () => licode.newSession() },
+  { key: '/attach', label: '添加附件', desc: '上传图片或文件', icon: Paperclip, action: () => fileInput?.value?.click() },
+  { key: '/interrupt', label: '停止生成', desc: '中断当前正在进行的回复', icon: Square, action: () => licode.interrupt() },
+]
+
+const filteredCommands = computed(() => {
+  const text = input.value.trim().toLowerCase()
+  if (!text.startsWith('/')) return []
+  const query = text.slice(1)
+  return slashCommands.filter((c) => c.key.includes(query) || c.label.includes(query))
+})
+
+function onInput() {
+  autoGrow()
+  const text = input.value.trim()
+  showSlashMenu.value = text.startsWith('/') && filteredCommands.value.length > 0
+  slashMenuIndex.value = 0
+}
+
+function onKeydown(e: KeyboardEvent) {
+  if (showSlashMenu.value) {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      slashMenuIndex.value = Math.min(slashMenuIndex.value + 1, filteredCommands.value.length - 1)
+      return
+    }
+    if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      slashMenuIndex.value = Math.max(slashMenuIndex.value - 1, 0)
+      return
+    }
+    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
+      e.preventDefault()
+      const cmd = filteredCommands.value[slashMenuIndex.value]
+      if (cmd) {
+        cmd.action()
+        input.value = ''
+        showSlashMenu.value = false
+      }
+      return
+    }
+    if (e.key === 'Escape') {
+      showSlashMenu.value = false
+      return
+    }
+  }
+  if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
+    e.preventDefault()
+    doSend()
+  }
+}
+
+function selectCommand(cmd: typeof slashCommands[0]) {
+  cmd.action()
+  input.value = ''
+  showSlashMenu.value = false
+}
 
 function autoGrow() {
   const el = taRef.value
@@ -78,13 +141,6 @@ function doSend() {
   nextTick(autoGrow)
 }
 
-function onKeydown(e: KeyboardEvent) {
-  if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
-    e.preventDefault()
-    doSend()
-  }
-}
-
 function doBranch() {
   if (!state.sessionId) {
     Dialog.warning({ title: '无法分支', content: '当前没有活跃会话', showCancel: false })
@@ -111,7 +167,7 @@ function doClear() {
 
 <template>
   <div class="shrink-0 px-4 pb-4">
-    <div class="mx-auto w-full max-w-3xl">
+      <div class="relative mx-auto w-full max-w-3xl">
       <div
         class="rounded-2xl border bg-white p-2 shadow-sm transition-colors focus-within:border-zinc-400 dark:border-zinc-800 dark:bg-zinc-900 dark:focus-within:border-zinc-600"
         :class="dragOver ? 'border-blue-500 bg-blue-50/50 dark:bg-blue-950/30' : 'border-zinc-200'"
@@ -141,10 +197,28 @@ function doClear() {
           v-model="input"
           rows="1"
           class="block w-full resize-none bg-transparent px-2 py-1.5 text-sm leading-relaxed outline-none placeholder:text-zinc-400"
-          placeholder="输入消息，Enter 发送，Shift+Enter 换行，拖拽或点击📎添加图片/文件…"
+          placeholder="输入消息，Enter 发送，Shift+Enter 换行，/ 快速命令…"
           @keydown="onKeydown"
-          @input="autoGrow"
+          @input="onInput"
         />
+
+        <div
+          v-if="showSlashMenu && filteredCommands.length"
+          class="absolute left-2 right-2 bottom-full mb-1 z-50 max-h-60 overflow-y-auto rounded-xl border border-zinc-200 bg-white shadow-lg dark:border-zinc-700 dark:bg-zinc-900"
+        >
+          <div
+            v-for="(cmd, i) in filteredCommands"
+            :key="cmd.key"
+            class="flex cursor-pointer items-center gap-2 px-3 py-2 text-sm transition-colors"
+            :class="i === slashMenuIndex ? 'bg-zinc-100 dark:bg-zinc-800' : 'hover:bg-zinc-50 dark:hover:bg-zinc-800/60'"
+            @click="selectCommand(cmd)"
+          >
+            <component :is="cmd.icon" :size="14" class="shrink-0 text-zinc-400" />
+            <span class="font-medium">{{ cmd.label }}</span>
+            <span class="flex-1 truncate text-xs text-zinc-400">{{ cmd.desc }}</span>
+            <kbd class="rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] text-zinc-500 dark:bg-zinc-800">{{ cmd.key }}</kbd>
+          </div>
+        </div>
         <div class="flex items-center gap-1 px-1 pt-1">
           <input ref="fileInput" type="file" multiple accept="image/*,.pdf,.txt,.md,.json,.csv,.js,.ts,.py,.go,.rs,.java,.c,.cpp,.h,.html,.css,.xml,.yaml,.yml" class="hidden" @change="onFileChange" />
           <Button variant="ghost" size="sm" :icon="Paperclip" title="添加图片/文件" @click="fileInput?.click()" />
