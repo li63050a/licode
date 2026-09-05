@@ -103,6 +103,26 @@ const NUM_KEYS = [
 
 const COMMA_KEYS = ['ask_tools', 'deny_tools', 'audit_scan_dirs', 'audit_exclude'] as const
 
+const fieldLabels: Record<string, string> = {
+  retry_max: 'LLM 重试次数',
+  sub_timeout: '子代理超时（秒）',
+  max_ctx_tokens: '上下文窗口（token）',
+  cache_ttl: '缓存有效期（秒）',
+  tool_retry_max: '工具重试次数',
+  shutdown_timeout: '关停等待（秒）',
+  rag_source: 'RAG 来源（留空关闭）',
+  ask_tools: 'ask 工具（逗号分隔）',
+  deny_tools: 'deny 工具（逗号分隔）',
+  audit_scan_dirs: '审计扫描目录（逗号分隔）',
+  audit_exclude: '审计排除正则（逗号分隔）',
+  redact_secrets: '敏感信息脱敏',
+  sandbox: '沙箱执行（Docker）',
+  tool_auto_retry: '工具自动重试',
+  rag_enabled: '启用 RAG',
+  audit_enabled: '启用审计',
+  audit_auto_fix: '审计自动修复',
+}
+
 const typeOptions = [
   { label: 'OpenAI 兼容', value: 'openai' },
   { label: 'Claude', value: 'claude' },
@@ -590,55 +610,55 @@ function save() {
                 <span class="text-xs text-zinc-500">沙箱镜像</span>
                 <Input v-model="local.sandbox_image" placeholder="alpine" />
               </label>
-              <label v-for="k in ['retry_max', 'sub_timeout', 'max_ctx_tokens', 'cache_ttl', 'tool_retry_max', 'shutdown_timeout']" :key="k" class="space-y-1">
-                <span class="text-xs text-zinc-500">{{ k }}</span>
+<label v-for="k in ['retry_max', 'sub_timeout', 'max_ctx_tokens', 'cache_ttl', 'tool_retry_max', 'shutdown_timeout']" :key="k" class="space-y-1">
+                  <span class="text-xs text-zinc-500">{{ fieldLabels[k] || k }}</span>
                 <Input v-model="local[k]" type="number" />
               </label>
               <label class="space-y-1">
-                <span class="text-xs text-zinc-500">RAG 来源（rag_source）</span>
+                <span class="text-xs text-zinc-500">{{ fieldLabels.rag_source }}</span>
                 <Input v-model="local.rag_source" placeholder="留空关闭" />
               </label>
               <label class="space-y-1">
-                <span class="text-xs text-zinc-500">ask 工具（逗号分隔）</span>
+                <span class="text-xs text-zinc-500">{{ fieldLabels.ask_tools }}</span>
                 <Input :model-value="(local.ask_tools || []).join(',')" @update:model-value="local.ask_tools = splitList($event)" />
               </label>
               <label class="space-y-1">
-                <span class="text-xs text-zinc-500">deny 工具（逗号分隔）</span>
+                <span class="text-xs text-zinc-500">{{ fieldLabels.deny_tools }}</span>
                 <Input :model-value="(local.deny_tools || []).join(',')" @update:model-value="local.deny_tools = splitList($event)" />
               </label>
               <label class="space-y-1">
-                <span class="text-xs text-zinc-500">审计扫描目录（逗号分隔）</span>
+                <span class="text-xs text-zinc-500">{{ fieldLabels.audit_scan_dirs }}</span>
                 <Input :model-value="(local.audit_scan_dirs || []).join(',')" @update:model-value="local.audit_scan_dirs = splitList($event)" />
               </label>
               <label class="space-y-1">
-                <span class="text-xs text-zinc-500">审计排除正则（逗号分隔）</span>
+                <span class="text-xs text-zinc-500">{{ fieldLabels.audit_exclude }}</span>
                 <Input :model-value="(local.audit_exclude || []).join(',')" @update:model-value="local.audit_exclude = splitList($event)" />
               </label>
             </div>
 
             <div class="grid grid-cols-2 gap-2 rounded-xl border border-zinc-200 p-3 dark:border-zinc-800">
               <label class="flex items-center justify-between gap-2 text-sm">
-                <span>redact_secrets</span>
+                <span>{{ fieldLabels.redact_secrets }}</span>
                 <Switch :model-value="!!local.redact_secrets" size="sm" @update:model-value="local.redact_secrets = !!$event" />
               </label>
               <label class="flex items-center justify-between gap-2 text-sm">
-                <span>sandbox</span>
+                <span>{{ fieldLabels.sandbox }}</span>
                 <Switch :model-value="!!local.sandbox" size="sm" @update:model-value="local.sandbox = !!$event" />
               </label>
               <label class="flex items-center justify-between gap-2 text-sm">
-                <span>tool_auto_retry</span>
+                <span>{{ fieldLabels.tool_auto_retry }}</span>
                 <Switch :model-value="!!local.tool_auto_retry" size="sm" @update:model-value="local.tool_auto_retry = !!$event" />
               </label>
               <label class="flex items-center justify-between gap-2 text-sm">
-                <span>rag_enabled</span>
+                <span>{{ fieldLabels.rag_enabled }}</span>
                 <Switch :model-value="!!local.rag_enabled" size="sm" @update:model-value="local.rag_enabled = !!$event" />
               </label>
               <label class="flex items-center justify-between gap-2 text-sm">
-                <span>audit_enabled</span>
+                <span>{{ fieldLabels.audit_enabled }}</span>
                 <Switch :model-value="!!local.audit_enabled" size="sm" @update:model-value="local.audit_enabled = !!$event" />
               </label>
               <label class="flex items-center justify-between gap-2 text-sm">
-                <span>audit_auto_fix</span>
+                <span>{{ fieldLabels.audit_auto_fix }}</span>
                 <Switch :model-value="!!local.audit_auto_fix" size="sm" @update:model-value="local.audit_auto_fix = !!$event" />
               </label>
             </div>
