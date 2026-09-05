@@ -65,7 +65,11 @@ export interface Settings {
 }
 
 export interface DNSConfig {
-  mode?: string // system | plain | dot | doh
+  servers?: DNSServer[]
+}
+
+export interface DNSServer {
+  mode?: string
   server?: string
 }
 

@@ -10,6 +10,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"licode/internal/dnsclient"
 )
 
 // ClaudeProvider implements the Anthropic Messages API (streaming SSE).
@@ -19,8 +21,7 @@ type ClaudeProvider struct {
 	apiKey    string
 	model     string
 	retry     int
-	dnsMode   string
-	dnsServer string
+	dns        *dnsclient.Config
 	client    *http.Client
 }
 
@@ -29,7 +30,7 @@ func (p *ClaudeProvider) Model() string    { return p.model }
 
 func (p *ClaudeProvider) httpClient() *http.Client {
 	if p.client == nil {
-		cfg := Config{DNSMode: p.dnsMode, DNSServer: p.dnsServer}
+		cfg := Config{DNS: p.dns}
 		p.client = cfg.NewLLMHTTPClient(60 * time.Second)
 	}
 	return p.client
