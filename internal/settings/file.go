@@ -13,14 +13,9 @@ import (
 //   - 修改设置时写回用户级配置文件，并同步项目级（若存在）。
 const ProjectConfigName = "licode.json"
 
-// ConfigPaths 返回 [用户级, 项目级] 配置文件路径。
+// ConfigPaths 返回配置文件路径列表，优先级从低到高。
 func ConfigPaths() []string {
-	var paths []string
-	paths = append(paths, ConfigPath())
-	if cwd, err := os.Getwd(); err == nil {
-		paths = append(paths, filepath.Join(cwd, ProjectConfigName))
-	}
-	return paths
+	return []string{ConfigPath()}
 }
 
 // SavePath 返回修改设置时应写入的路径（用户级 ~/.licode/config.json）。

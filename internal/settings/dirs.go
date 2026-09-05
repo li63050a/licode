@@ -32,6 +32,7 @@ func SubDir(name string) string {
 }
 
 func ConfigPath() string  { return filepath.Join(BaseDir(), "config.json") }
+func ConfigTOMLPath() string { return filepath.Join(BaseDir(), "config.toml") }
 func SkillsDir() string   { return filepath.Join(BaseDir(), "skills") }
 func MCPDir() string      { return filepath.Join(BaseDir(), "mcp") }
 func SessionsDir() string { return filepath.Join(BaseDir(), "sessions") }
