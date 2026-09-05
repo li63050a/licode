@@ -13,11 +13,8 @@ import (
 // NewLLMHTTPClient 构造一个 *http.Client，并依据 DNS 配置注入自定义解析器。
 func (c Config) NewLLMHTTPClient(timeout time.Duration) *http.Client {
 	client := &http.Client{Timeout: timeout}
-	if c.DNSMode != "" && c.DNSMode != "system" && c.DNSServer != "" {
-		dc := dnsclient.Config{Mode: dnsclient.Mode(c.DNSMode), Server: c.DNSServer}
-		if dial := dc.Resolver(); dial != nil {
-			client.Transport = &http.Transport{DialContext: dial, TLSHandshakeTimeout: 15 * time.Second, ResponseHeaderTimeout: timeout}
-		}
+	if c.DNS != nil && c.DNS.Resolver() != nil {
+		client.Transport = &http.Transport{DialContext: c.DNS.Resolver(), TLSHandshakeTimeout: 15 * time.Second, ResponseHeaderTimeout: timeout}
 	}
 	return client
 }
@@ -30,8 +27,7 @@ type Config struct {
 	APIKey    string
 	Model     string
 	RetryMax  int    // LLM 调用失败重试次数（指数退避，处理 429/503/网络抖动）
-	DNSMode   string // 自定义 DNS 模式："" | system | plain | dot | doh
-	DNSServer string // 自定义 DNS 服务器地址
+	DNS *dnsclient.Config // 自定义 DNS 解析配置（nil 使用系统默认）
 }
 
 const (
@@ -125,16 +121,15 @@ func New(cfg Config) (LLMClient, error) {
 		return nil, err
 	}
 	name := cfg.Provider
-	dnsMode, dnsServer := cfg.DNSMode, cfg.DNSServer
 	switch cfg.Type {
 	case "openai":
-		return &OpenAIProvider{name: name, baseURL: cfg.BaseURL, apiKey: cfg.APIKey, model: cfg.Model, retry: cfg.RetryMax, dnsMode: dnsMode, dnsServer: dnsServer}, nil
+		return &OpenAIProvider{name: name, baseURL: cfg.BaseURL, apiKey: cfg.APIKey, model: cfg.Model, retry: cfg.RetryMax, dns: cfg.DNS}, nil
 	case "claude":
-		return &ClaudeProvider{name: name, baseURL: cfg.BaseURL, apiKey: cfg.APIKey, model: cfg.Model, retry: cfg.RetryMax, dnsMode: dnsMode, dnsServer: dnsServer}, nil
+		return &ClaudeProvider{name: name, baseURL: cfg.BaseURL, apiKey: cfg.APIKey, model: cfg.Model, retry: cfg.RetryMax, dns: cfg.DNS}, nil
 	case "ollama":
-		return &OllamaProvider{name: name, baseURL: cfg.BaseURL, model: cfg.Model, retry: cfg.RetryMax, dnsMode: dnsMode, dnsServer: dnsServer}, nil
+		return &OllamaProvider{name: name, baseURL: cfg.BaseURL, model: cfg.Model, retry: cfg.RetryMax, dns: cfg.DNS}, nil
 	case "google", "gemini":
-		return &GeminiProvider{name: name, baseURL: cfg.BaseURL, apiKey: cfg.APIKey, model: cfg.Model, retry: cfg.RetryMax, dnsMode: dnsMode, dnsServer: dnsServer}, nil
+		return &GeminiProvider{name: name, baseURL: cfg.BaseURL, apiKey: cfg.APIKey, model: cfg.Model, retry: cfg.RetryMax, dns: cfg.DNS}, nil
 	default:
 		return nil, fmt.Errorf("unsupported protocol type %q", cfg.Type)
 	}

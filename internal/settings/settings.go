@@ -9,6 +9,7 @@ import (
 
 	"licode/internal/agent"
 	"licode/internal/ai"
+	"licode/internal/dnsclient"
 	"licode/internal/plugin"
 	"licode/internal/search"
 )
@@ -120,14 +121,10 @@ type Settings struct {
 	AuditScanDirs []string `json:"audit_scan_dirs"` // 扫描目录（相对工作目录，默认 ["."]）
 	AuditExclude  []string `json:"audit_exclude"`   // 排除路径（相对路径正则，默认排除 vendor/node_modules/.git/dist）
 	// DNS 自定义解析配置，用于解决 API 端点域名解析失败或 DNS 污染导致的 connection refused。
-	DNS *DNSConfig `json:"dns,omitempty"`
+	DNS *dnsclient.Config `json:"dns,omitempty"`
 }
 
-// DNSConfig 自定义 DNS 解析配置。
-type DNSConfig struct {
-	Mode   string `json:"mode"`   // system | plain | dot | doh
-	Server string `json:"server"` // 服务器地址，如 "8.8.8.8:53" / "1.1.1.1:853" / "https://1.1.1.1/dns-query"
-}
+// Presets 是常见 DNS 厂商的预设。
 
 // Defaults 返回合并了配置文件、环境变量与内置默认值的初始设置。
 func Defaults() Settings {
@@ -230,8 +227,7 @@ func (s *Settings) AIConfig() ai.Config {
 		RetryMax: s.RetryMax,
 	}
 	if s.DNS != nil {
-		cfg.DNSMode = s.DNS.Mode
-		cfg.DNSServer = s.DNS.Server
+		cfg.DNS = s.DNS
 	}
 	return cfg
 }
@@ -350,7 +346,9 @@ func (s *Settings) Snapshot() Settings {
 		AuditExclude:    append([]string{}, s.AuditExclude...),
 	}
 	if s.DNS != nil {
-		out.DNS = &DNSConfig{Mode: s.DNS.Mode, Server: s.DNS.Server}
+		servers := make([]dnsclient.Server, len(s.DNS.Servers))
+		copy(servers, s.DNS.Servers)
+		out.DNS = &dnsclient.Config{Servers: servers}
 	}
 	for k, v := range s.ToolRules {
 		out.ToolRules[k] = v

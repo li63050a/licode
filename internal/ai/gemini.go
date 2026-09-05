@@ -11,6 +11,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"licode/internal/dnsclient"
 )
 
 // GeminiProvider implements Google Gemini 原生接口：
@@ -26,8 +28,7 @@ type GeminiProvider struct {
 	apiKey    string
 	model     string
 	retry     int
-	dnsMode   string
-	dnsServer string
+	dns        *dnsclient.Config
 	client    *http.Client
 }
 
@@ -36,7 +37,7 @@ func (p *GeminiProvider) Model() string    { return p.model }
 
 func (p *GeminiProvider) httpClient() *http.Client {
 	if p.client == nil {
-		cfg := Config{DNSMode: p.dnsMode, DNSServer: p.dnsServer}
+		cfg := Config{DNS: p.dns}
 		p.client = cfg.NewLLMHTTPClient(60 * time.Second)
 	}
 	return p.client

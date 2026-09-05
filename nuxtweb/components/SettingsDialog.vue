@@ -10,15 +10,42 @@ const dnsModeOptions = [
   { label: 'DoH (HTTPS)', value: 'doh' },
 ]
 
-function setDnsMode(m: string) {
+const dnsPresetOptions = [
+  { label: 'Cloudflare DoH', value: 'https://1.1.1.1/dns-query' },
+  { label: 'Cloudflare DoT', value: '1.1.1.1:853' },
+  { label: 'Google DoH', value: 'https://dns.google/dns-query' },
+  { label: 'Google DoT', value: '8.8.8.8:853' },
+  { label: '阿里 DNS', value: 'https://dns.alidns.com/dns-query' },
+  { label: 'DNSPod', value: 'https://doh.pub/dns-query' },
+  { label: 'Quad9', value: 'https://dns.quad9.net/dns-query' },
+  { label: 'OpenDNS', value: 'https://doh.opendns.com/dns-query' },
+]
+
+const _newDnsServer = ref('')
+const dnsPreset = ref('')
+
+function ensureDns() {
   if (!local.value.dns) local.value.dns = {}
-  local.value.dns.mode = m
-  if (m === 'system') local.value.dns.server = ''
+  if (!local.value.dns.servers) local.value.dns.servers = []
 }
 
-function setDnsServer(v: string) {
-  if (!local.value.dns) local.value.dns = {}
-  local.value.dns.server = v
+function addDnsServer() {
+  const s = (_newDnsServer.value || '').trim()
+  if (!s) return
+  ensureDns()
+  const mode = s.startsWith('http') ? 'doh' : s.includes(':853') ? 'dot' : 'plain'
+  local.value.dns!.servers!.push({ mode, server: s })
+  _newDnsServer.value = ''
+}
+
+function removeDnsServer(i: number) {
+  if (local.value.dns?.servers) local.value.dns.servers.splice(i, 1)
+}
+
+function applyDnsPreset(url: string) {
+  if (!url) return
+  _newDnsServer.value = url
+  dnsPreset.value = ''
 }
 
 type ProviderRow = ProviderConfig & { _newModel?: string }
@@ -212,11 +239,14 @@ function buildSettings(): Settings {
     throw new Error('MCP 服务器 JSON 格式无效')
   }
   const dns = s.dns
-if (dns && !dns.mode && !dns.server) {
-  delete s.dns
-} else if (dns) {
-  s.dns = { mode: dns.mode || 'system', server: dns.server || '' }
-}
+  if (dns) {
+    const servers = (dns.servers || []).filter((x) => x && (x.server || '').trim())
+    if (servers.length) {
+      s.dns = { servers: servers.map((x) => ({ mode: x.mode || 'doh', server: x.server!.trim() })) }
+    } else {
+      delete s.dns
+    }
+  }
 // _newModel 与 __models 都是临时字段，不随设置持久化
   s.providers = (s.providers || []).map((p) => {
     const { _newModel: _a, ...rest } = p as ProviderRow
@@ -346,31 +376,51 @@ function save() {
             <div class="rounded-xl border border-zinc-200 p-3 dark:border-zinc-800">
               <div class="mb-2 flex items-center justify-between">
                 <span class="text-xs font-medium text-zinc-500">DNS 解析</span>
-                <span class="text-[10px] text-zinc-400">解决 connection refused / DNS 污染</span>
+                <span class="text-[10px] text-zinc-400">多服务器容灾 · 任意厂商</span>
               </div>
-              <div class="grid grid-cols-2 gap-2">
-                <label class="space-y-1">
-                  <span class="text-xs text-zinc-500">模式</span>
+              <div class="space-y-2">
+                <div
+                  v-for="(srv, i) in local.dns?.servers || []"
+                  :key="i"
+                  class="flex items-center gap-2"
+                >
                   <Select
-                    :model-value="local.dns?.mode || 'system'"
+                    :model-value="srv.mode || 'doh'"
                     size="sm"
+                    class="w-28"
                     :options="dnsModeOptions"
-                    placeholder="系统默认"
-                    @update:model-value="setDnsMode(String($event))"
+                    @update:model-value="srv.mode = String($event)"
                   />
-                </label>
-                <label class="space-y-1">
-                  <span class="text-xs text-zinc-500">服务器</span>
                   <Input
-                    :model-value="local.dns?.server || ''"
+                    :model-value="srv.server || ''"
                     size="sm"
-                    placeholder="8.8.8.8:53 / https://doh.pub/dns-query"
-                    @update:model-value="setDnsServer(String($event))"
+                    class="flex-1"
+                    placeholder="https://doh.pub/dns-query 或 8.8.8.8:53"
+                    @update:model-value="srv.server = String($event)"
                   />
-                </label>
+                  <Button size="sm" variant="ghost" danger :icon="Trash2" @click="removeDnsServer(i)" />
+                </div>
+                <div class="flex items-center gap-2">
+                  <Select
+                    :model-value="dnsPreset"
+                    size="sm"
+                    class="w-28"
+                    :options="dnsPresetOptions"
+                    placeholder="预设厂商"
+                    @update:model-value="applyDnsPreset(String($event))"
+                  />
+                  <Input
+                    v-model="_newDnsServer"
+                    size="sm"
+                    class="flex-1"
+                    placeholder="自定义服务器（回车添加）"
+                    @keydown.enter.prevent="addDnsServer"
+                  />
+                  <Button size="sm" variant="outline" :icon="Plus" @click="addDnsServer">添加</Button>
+                </div>
               </div>
               <p class="mt-1 text-[10px] text-zinc-400">
-                system 系统默认 · plain 普通 DNS · dot DNS over TLS (853) · doh DNS over HTTPS
+                system 系统默认 · plain 普通 DNS (53) · dot DNS over TLS (853) · doh DNS over HTTPS
               </p>
             </div>
           </template>

@@ -10,6 +10,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"licode/internal/dnsclient"
 )
 
 // OllamaProvider talks to a local Ollama server (native /api/chat endpoint).
@@ -18,8 +20,7 @@ type OllamaProvider struct {
 	baseURL   string
 	model     string
 	retry     int
-	dnsMode   string
-	dnsServer string
+	dns        *dnsclient.Config
 	client    *http.Client
 }
 
@@ -28,7 +29,7 @@ func (p *OllamaProvider) Model() string    { return p.model }
 
 func (p *OllamaProvider) httpClient() *http.Client {
 	if p.client == nil {
-		cfg := Config{DNSMode: p.dnsMode, DNSServer: p.dnsServer}
+		cfg := Config{DNS: p.dns}
 		p.client = cfg.NewLLMHTTPClient(120 * time.Second)
 	}
 	return p.client
