@@ -221,7 +221,7 @@ function doClear() {
         </div>
         <div class="flex items-center gap-1 px-1 pt-1">
           <input ref="fileInput" type="file" multiple accept="image/*,.pdf,.txt,.md,.json,.csv,.js,.ts,.py,.go,.rs,.java,.c,.cpp,.h,.html,.css,.xml,.yaml,.yml" class="hidden" @change="onFileChange" />
-          <Button variant="ghost" size="sm" :icon="Paperclip" title="添加图片/文件" @click="fileInput?.click()" />
+          <Button variant="ghost" size="sm" :icon="Plus" title="添加图片/文件" @click="fileInput?.click()" />
           <Button variant="ghost" size="sm" :icon="GitBranch" title="复制会话为分支" @click="doBranch" />
           <Button variant="ghost" size="sm" :icon="Eraser" title="清空当前对话（/clear）" @click="doClear" />
           <span class="flex-1" />
