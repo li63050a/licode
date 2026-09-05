@@ -392,6 +392,12 @@ func runServe(opts *ServeOptions) error {
 		}
 		handleUpload(w, r, wsState)
 	})
+	mux.HandleFunc("/api/download", func(w http.ResponseWriter, r *http.Request) {
+		if !auth.require(w, r) {
+			return
+		}
+		handleDownload(w, r, wsState)
+	})
 	mux.HandleFunc("/api/workspace", func(w http.ResponseWriter, r *http.Request) {
 		if !auth.require(w, r) {
 			return

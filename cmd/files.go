@@ -1,18 +1,21 @@
 package cmd
 
 import (
+	"archive/zip"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
+	"mime"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 	"unicode"
 )
 
@@ -342,9 +345,11 @@ func handleWorkspace(w http.ResponseWriter, r *http.Request, ws *workspaceState)
 	}
 }
 
-// handleUpload 上传文件到工作目录的 uploads/ 子目录。POST /api/upload（multipart）
+// handleUpload 上传文件到浏览中的目录。POST /api/upload（multipart）
+// 表单字段：file（单个文件）、dir（目标目录，绝对路径或相对工作目录，缺省为工作目录）。
+// 保留原始文件名（去路径），重名时自动追加 _1/_2 去重。
 func handleUpload(w http.ResponseWriter, r *http.Request, ws *workspaceState) {
-	if err := r.ParseMultipartForm(64 << 20); err != nil {
+	if err := r.ParseMultipartForm(256 << 20); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "文件过大或格式错误"})
 		return
 	}
@@ -354,14 +359,28 @@ func handleUpload(w http.ResponseWriter, r *http.Request, ws *workspaceState) {
 		return
 	}
 	defer file.Close()
-	root := ws.Root()
-	uploadDir := filepath.Join(root, "uploads")
-	if err := os.MkdirAll(uploadDir, 0o755); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
+	target, err := ws.fsPath(r.FormValue("dir"))
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "目录无效"})
 		return
 	}
-	name := fmt.Sprintf("%d_%s", time.Now().UnixNano(), sanitizeName(header.Filename))
-	dst := filepath.Join(uploadDir, name)
+	if info, err := os.Stat(target); err != nil || !info.IsDir() {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "目标目录不存在"})
+		return
+	}
+	name := sanitizeName(header.Filename)
+	if name == "" {
+		name = "upload.bin"
+	}
+	dst := filepath.Join(target, name)
+	for i := 1; ; i++ {
+		if _, err := os.Stat(dst); os.IsNotExist(err) {
+			break
+		}
+		ext := filepath.Ext(name)
+		stem := strings.TrimSuffix(name, ext)
+		dst = filepath.Join(target, fmt.Sprintf("%s_%d%s", stem, i, ext))
+	}
 	out, err := os.Create(dst)
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
@@ -372,8 +391,82 @@ func handleUpload(w http.ResponseWriter, r *http.Request, ws *workspaceState) {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
 		return
 	}
-	rel := "uploads/" + name
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "path": rel, "url": "/uploads/" + name})
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "path": dst})
+}
+
+// handleDownload 下载文件或目录。GET /api/download?path=…
+// 文件 → 附件直链；目录 → 实时打包为 zip 后流式下载。
+func handleDownload(w http.ResponseWriter, r *http.Request, ws *workspaceState) {
+	abs, err := ws.fsPath(r.URL.Query().Get("path"))
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "路径无效"})
+		return
+	}
+	info, err := os.Stat(abs)
+	if err != nil {
+		writeJSON(w, http.StatusNotFound, map[string]any{"error": "路径不存在"})
+		return
+	}
+	if info.IsDir() {
+		downloadZip(w, r, abs)
+		return
+	}
+	f, err := os.Open(abs)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "无法读取文件"})
+		return
+	}
+	defer f.Close()
+	setAttachment(w, filepath.Base(abs))
+	http.ServeContent(w, r, filepath.Base(abs), info.ModTime(), f)
+}
+
+// downloadZip 把目录递归打包为 zip 并流式下载。
+func downloadZip(w http.ResponseWriter, r *http.Request, dir string) {
+	w.Header().Set("Content-Type", "application/zip")
+	setAttachment(w, filepath.Base(dir)+".zip")
+	zw := zip.NewWriter(w)
+	_ = filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			return nil
+		}
+		rel, err := filepath.Rel(dir, p)
+		if err != nil {
+			return err
+		}
+		zf, err := zw.Create(filepath.ToSlash(rel))
+		if err != nil {
+			return err
+		}
+		src, err := os.Open(p)
+		if err != nil {
+			return err
+		}
+		_, err = io.Copy(zf, src)
+		src.Close()
+		return err
+	})
+	zw.Close()
+}
+
+// setAttachment 设置 Content-Disposition 附件下载头，兼容中文文件名。
+func setAttachment(w http.ResponseWriter, name string) {
+	fallback := strings.Map(func(r rune) rune {
+		if r < 32 || r > 126 || r == '"' || r == '\\' {
+			return '_'
+		}
+		return r
+	}, name)
+	ct := mime.TypeByExtension(filepath.Ext(name))
+	if ct == "" {
+		ct = "application/octet-stream"
+	}
+	w.Header().Set("Content-Type", ct)
+	w.Header().Set("Content-Disposition",
+		fmt.Sprintf(`attachment; filename="%s"; filename*=UTF-8''%s`, fallback, url.PathEscape(name)))
 }
 
 func sanitizeName(name string) string {

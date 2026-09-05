@@ -202,6 +202,7 @@ document.addEventListener('click',e=>{
     const path=row.dataset.path, isdir=row.dataset.isdir==='1';
     const act=bt.dataset.act;
     if(act==='edit'){openEditor(path);}
+    else if(act==='dl'){downloadPath(path);}
     else if(act==='del'){delPath(path,isdir);}
     else if(act==='chmod'){chmodPath(path);}
     else if(act==='chown'){chownPath(path);}
@@ -265,6 +266,30 @@ async function chownPath(path){
     if(!r.ok)throw new Error(d.error||'修改失败');
     toast('已修改所有者 uid='+d.uid+' gid='+d.gid);loadDir();
   }catch(e){toast('修改所有者失败: '+e.message);}
+}
+function downloadPath(path){
+  const a=document.createElement('a');
+  a.href='/api/download?path='+encodeURIComponent(path);
+  document.body.appendChild(a);a.click();a.remove();
+}
+async function uploadFiles(files){
+  const dir=curPath()||'/';
+  for(const f of files){
+    const fd=new FormData();
+    fd.append('dir',dir);
+    fd.append('file',f);
+    try{
+      const r=await fetch('/api/upload',{method:'POST',body:fd});
+      const d=await r.json();
+      if(!r.ok)throw new Error(d.error||'上传失败');
+      toast('已上传 '+f.name+' → '+d.path);
+    }catch(e){toast('上传 '+f.name+' 失败: '+e.message);}
+  }
+  loadDir();
+}
+function fUpChanged(input){
+  if(input.files&&input.files.length)uploadFiles(input.files);
+  input.value='';
 }
 async function openEditor(path){
   try{

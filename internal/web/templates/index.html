@@ -104,7 +104,9 @@
           <button class="btn" onclick="fsRoot()">根目录 /</button>
           <button class="btn" onclick="mkFile()">＋文件</button>
           <button class="btn" onclick="mkDir()">＋文件夹</button>
-        </div>
+          <button class="btn" onclick="document.getElementById('fUp').click()">⬆ 上传</button>
+          <input id="fUp" type="file" multiple style="display:none" onchange="fUpChanged(this)" />
+          </div>
         <div id="fTree" style="font-size:13px"></div>
       </div>
       <!-- code editor -->

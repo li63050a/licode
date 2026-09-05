@@ -11,6 +11,7 @@
     <span class="fname">{{.Name}}</span>
     <span class="fops">
       {{if not .IsDir}}<button class="ib" data-act="edit" title="编辑/查看">✎</button>{{end}}
+      <button class="ib" data-act="dl" title="{{if .IsDir}}打包下载 zip{{else}}下载{{end}}">⬇</button>
       <button class="ib" data-act="del" title="删除">🗑</button>
       <button class="ib" data-act="chmod" title="修改权限">🔐</button>
       <button class="ib" data-act="chown" title="修改所有者">👤</button>
