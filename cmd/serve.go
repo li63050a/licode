@@ -64,15 +64,10 @@ func newServeCmd() *cobra.Command {
 ~/.licode/config.json，无需重启。`,
 		Args: cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// 加载配置文件：优先 ~/.licode/config.toml，其次当前目录 config.toml
+			// 配置文件：默认 ~/.licode/config.toml；用 -c 指定其他路径
 			cfgPath := opts.ConfigPath
 			if cfgPath == "" {
 				cfgPath = settings.ConfigTOMLPath()
-				if _, err := os.Stat(cfgPath); os.IsNotExist(err) {
-					if _, err := os.Stat("config.toml"); err == nil {
-						cfgPath = "config.toml"
-					}
-				}
 			}
 			cfg, err := settings.LoadTOML(cfgPath)
 			if os.IsNotExist(err) {
@@ -117,7 +112,7 @@ func newServeCmd() *cobra.Command {
 	f.BoolVar(&opts.HTTPS, "https", false, "启用 HTTPS（未指定证书时自动生成自签名证书）")
 	f.StringVar(&opts.TLSCert, "tls-cert", "", "TLS 证书文件路径（cert.pem）")
 	f.StringVar(&opts.TLSKey, "tls-key", "", "TLS 私钥文件路径（key.pem）")
-	f.StringVarP(&opts.ConfigPath, "config", "c", "", "配置文件路径（默认 ~/.licode/config.toml 或 ./config.toml）")
+	f.StringVarP(&opts.ConfigPath, "config", "c", "", "配置文件路径（默认 ~/.licode/config.toml）")
 	return c
 }
 
