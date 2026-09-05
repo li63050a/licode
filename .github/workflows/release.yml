@@ -1,0 +1,132 @@
+# ============================================================
+# licode 手动发布工作流（beta 分支）
+# - 仅手动触发（workflow_dispatch），不会在每次提交时运行
+# - 交叉编译 Linux / Windows 静态二进制（CGO_ENABLED=0，无 cgo）
+# - 自动创建 GitHub Release 并上传产物 + SHA256 校验和
+#
+# 触发方式：仓库 Actions 页面 → 本工作流 → Run workflow
+# ============================================================
+name: Release (手动)
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '版本号（如 0.0.0.3；留空则自动按最新 v* tag 递增末位）'
+        required: false
+        type: string
+        default: ''
+      prerelease:
+        description: '标记为预发布（prerelease）'
+        required: false
+        type: boolean
+        default: false
+      notes:
+        description: '发布说明（Markdown，可留空）'
+        required: false
+        type: string
+        default: ''
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: 构建并发布
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出 beta 分支
+        uses: actions/checkout@v4
+        with:
+          ref: beta
+          fetch-depth: 0 # 需要全部 tag 才能自动计算版本
+
+      - name: 安装 Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          cache: true
+
+      - name: 解析版本号
+        id: version
+        shell: bash
+        run: |
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            LATEST=$(git tag --list 'v*' --sort=-v:refname | head -n1 || true)
+            if [ -z "$LATEST" ]; then
+              VERSION="0.0.0.1"
+            else
+              LAST="${LATEST#v}"
+              IFS='.' read -r a b c d <<< "$LAST"
+              d=${d:-0}
+              d=$((d + 1))
+              VERSION="$a.$b.$c.$d"
+            fi
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+          echo "==> 版本：$VERSION（tag: v$VERSION）"
+
+      - name: 测试
+        run: go test ./...
+
+      - name: 交叉编译 Linux / Windows 静态二进制
+        env:
+          CGO_ENABLED: '0'
+          VERSION: ${{ steps.version.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build
+          LDFLAGS="-s -w -X internal/version.Version=${VERSION}"
+          PLATFORMS=(
+            "linux/amd64"
+            "linux/arm64"
+            "windows/amd64"
+            "windows/arm64"
+          )
+          for p in "${PLATFORMS[@]}"; do
+            GOOS="${p%/*}"
+            GOARCH="${p#*/}"
+            ext=""
+            [ "$GOOS" = "windows" ] && ext=".exe"
+            out="build/licode-${GOOS}-${GOARCH}${ext}"
+            echo "==> $GOOS/$GOARCH -> $out"
+            GOOS="$GOOS" GOARCH="$GOARCH" go build -buildvcs=false -ldflags="$LDFLAGS" -o "$out" .
+          done
+          ls -lh build/
+
+      - name: 生成校验和
+        shell: bash
+        run: |
+          cd build
+          sha256sum licode-* > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: 写入发布说明
+        env:
+          NOTES: ${{ github.event.inputs.notes }}
+          VERSION: ${{ steps.version.outputs.version }}
+        shell: bash
+        run: |
+          if [ -z "$NOTES" ]; then
+            echo "自动构建发布：licode v${VERSION}" > release-notes.md
+          else
+            printf '%s\n' "$NOTES" > release-notes.md
+          fi
+
+      - name: 创建 GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: licode v${{ steps.version.outputs.version }} (beta)
+          body_path: release-notes.md
+          prerelease: ${{ github.event.inputs.prerelease }}
+          files: build/*
+          fail_on_unmatched_files: true
