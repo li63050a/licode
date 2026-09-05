@@ -11,6 +11,14 @@ const md = computed(() => (src: string) => renderMarkdown(src))
     <div
       class="max-w-[85%] whitespace-pre-wrap break-words rounded-2xl rounded-br-md bg-zinc-900 px-4 py-2.5 text-sm leading-relaxed text-zinc-50 dark:bg-zinc-100 dark:text-zinc-900"
     >
+      <div v-if="props.msg.attachments?.length" class="mb-2 flex flex-wrap gap-2">
+        <template v-for="att in props.msg.attachments" :key="att.filename">
+          <img v-if="att.type === 'image' && att.url" :src="att.url" class="max-h-32 max-w-[200px] rounded-lg object-cover" />
+          <span v-else class="flex items-center gap-1 rounded bg-zinc-200 px-2 py-1 text-xs dark:bg-zinc-800">
+            📎 {{ att.filename }}
+          </span>
+        </template>
+      </div>
       {{ props.msg.blocks.filter((b) => b.kind === 'text').map((b) => (b as any).text).join('') }}
     </div>
   </div>

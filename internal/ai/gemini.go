@@ -49,6 +49,7 @@ type geminiPart struct {
 	Text             string          `json:"text,omitempty"`
 	FunctionCall     *geminiFuncCall `json:"functionCall,omitempty"`
 	FunctionResponse *geminiFuncResp `json:"functionResponse,omitempty"`
+	InlineDate       map[string]any  `json:"inlineData,omitempty"`
 }
 
 type geminiFuncCall struct {
@@ -130,7 +131,21 @@ func toGeminiContent(m Message) geminiContent {
 			FunctionResponse: &geminiFuncResp{Name: name, Response: json.RawMessage(strToJSON(m.Content))},
 		}}}
 	default:
-		return geminiContent{Role: "user", Parts: []geminiPart{{Text: m.Content}}}
+		parts := []geminiPart{}
+		if m.Content != "" {
+			parts = append(parts, geminiPart{Text: m.Content})
+		}
+		for _, att := range m.Attachments {
+			if att.Type == "image" {
+				parts = append(parts, geminiPart{InlineDate: map[string]any{
+					"mime_type": att.MIMEType,
+					"data":      att.Data,
+				}})
+			} else {
+				parts = append(parts, geminiPart{Text: "[文件: " + att.Filename + "]\n" + att.Data})
+			}
+		}
+		return geminiContent{Role: "user", Parts: parts}
 	}
 }
 

@@ -24,6 +24,14 @@ export interface McpServer {
   url?: string
 }
 
+export interface Attachment {
+  type: string // "image" | "file"
+  mimeType: string
+  data: string // base64
+  filename: string
+  url?: string // 本地预览 URL（图片）
+}
+
 export interface Settings {
   provider?: string
   base_url?: string
@@ -94,6 +102,14 @@ export interface ChatMessage {
   id: number
   role: 'user' | 'assistant'
   blocks: Block[]
+  attachments?: MessageAttachment[]
+}
+
+export interface MessageAttachment {
+  type: string
+  mime_type: string
+  filename: string
+  url?: string
 }
 
 export interface AskInfo {
@@ -257,7 +273,15 @@ function createStore() {
           running: false,
         })
       }
-      if (blocks.length) out.push({ id: mid++, role: role === 'user' ? 'user' : 'assistant', blocks })
+      const attachments = (Array.isArray(m.attachments) ? m.attachments : []).map((a: any) => ({
+        type: String(a.type ?? ''),
+        mime_type: String(a.mime_type ?? a.mIMEType ?? ''),
+        filename: String(a.filename ?? ''),
+        url: a.url,
+      }))
+      if (blocks.length || attachments.length) {
+        out.push({ id: mid++, role: role === 'user' ? 'user' : 'assistant', blocks, attachments })
+      }
     }
     return out
   }
@@ -346,25 +370,34 @@ function createStore() {
     }
   }
 
-  function sendMessage(content: string) {
+  function sendMessage(content: string, attachments?: Attachment[]) {
     const text = content.trim()
-    if (!text || state.busy) return
+    if ((!text || state.busy) && !(attachments && attachments.length)) return
+    if (!text && !(attachments && attachments.length)) return
     if (!ws || ws.readyState !== WebSocket.OPEN) {
       Message.error('未连接 licode 后端，消息未发送')
       return
     }
-    if (text === '/clear') {
+    if (text === '/clear' && !(attachments && attachments.length)) {
       state.messages = []
       state.statusText = ''
       state.ask = null
       send('message', { content: text })
       return
     }
-    state.messages.push({ id: ++msgId, role: 'user', blocks: [{ kind: 'text', id: ++blockId, text }] })
+    state.messages.push({
+      id: ++msgId,
+      role: 'user',
+      blocks: [{ kind: 'text', id: ++blockId, text: text || '查看附件' }],
+      attachments: attachments?.map((a) => ({ type: a.type, mime_type: a.mimeType, data: '', filename: a.filename, url: a.url })),
+    })
     ensureAssistant()
     state.busy = true
     state.statusText = '思考中…'
-    send('message', { content: text })
+    send('message', {
+      content: text,
+      attachments: attachments?.map((a) => ({ type: a.type, mime_type: a.mimeType, data: a.data, filename: a.filename })),
+    })
   }
 
   function interrupt() {

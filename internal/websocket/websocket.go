@@ -93,8 +93,17 @@ type ClientMessage struct {
 	AskID      string `json:"askId,omitempty"`
 	AskApprove bool   `json:"askApprove,omitempty"`
 	AskAlways  bool   `json:"askAlways,omitempty"`
-	SessionID  string `json:"sessionId,omitempty"`
-	Index      int    `json:"index,omitempty"` // {session_branch} 分支点消息序号
+	SessionID    string        `json:"sessionId,omitempty"`
+	Index        int           `json:"index,omitempty"` // {session_branch} 分支点消息序号
+	Attachments  []Attachment  `json:"attachments,omitempty"`
+}
+
+// Attachment 是多模态附件（图片/文件），base64 编码。
+type Attachment struct {
+	Type     string `json:"type"`      // "image" 或 "file"
+	MIMEType string `json:"mime_type"` // 如 "image/png"
+	Data     string `json:"data"`      // base64 编码
+	Filename string `json:"filename,omitempty"`
 }
 
 var upgrader = websocket.Upgrader{

@@ -46,6 +46,7 @@ type anthropicContent struct {
 	Input     json.RawMessage `json:"input,omitempty"`
 	ToolUseID string          `json:"tool_use_id,omitempty"`
 	Content   json.RawMessage `json:"content,omitempty"`
+	Source    map[string]any  `json:"source,omitempty"`
 }
 
 type anthropicMsg struct {
@@ -93,7 +94,28 @@ func toAnthropicMsg(m Message) anthropicMsg {
 		}
 		return anthropicMsg{Role: RoleAssistant, Content: content}
 	default:
-		return anthropicMsg{Role: RoleUser, Content: []anthropicContent{{Type: "text", Text: m.Content}}}
+		var content []anthropicContent
+		if m.Content != "" {
+			content = append(content, anthropicContent{Type: "text", Text: m.Content})
+		}
+		for _, att := range m.Attachments {
+			if att.Type == "image" {
+				content = append(content, anthropicContent{
+					Type: "image",
+					Source: map[string]any{
+						"type":       "base64",
+						"media_type": att.MIMEType,
+						"data":       att.Data,
+					},
+				})
+			} else {
+				content = append(content, anthropicContent{
+					Type: "text",
+					Text: "[文件: " + att.Filename + "]\n" + att.Data,
+				})
+			}
+		}
+		return anthropicMsg{Role: RoleUser, Content: content}
 	}
 }
 

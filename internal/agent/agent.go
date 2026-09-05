@@ -239,11 +239,17 @@ func NewAgent(client ai.LLMClient, system string) *Agent {
 // Run executes a user request, streaming events through onEvent.
 // It returns after the reply completes or an error occurs.
 func (a *Agent) Run(ctx context.Context, input string, onEvent func(Event)) error {
+	a.RunWithAttachments(ctx, input, nil, onEvent)
+	return nil
+}
+
+// RunWithAttachments 执行请求并附带多模态附件（图片/文件）。
+func (a *Agent) RunWithAttachments(ctx context.Context, input string, attachments []ai.Attachment, onEvent func(Event)) error {
 	if a.TraceID == "" {
 		a.TraceID = logx.NewTraceID()
 	}
 	logx.AgentStart(a.TraceID, a.Name)
-	a.Session.Add(ai.Message{Role: ai.RoleUser, Content: input})
+	a.Session.Add(ai.Message{Role: ai.RoleUser, Content: input, Attachments: attachments})
 
 	for iter := 1; iter <= a.MaxIterations; iter++ {
 		if err := ctx.Err(); err != nil {

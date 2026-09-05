@@ -41,7 +41,7 @@ func (p *OpenAIProvider) httpClient() *http.Client {
 
 type openaiMsg struct {
 	Role       string          `json:"role"`
-	Content    string          `json:"content"`
+	Content    any             `json:"content"`
 	ToolCalls  []aiToolCallReq `json:"tool_calls,omitempty"`
 	ToolCallID string          `json:"tool_call_id,omitempty"`
 }
@@ -107,7 +107,31 @@ func (p *OpenAIProvider) buildBody(req ChatRequest, stream bool) ([]byte, error)
 		msgs = append(msgs, openaiMsg{Role: RoleSystem, Content: req.System})
 	}
 	for _, m := range req.Messages {
-		om := openaiMsg{Role: m.Role, Content: m.Content, ToolCallID: m.ToolCallID}
+		om := openaiMsg{Role: m.Role, ToolCallID: m.ToolCallID}
+		if len(m.Attachments) > 0 {
+			parts := []map[string]any{}
+			if m.Content != "" {
+				parts = append(parts, map[string]any{"type": "text", "text": m.Content})
+			}
+			for _, att := range m.Attachments {
+				if att.Type == "image" {
+					parts = append(parts, map[string]any{
+						"type": "image_url",
+						"image_url": map[string]any{
+							"url": "data:" + att.MIMEType + ";base64," + att.Data,
+						},
+					})
+				} else {
+					parts = append(parts, map[string]any{
+						"type": "text",
+						"text": "[文件: " + att.Filename + "]\n" + att.Data,
+					})
+				}
+			}
+			om.Content = parts
+		} else {
+			om.Content = m.Content
+		}
 		for _, tc := range m.ToolCalls {
 			om.ToolCalls = append(om.ToolCalls, aiToolCallReq{
 				ID:   tc.ID,

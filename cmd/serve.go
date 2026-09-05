@@ -293,31 +293,35 @@ func runServe(opts *ServeOptions) error {
 					ch <- msg.AskApprove
 				}
 
-			case websocket.TypeMessage:
-				if msg.Content == "/clear" {
-					cs.sessions.Current().Clear()
-					c.SendEvent(websocket.ServerEvent{Type: websocket.EvtDone})
-					return
-				}
-				cs.mu.Lock()
-				if cs.busy {
-					cs.mu.Unlock()
-					c.SendEvent(websocket.ServerEvent{Type: websocket.EvtError, Error: "上一条消息仍在处理中，请稍候"})
-					return
-				}
-				cs.busy = true
-				msgCtx, msgCancel := context.WithCancel(ctx)
-				cs.interruptCancel = msgCancel
+case websocket.TypeMessage:
+			if msg.Content == "/clear" {
+				cs.sessions.Current().Clear()
+				c.SendEvent(websocket.ServerEvent{Type: websocket.EvtDone})
+				return
+			}
+			cs.mu.Lock()
+			if cs.busy {
 				cs.mu.Unlock()
-				defer func() {
-					cs.mu.Lock()
-					cs.busy = false
-					cs.interruptCancel = nil
-					cs.mu.Unlock()
-					msgCancel()
-				}()
-				runServerAgent(msgCtx, st, cs, c, msg.Content, msg.System)
-				_ = cs.sessions.SaveAll()
+				c.SendEvent(websocket.ServerEvent{Type: websocket.EvtError, Error: "上一条消息仍在处理中，请稍候"})
+				return
+			}
+			cs.busy = true
+			msgCtx, msgCancel := context.WithCancel(ctx)
+			cs.interruptCancel = msgCancel
+			cs.mu.Unlock()
+			defer func() {
+				cs.mu.Lock()
+				cs.busy = false
+				cs.interruptCancel = nil
+				cs.mu.Unlock()
+				msgCancel()
+			}()
+			atts := make([]ai.Attachment, 0, len(msg.Attachments))
+			for _, a := range msg.Attachments {
+				atts = append(atts, ai.Attachment{Type: a.Type, MIMEType: a.MIMEType, Data: a.Data, Filename: a.Filename})
+			}
+			runServerAgentWithAttachments(msgCtx, st, cs, c, msg.Content, msg.System, atts)
+			_ = cs.sessions.SaveAll()
 
 			case websocket.TypeInterrupt:
 				cs.mu.Lock()
@@ -694,8 +698,8 @@ func reloadServerSettings(st *serverState) error {
 	return nil
 }
 
-// runServerAgent 在当前设置下运行一次 Agent，流式回传事件。
-func runServerAgent(ctx context.Context, st *serverState, cs *connState, c *websocket.Client, content, roleSystem string) {
+// runServerAgentWithAttachments 在当前设置下运行一次 Agent，支持附件。
+func runServerAgentWithAttachments(ctx context.Context, st *serverState, cs *connState, c *websocket.Client, content, roleSystem string, attachments []ai.Attachment) {
 	st.mu.RLock()
 	s := st.settings.Snapshot()
 	client := st.client
@@ -708,12 +712,10 @@ func runServerAgent(ctx context.Context, st *serverState, cs *connState, c *webs
 
 	ag := s.BuildAgent(client)
 	if roleSystem != "" {
-		// 当前激活"角色"的系统提示词前置到默认系统提示词之前。
 		ag.System = roleSystem + "\n" + ag.System
 	}
 	ag.Session = sess
 	ag.Ask = func(ctx context.Context, toolName, args string) (bool, error) {
-		// 自动允许，或本对话已"始终允许"该工具 → 不再询问
 		if s.AutoAllow || sess.AlwaysAllowed(toolName) {
 			return true, nil
 		}
@@ -742,7 +744,6 @@ func runServerAgent(ctx context.Context, st *serverState, cs *connState, c *webs
 	if s.Streaming != nil {
 		stream = *s.Streaming
 	}
-	// 特性5：轻量 RAG —— 命中时把相关源码片段注入系统提示词
 	if s.RAGEnabled {
 		if snippets := st.ragLookup(content, s.RAGSource, s.RAGTopFiles); snippets != "" {
 			ag.System += "\n\n以下是用户当前项目中的相关源码片段（来自 RAG 检索），" +
@@ -750,33 +751,35 @@ func runServerAgent(ctx context.Context, st *serverState, cs *connState, c *webs
 		}
 	}
 	var textBuf strings.Builder
-	err := ag.Run(ctx, content, func(e agent.Event) {
+	_ = ag.RunWithAttachments(ctx, content, attachments, func(e agent.Event) {
 		if e.Type == agent.EventText && !stream {
 			textBuf.WriteString(e.Content)
-			return
+		} else if e.Type == agent.EventText {
+			c.SendEvent(websocket.ServerEvent{Type: websocket.EvtDelta, Content: e.Content})
+		} else if e.Type == agent.EventToolStart {
+			c.SendEvent(websocket.ServerEvent{
+				Type: websocket.EvtToolStart, ToolName: e.ToolName, ToolArgs: e.ToolArgs,
+			})
+		} else if e.Type == agent.EventToolDone {
+			c.SendEvent(websocket.ServerEvent{
+				Type: websocket.EvtToolDone, ToolName: e.ToolName, ToolOut: e.ToolOut,
+			})
+		} else if e.Type == agent.EventDone {
+			if !stream && textBuf.Len() > 0 {
+				c.SendEvent(websocket.ServerEvent{Type: websocket.EvtDelta, Content: textBuf.String()})
+			}
+			c.SendEvent(websocket.ServerEvent{Type: websocket.EvtDone})
+		} else if e.Type == agent.EventError {
+			c.SendEvent(websocket.ServerEvent{Type: websocket.EvtError, Error: e.Error})
+		} else if e.Type == agent.EventStatus {
+			c.SendEvent(websocket.ServerEvent{Type: websocket.EvtStatus, Content: e.Content})
 		}
-		if e.Type == agent.EventDone && !stream && textBuf.Len() > 0 {
-			c.SendEvent(websocket.ServerEvent{Type: websocket.EvtDelta, Content: textBuf.String()})
-			textBuf.Reset()
-		}
-		c.SendEvent(websocket.ServerEvent{
-			Type:     mapEventType(e.Type),
-			Content:  e.Content,
-			ToolName: e.ToolName,
-			ToolArgs: e.ToolArgs,
-			ToolOut:  e.ToolOut,
-			Error:    e.Error,
-		})
 	})
-	// 累计本次运行用量并推送会话统计（提供商/模型/上下文/缓存/命中率等）
-	sess.AddUsage(ag.Usage)
-	c.SendEvent(websocket.ServerEvent{
-		Type:  websocket.EvtStats,
-		Stats: sessionStats(sess),
-	})
-	if err != nil && ctx.Err() == nil {
-		c.SendEvent(websocket.ServerEvent{Type: websocket.EvtError, Error: err.Error()})
-	}
+}
+
+// runServerAgent 在当前设置下运行一次 Agent，流式回传事件。
+func runServerAgent(ctx context.Context, st *serverState, cs *connState, c *websocket.Client, content, roleSystem string) {
+	runServerAgentWithAttachments(ctx, st, cs, c, content, roleSystem, nil)
 }
 
 // sessionStats 估算会话 token 用量并附带提供商/模型/上下文/缓存统计。

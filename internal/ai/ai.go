@@ -33,12 +33,20 @@ type ToolCall struct {
 
 // Message is a provider-agnostic conversation message.
 type Message struct {
-	Role       string     `json:"role"`
-	Content    string     `json:"content"`
-	ToolCalls  []ToolCall `json:"tool_calls,omitempty"`
-	ToolCallID string     `json:"tool_call_id,omitempty"`
-	// ToolName 记录工具结果对应的函数名（Gemini functionResponse 需要）。
-	ToolName string `json:"tool_name,omitempty"`
+	Role        string       `json:"role"`
+	Content     string       `json:"content"`
+	ToolCalls   []ToolCall   `json:"tool_calls,omitempty"`
+	ToolCallID  string       `json:"tool_call_id,omitempty"`
+	ToolName    string       `json:"tool_name,omitempty"` // Gemini functionResponse 需要
+	Attachments []Attachment `json:"attachments,omitempty"`
+}
+
+// Attachment 是多模态附件（图片/文件），各厂商按各自协议翻译。
+type Attachment struct {
+	Type     string `json:"type"`      // "image" 或 "file"
+	MIMEType string `json:"mime_type"` // 如 "image/png", "application/pdf"
+	Data     string `json:"data"`      // base64 编码内容
+	Filename string `json:"filename,omitempty"`
 }
 
 // FunctionSpec describes a callable tool's schema.
