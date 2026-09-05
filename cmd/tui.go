@@ -10,18 +10,20 @@ import (
 	"licode/internal/tui"
 )
 
-// NewTUICommand 返回 TUI 命令。
+// NewTUICommand 返回 TUI 命令（默认命令）。
 func NewTUICommand() *cobra.Command {
 	return &cobra.Command{
-		Use:   "tui",
-		Short: "终端 TUI 界面",
-		Long: `licode tui —— 启动终端 TUI 界面。
+		Use:   "licode",
+		Short: "AI 编程助手（TUI 终端界面）",
+		Long: `licode —— 启动终端 TUI 界面。
 
 启动后即可在终端中与 licode 对话，支持：
   - 流式回复（实时显示 AI 输出）
   - 工具调用可视化
   - 会话管理（新建/切换/删除/分支）
   - 快捷键操作
+
+启动 Web 服务器：./licode web
 
 快捷键：
   Enter      发送消息

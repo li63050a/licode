@@ -51,13 +51,13 @@ func NewServeCommand() *cobra.Command { return newServeCmd() }
 func newServeCmd() *cobra.Command {
 	opts := &ServeOptions{}
 	c := &cobra.Command{
-		Use:   "licode",
+		Use:   "web",
 		Short: "AI 编程助手（Web 界面）",
-		Long: `licode —— AI 编程助手（Web 界面）。
+		Long: `licode web —— 启动 Web 服务器。
 
-直接运行 ./licode 即启动 Web 服务器，参数直接跟在其后，例如：
-    ./licode --host 0.0.0.0 --port 8080
-    ./licode --password 你的密码            （设置后启用登录，默认用户名 licode）
+启动 Web 服务器，浏览器访问 http://<host>:<port> 即可使用，例如：
+    ./licode web --host 0.0.0.0 --port 8080
+    ./licode web --password 你的密码            （设置后启用登录，默认用户名 licode）
 
 浏览器访问 http://<host>:<port> 即可使用，支持手机/电脑。
 所有 AI 推理都在本服务器执行。设置可在网页端实时修改并写回
